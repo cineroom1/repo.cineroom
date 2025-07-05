@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<addons>
+<addon id="plugin.video.cineroom" version="4.3.0" name="Cineroom" provider-name="Gael">
+  <requires>
+    <import addon="xbmc.python" version="3.0.0"/>
+  </requires>
+
+  <!-- Extensão principal do plugin -->
+  <extension point="xbmc.python.pluginsource" library="main.py">
+    <provides>video</provides>
+  </extension>
+
+  <!-- Serviço de Cache (adicionar esta parte) -->
+  <extension point="xbmc.service" library="resources/lib/cache/cleanup_service.py">
+    <provides>executable</provides>
+  </extension>
+
+  <extension point="xbmc.addon.metadata">
+    <description lang="pt_BR">Somos apenas um agregador de links.</description>
+    <disclaimer lang="pt_BR">Obrigado pela Preferência S2</disclaimer>
+    <license>GPL-3.0-only</license>
+    <assets>
+      <icon>resources/images/icon.png</icon>
+      <fanart>resources/images/fanart.jpg</fanart>
+      <screenshot>resources/images/screenshot-1.jpg</screenshot>
+      <screenshot>resources/images/screenshot-2.jpg</screenshot>
+      <screenshot>resources/images/screenshot-3.jpg</screenshot>
+    </assets>
+  </extension>
+</addon>
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<addon id="repository.cineroom" name="Repositório Cineroom" version="1.0.0" provider-name="Gael">
+    <extension point="xbmc.addon.repository" name="Cineroom Repository">
+        <info compressed="false">https://raw.githubusercontent.com/cineroom1/repo.cineroom/main/addons.xml</info>
+        <checksum>https://raw.githubusercontent.com/cineroom1/repo.cineroom/main/addons.xml.md5</checksum>
+        <datadir>https://raw.githubusercontent.com/cineroom1/repo.cineroom/main/repo/</datadir>
+    </extension>
+    <extension point="xbmc.addon.metadata">
+        <summary>Repositório oficial Cineroom</summary>
+        <description>Repositório com os addons oficiais do Cineroom</description>
+        <platform>all</platform>
+    </extension>
+</addon>
+</addons>
