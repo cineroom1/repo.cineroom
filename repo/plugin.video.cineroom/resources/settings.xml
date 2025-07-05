@@ -1,0 +1,108 @@
+<settings>
+
+    <category label="Menu Principal">
+        <setting id="mostrar_filmes" 
+		         type="bool" 
+				 label="Exibir categoria: Filmes" 
+				 default="true"/>
+				 
+        <setting id="mostrar_series" 
+		         type="bool" 
+		         label="Exibir categoria: Séries" 
+		         default="true"/>
+				 
+        <setting id="mostrar_pesquisar" 
+		         type="bool" 
+		         label="Exibir categoria: Pesquisar" 
+		         default="true"/>
+				 
+        <setting id="mostrar_canais" 
+		         type="bool" 
+		         label="Exibir categoria: Canais" 
+		         default="false"/>
+				 
+        <setting id="mostrar_explorar" 
+		         type="bool" 
+		         label="Exibir categoria: Explorar" 
+		         default="true"/>
+				 
+        <setting id="mostrar_favoritos" 
+		         type="bool" 
+				 label="Exibir categoria: Minha Lista" 
+				 default="true"/>		
+        <setting label="[COLOR gold][B]REINICIE O ADDON PARA SURTIR EFEITO[/B][/COLOR]" type="info"/>		
+		 
+    </category>
+	
+    <category label="Explorar">
+        <setting id="random_section_type"
+                 type="labelenum"
+                 label="Tipo de conteúdo da seção Aleatória"
+                 label2="Escolha entre exibir filmes, séries ou ambos"
+                 values="Ambos|Somente Filmes|Somente Séries"
+                 default="Ambos" />
+
+        <setting id="trending_section_type"
+                 type="labelenum"
+                 label="Tipo de conteúdo da seção Em Alta"
+                 label2="Filtrar conteúdo em alta por tipo"
+                 values="Ambos|Somente Filmes"
+                 default="Ambos" />
+                 
+        <setting id="weekly_recommendation_type" 
+                 type="labelenum" 
+                 label="Tipo de Recomendação Semanal" 
+                 label2="Escolha entre exibir filmes, séries ou ambos"
+                 values="Ambos|Somente Filmes|Somente Séries" 
+                 default="Ambos" />
+				
+        <setting id="year_section_type"
+                 type="labelenum"
+                 label="Tipo de conteúdo da seção Por Ano"
+                 label2="Escolha entre exibir filmes, séries ou ambos"
+                 values="Ambos|Somente Filmes|Somente Séries"
+                 default="Ambos" />
+				 
+		<setting id="provider_section_type"
+                 type="labelenum"
+                 label="Tipo de conteúdo da seção Por Provedor"
+                 label2="Escolha entre exibir filmes, séries ou ambos"
+                 values="Ambos|Somente Filmes|Somente Séries"
+                 default="Ambos" />	 
+		
+    </category>  
+	
+	<category label="Geral">
+        <setting id="items_per_page" 
+                 type="labelenum" 
+                 label="Itens por página" 
+                 values="5|10|15|20|25|30|35|40|45|50|100|150|200|250|300"
+                 default="35" />
+		         <setting label="[COLOR orange][B]USE 25 ITENS PARA DISPOSITIVOS FRACOS[/B][/COLOR]" type="info"/>
+
+	    <setting id="threads_cache" 
+                 type="labelenum" 
+                 label="Número de Threads do Cache" 
+                 values="2|4|6|8|10|12|14|16|18|20|24|28|32" 
+                 default="2" />
+				 <setting label="[COLOR gold][B]PARA DISPOSITIVOS LENTOS USE ATÉ 6 THREADS[/B][/COLOR]" type="info"/>	
+				 
+		<setting label="Visualização" 
+		         id="view_mode" 
+				 type="labelenum" 
+				 values="list|poster|iconwall|shift|infowall|widelist|wall|banner|fanart" 
+				 default="list" />
+		
+		<setting id="default_search_provider" 
+		         type="enum" 
+				 label="Provedor de busca padrão" 
+				 values="Elementum|Jacktook" default="1" />		 
+			 
+	</category>			 
+				 		 
+		 
+
+
+
+
+</settings>
