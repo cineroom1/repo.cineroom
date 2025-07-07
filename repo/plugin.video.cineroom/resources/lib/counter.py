@@ -101,6 +101,7 @@ def register_menu_access():
     addon = xbmcaddon.Addon()
     user_id = get_user_unique_id()
     today = time.strftime('%Y-%m-%d')
+    current_time = time.time()
 
     # Caminho do arquivo persistente
     data_path = xbmcvfs.translatePath(addon.getAddonInfo('profile'))
@@ -115,11 +116,17 @@ def register_menu_access():
 
     last_access = data.get('last_menu_access')
     last_user = data.get('last_user_id')
+    last_timestamp = data.get('last_timestamp', 0)
 
-    if last_access != today or last_user != user_id:
+    # Verifica se já passou pelo menos 1 hora desde o último registro
+    if (last_access != today or 
+        last_user != user_id or 
+        (current_time - last_timestamp) > 3600):  # 3600 segundos = 1 hora
+        
         update_firebase_counter("Visitas_menu")
         data['last_menu_access'] = today
         data['last_user_id'] = user_id
+        data['last_timestamp'] = current_time
 
         # Salva novamente
         os.makedirs(data_path, exist_ok=True)

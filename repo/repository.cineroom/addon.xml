@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<addon id="repository.cineroom" name="Repositório Cineroom" version="1.0.0" provider-name="Gael">
+<addon id="repository.cineroom" name="Cineroom Repo" version="1.0.0" provider-name="Gael">
   <requires>
     <import addon="xbmc.addon" version="12.0.0"/>
   </requires>
@@ -15,5 +15,8 @@
     <summary>Repositório oficial Cineroom</summary>
     <description>Repositório com os addons oficiais do Cineroom</description>
     <platform>all</platform>
+	<assets>
+      <icon>icon.png</icon>
+    </assets>
   </extension>
 </addon>

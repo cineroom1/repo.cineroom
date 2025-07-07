@@ -18,7 +18,6 @@ from urllib.parse import urlencode, parse_qsl
 from resources.action.favorites import load_favorites
 from resources.action.video_listing import create_video_item
 from resources.lib.utils import get_all_videos, VIDEO_CACHE, FILTERED_CACHE
-from resources.lib.tmdb.tmdb_series import get_tmdb_series_popularity, load_series_popularity_cache, save_series_popularity_cache, REQUEST_DELAY_SECONDS
 from resources.lib.utils_view import set_view_mode
 
 

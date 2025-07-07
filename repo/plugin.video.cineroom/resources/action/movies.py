@@ -21,7 +21,6 @@ from resources.lib.utils import get_all_videos, VIDEO_CACHE, FILTERED_CACHE
 import urllib.request
 from resources.action.video_listing import create_video_item, list_videos
 from resources.action.favorites import load_favorites
-from resources.lib.tmdb.tmdb_movies import get_tmdb_popularity, load_popularity_cache, save_popularity_cache, REQUEST_DELAY_SECONDS
 from resources.lib.utils_view import set_view_mode
 
 

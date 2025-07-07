@@ -37,7 +37,7 @@ def get_all_videos():
 
     all_videos = []
     progress = xbmcgui.DialogProgressBG()
-    progress.create('Carregando Conteúdo', 'Inicializando...')
+    progress.create('Carregando Conteúdo')
 
     local_cache = {}
     cache_lock = threading.Lock()
@@ -209,7 +209,7 @@ def get_all_videos():
 
         progress.update(0, 'Iniciando busca de conteúdo...')
 
-        max_workers = 5
+        max_workers = min(20, os.cpu_count() * 5)
         completed_tasks = 0
 
         with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -229,7 +229,7 @@ def get_all_videos():
                 progress_percent = int((completed_tasks / total_urls) * 100)
                 
                 progress.update(progress_percent,
-                                f'Extraindo... {completed_tasks}')
+                                f'Extraindo...')
 
                 try:
                     result = future.result()
