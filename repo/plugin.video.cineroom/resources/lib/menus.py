@@ -1,16 +1,16 @@
+import sys
+import time
+import json
 import urllib.request
 import urllib.parse
-import json
-import xbmcplugin
+import xbmc
 import xbmcgui
-import sys
-import os
+import xbmcplugin
 import xbmcaddon
-import time
-import base64
+
+from urllib.parse import urlencode
 
 from resources.lib.encryption_utils import obfuscate_string, deobfuscate_string
-from urllib.parse import urlencode, parse_qsl
 from resources.action.donation_window import DonationDialog
 from resources.action.telegram_window import TelegramDialog
 from resources.lib.configs.urls import data_feed
@@ -24,8 +24,11 @@ from resources.lib.counter import (
 # Configurações do plugin
 URL = sys.argv[0]
 HANDLE = int(sys.argv[1])
+ADDON = xbmcaddon.Addon()
 
-# --- Estrutura Padrão dos Contadores ---
+CACHE_KEY_MAIN_MENU = "main_menu_data"
+CACHE_EXPIRY_HOURS = 24
+
 DEFAULT_COUNTERS = {
     "Filmes": 5,
     "Séries": 5,
@@ -35,157 +38,106 @@ DEFAULT_COUNTERS = {
 }
 
 def get_url(**kwargs):
-    """
-    Cria uma URL para chamar o plugin recursivamente a partir dos argumentos fornecidos.
-    """
-    return '{}?{}'.format(URL, urlencode(kwargs))
+    """Cria uma URL para chamar o plugin recursivamente a partir dos argumentos fornecidos."""
+    return '{}?{}'.format(URL, urlencode(kwargs, doseq=True))
+
+def try_load_expired_cache(key):
+    """Tenta carregar do cache expirado e desserializar JSON."""
+    expired = VIDEO_CACHE.get(key, ignore_expiry=True)
+    if expired:
+        try:
+            return json.loads(expired)
+        except json.JSONDecodeError:
+            xbmc.log(f"[ERROR] Cache expirado corrompido para a chave {key}", xbmc.LOGERROR)
+    return None
 
 def check_maintenance_status(menu):
-    """
-    Verifica se o addon está em manutenção.
-    Retorna True se o status for "off", caso contrário, retorna False.
-    """
+    """Verifica se o addon está em manutenção (status == 'off' no primeiro item)."""
     if menu and isinstance(menu, list) and len(menu) > 0:
         first_item = menu[0]
         if isinstance(first_item, dict) and first_item.get("status", "").lower() == "off":
             return True
     return False
 
-import xbmc
-import xbmcgui
-
 def get_menu(force_refresh=False):
-    """
-    Obtém o menu principal com sistema de cache (validade de 7 dias)
-    """
-    cache_key = "main_menu_data"
-    
-    # Verificar cache primeiro (se não for force_refresh)
+    """Obtém o menu principal com sistema de cache (validade padrão)."""
     if not force_refresh:
-        cached_data_string = VIDEO_CACHE.get(cache_key)
+        cached_data_string = VIDEO_CACHE.get(CACHE_KEY_MAIN_MENU)
         if cached_data_string:
             try:
-                # DESERIALIZE a string de volta para uma lista Python
                 menu_list = json.loads(cached_data_string)
-                xbmc.log("[CACHE] Menu carregado do cache (validade: 7 dias)", xbmc.LOGDEBUG)
+                xbmc.log("[CACHE] Menu carregado do cache", xbmc.LOGDEBUG)
                 return menu_list
             except json.JSONDecodeError as e:
-                xbmc.log(f"[ERROR] JSON inválido no cache do menu: {str(e)}. Deletando cache corrompido.", xbmc.LOGERROR)
-                VIDEO_CACHE.delete(cache_key) # Deleta cache corrompido para tentar buscar novamente
+                xbmc.log(f"[ERROR] JSON inválido no cache do menu: {e}. Deletando cache corrompido.", xbmc.LOGERROR)
+                VIDEO_CACHE.delete(CACHE_KEY_MAIN_MENU)
             except Exception as e:
-                xbmc.log(f"[ERROR] Erro ao carregar menu do cache: {str(e)}. Deletando cache.", xbmc.LOGERROR)
-                VIDEO_CACHE.delete(cache_key) # Deleta cache em caso de outros erros
+                xbmc.log(f"[ERROR] Erro ao carregar menu do cache: {e}. Deletando cache.", xbmc.LOGERROR)
+                VIDEO_CACHE.delete(CACHE_KEY_MAIN_MENU)
 
     try:
         xbmc.log("[NETWORK] Buscando dados do menu...", xbmc.LOGDEBUG)
-        
-        req = urllib.request.Request(
-            data_feed,
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
-        
+        req = urllib.request.Request(data_feed, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
-            # --- Lógica de tratamento de resposta da rede ---
-            # (Mantenha seu código existente para status 429, 200, resposta vazia, etc.)
-            
+
             if response.status == 429:
                 xbmcgui.Dialog().notification('Aviso', 'Muitas requisições. Tente novamente mais tarde.', xbmcgui.NOTIFICATION_WARNING)
-                # Tenta obter do cache expirado como fallback, mas ainda precisa deserializar
-                expired_cache_string = VIDEO_CACHE.get(cache_key, ignore_expiry=True)
-                if expired_cache_string:
-                    try:
-                        return json.loads(expired_cache_string)
-                    except json.JSONDecodeError:
-                        xbmc.log("[ERROR] Cache expirado do menu corrompido.", xbmc.LOGERROR)
-                return None
-            
+                return try_load_expired_cache(CACHE_KEY_MAIN_MENU) or []
+
             if response.status != 200:
                 xbmc.log(f"[ERROR] Status code: {response.status}", xbmc.LOGERROR)
-                expired_cache_string = VIDEO_CACHE.get(cache_key, ignore_expiry=True)
-                if expired_cache_string:
-                    try:
-                        return json.loads(expired_cache_string)
-                    except json.JSONDecodeError:
-                        xbmc.log("[ERROR] Cache expirado do menu corrompido.", xbmc.LOGERROR)
-                return []
-                
+                return try_load_expired_cache(CACHE_KEY_MAIN_MENU) or []
+
             raw_data = response.read().decode('utf-8')
             if not raw_data:
                 xbmc.log("[ERROR] Resposta vazia do servidor", xbmc.LOGERROR)
-                expired_cache_string = VIDEO_CACHE.get(cache_key, ignore_expiry=True)
-                if expired_cache_string:
-                    try:
-                        return json.loads(expired_cache_string)
-                    except json.JSONDecodeError:
-                        xbmc.log("[ERROR] Cache expirado do menu corrompido.", xbmc.LOGERROR)
-                return []
-                
-            try:
-                menu = json.loads(raw_data) # 'menu' é uma LISTA aqui
-            except json.JSONDecodeError as e:
-                xbmc.log(f"[ERROR] JSON inválido: {str(e)}", xbmc.LOGERROR)
-                expired_cache_string = VIDEO_CACHE.get(cache_key, ignore_expiry=True)
-                if expired_cache_string:
-                    try:
-                        return json.loads(expired_cache_string)
-                    except json.JSONDecodeError:
-                        xbmc.log("[ERROR] Cache expirado do menu corrompido.", xbmc.LOGERROR)
-                return []
-            
+                return try_load_expired_cache(CACHE_KEY_MAIN_MENU) or []
+
+            menu = json.loads(raw_data)
             if not isinstance(menu, list):
                 xbmc.log("[ERROR] Estrutura de dados inválida (esperava lista)", xbmc.LOGERROR)
-                expired_cache_string = VIDEO_CACHE.get(cache_key, ignore_expiry=True)
-                if expired_cache_string:
-                    try:
-                        return json.loads(expired_cache_string)
-                    except json.JSONDecodeError:
-                        xbmc.log("[ERROR] Cache expirado do menu corrompido.", xbmc.LOGERROR)
-                return []
-            
-            # --- PONTO CRÍTICO DE MUDANÇA: Serializar a lista para JSON string antes de salvar ---
-            menu_json_string = json.dumps(menu, ensure_ascii=False)
-            VIDEO_CACHE.set(cache_key, menu_json_string, expiry_hours=24) # Salva a STRING
-            xbmc.log("[CACHE] Menu armazenado com sucesso", xbmc.LOGDEBUG) # Este log pode permanecer
-            
-            return menu # Retorna a LISTA para o chamador
-            
+                return try_load_expired_cache(CACHE_KEY_MAIN_MENU) or []
+
+            VIDEO_CACHE.set(CACHE_KEY_MAIN_MENU, json.dumps(menu, ensure_ascii=False), expiry_hours=CACHE_EXPIRY_HOURS)
+            xbmc.log("[CACHE] Menu armazenado com sucesso", xbmc.LOGDEBUG)
+            return menu
+
     except Exception as e:
-        xbmc.log(f"[ERROR] {str(e.__class__.__name__)}: {str(e)}", xbmc.LOGERROR)
-        # Tenta obter do cache expirado como fallback, mas ainda precisa deserializar
-        expired_cache_string = VIDEO_CACHE.get(cache_key, ignore_expiry=True)
-        if expired_cache_string:
-            try:
-                return json.loads(expired_cache_string)
-            except json.JSONDecodeError:
-                xbmc.log("[ERROR] Cache expirado do menu corrompido.", xbmc.LOGERROR)
-        return []
+        xbmc.log(f"[ERROR] {e.__class__.__name__}: {e}", xbmc.LOGERROR)
+        return try_load_expired_cache(CACHE_KEY_MAIN_MENU) or []
+
+def create_list_item(label, art=None, info=None):
+    """Cria um ListItem do Kodi com arte e info (opcional)."""
+    li = xbmcgui.ListItem(label=label)
+    if art:
+        li.setArt(art)
+    if info:
+        li.setInfo('video', info)
+    return li
 
 def list_menu():
-    """Exibe o menu principal com contadores atualizados"""
+    """Exibe o menu principal com contadores atualizados."""
     xbmcplugin.setPluginCategory(HANDLE, 'Menu Principal')
     menu = get_menu()
     if not menu:
         return
 
     counters = get_firebase_counters()
-
-    addon = xbmcaddon.Addon()
-    last_access = addon.getSetting('last_menu_access')
+    last_access = ADDON.getSetting('last_menu_access')
     current_date = time.strftime('%Y-%m-%d')
 
     if last_access != current_date:
         new_count = update_firebase_counter("Visitas_menu")
         if new_count is not None:
             counters["Visitas_menu"] = new_count
-            addon.setSetting('last_menu_access', current_date)
+            ADDON.setSetting('last_menu_access', current_date)
 
     settings_map = {
-        "Filmes": addon.getSettingBool('mostrar_filmes'),
-        "Séries": addon.getSettingBool('mostrar_series'),
-        "Pesquisar": addon.getSettingBool('mostrar_pesquisar'),
-        "Canais": addon.getSettingBool('mostrar_canais'),
-        "Explorar": addon.getSettingBool('mostrar_explorar'),
-        "Minha_Lista": addon.getSettingBool('mostrar_favoritos')
+        "Filmes": ADDON.getSettingBool('mostrar_filmes'),
+        "Séries": ADDON.getSettingBool('mostrar_series'),
+        "Pesquisar": ADDON.getSettingBool('mostrar_pesquisar'),
+        "Explorar": ADDON.getSettingBool('mostrar_explorar'),
+        "Minha_Lista": ADDON.getSettingBool('mostrar_favoritos')
     }
 
     for index, menu_info in enumerate(menu[1:], start=1):
@@ -200,18 +152,17 @@ def list_menu():
 
         if status == "off":
             label = f"[COLOR red]•[/COLOR] {title} - (Manutenção)"
-            list_item = xbmcgui.ListItem(label=label)
-            list_item.setInfo('video', {'title': f'{title} - Indisponível', 'plot': 'Em manutenção'})
+            info = {'title': f'{title} - Indisponível', 'plot': 'Em manutenção'}
         else:
-            label = f"{title}"  # Texto simples sem formatação de cor
-            list_item = xbmcgui.ListItem(label=label)
-            list_item.setInfo('video', {'title': title, 'plot': plot})
+            label = title
+            info = {'title': title, 'plot': plot}
 
-        list_item.setArt({
+        art = {
             'icon': menu_info.get('poster', ''),
             'fanart': menu_info.get('fanart', ''),
             'thumb': menu_info.get('poster', '')
-        })
+        }
+        list_item = create_list_item(label, art=art, info=info)
 
         if 'subcategorias' in menu_info:
             url = get_url(action='list_subcategories', menu_index=index)
@@ -227,7 +178,7 @@ def list_menu():
     xbmcplugin.endOfDirectory(HANDLE)
 
 def list_subcategories(menu_index):
-    """Lista subcategorias com cache"""
+    """Lista subcategorias com cache."""
     menu = get_menu()
     if not menu or menu_index >= len(menu):
         return
@@ -239,7 +190,6 @@ def list_subcategories(menu_index):
     
     category_key = menu[menu_index].get("menu_key", "")
     
-    # Atualiza contador no Firebase
     if category_key in ["Filmes", "Séries", "Explorar"]:
         new_count = update_firebase_counter(category_key)
     
@@ -247,23 +197,22 @@ def list_subcategories(menu_index):
     xbmcplugin.setContent(HANDLE, "files")
 
     for subcategory in subcategories:
-        label = f"{subcategory['categories']}"
+        label = subcategory['categories']
             
-        list_item = xbmcgui.ListItem(label=label)
-        list_item.setArt({
+        art = {
             'icon': subcategory.get('poster', ''),
             'fanart': subcategory.get('backdrop', menu[menu_index].get('fanart', ''))
-        })
+        }
         
         info = {
-            'title': subcategory['categories'],
+            'title': label,
             'plot': subcategory.get('description', '')
         }
         
         if subcategory.get('year'):
             info['year'] = subcategory['year']
-            
-        list_item.setInfo('video', info)
+        
+        list_item = create_list_item(label, art=art, info=info)
         
         if 'action' in subcategory:
             url = get_url(action=subcategory['action'])
@@ -279,68 +228,12 @@ def list_subcategories(menu_index):
     xbmcplugin.endOfDirectory(HANDLE)
 
 
-
-def list_sub_external_links(menu_index):
-    """
-    Exibe sublistas de canais com base nos links múltiplos.
-    Suporta também a opção 'search(Pesquisar Canal)'.
-    """
-    menu = get_menu()
-    item = menu[menu_index]
-
-    links = item.get('externallink', [])
-    if not links:
-        xbmcgui.Dialog().ok("Erro", "Nenhum link externo encontrado.")
-        return
-
-    for link in links:
-        if "(" in link and ")" in link:
-            base_url = link.split("(")[0].strip()
-            nome = link.split("(")[-1].replace(")", "").strip()
-        else:
-            base_url = link.strip()
-            nome = "Lista"
-
-        if base_url.lower() == "search":
-            search_url = f"{sys.argv[0]}?action=search_canais"
-            search_item = xbmcgui.ListItem(label=f"[COLOR yellow]{nome}[/COLOR]")
-            search_item.setArt({
-                'icon': "https://archive.org/download/em_alta/search.png",
-                'fanart': item.get('fanart', '')
-            })
-            xbmcplugin.addDirectoryItem(HANDLE, search_url, search_item, isFolder=True)
-            continue
-        # Só executa daqui pra baixo se não for 'search'
-        quoted_url = urllib.parse.quote_plus(base_url)
-    
-       # Item para atualizar a lista
-        refresh_url = f"{sys.argv[0]}?action=refresh&external_link={quoted_url}"
-        refresh_item = xbmcgui.ListItem(label=f'[COLOR blue][B]- Atualizar Lista ({nome})[/B][/COLOR]')
-        refresh_item.setArt({
-            'icon': "https://archive.org/download/em_alta/ChatGPT%20Image%205%20de%20abr.%20de%202025%2C%2014_35_24.png",
-            'fanart': item.get('fanart', '')
-        })
-        xbmcplugin.addDirectoryItem(HANDLE, refresh_url, refresh_item, isFolder=True)
-
-        # Cria item normal
-        list_item = xbmcgui.ListItem(label=nome)
-        list_item.setArt({
-            'icon': item.get('poster', ''),
-            'fanart': item.get('fanart', '')
-        })
-        list_item.setInfo('video', {'title': nome})
-
-        url = get_url(action='list_canais', external_link=base_url)
-        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
-
-    xbmcplugin.endOfDirectory(HANDLE)
-
 def show_donation():
-    dialog = DonationDialog("DonationDialog.xml", xbmcaddon.Addon().getAddonInfo("path"), "Default", "720p")
+    dialog = DonationDialog("DonationDialog.xml", ADDON.getAddonInfo("path"), "Default", "720p")
     dialog.doModal()
     del dialog
-    
+
 def show_telegram():
-    dialog = TelegramDialog("TelegramDialog.xml", xbmcaddon.Addon().getAddonInfo("path"), "Default", "720p")
+    dialog = TelegramDialog("TelegramDialog.xml", ADDON.getAddonInfo("path"), "Default", "720p")
     dialog.doModal()
-    del dialog    
+    del dialog

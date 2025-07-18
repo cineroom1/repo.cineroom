@@ -137,23 +137,9 @@ def clean_url(url):
     print(f"URL depois da limpeza: {cleaned_url}")
     return cleaned_url
 
-def select_source(paths, movie_poster=None, movie_synopsis=None):
-    """Exibe diálogo padrão do Kodi para seleção da fonte de reprodução"""
-    dialog = xbmcgui.Dialog()
-    items = []
 
-    for path in paths:
-        if path == "search_sources":
-            label = "[COLOR gold]BUSCAR FONTES[/COLOR]"
-        else:
-            source_type = 'TORRENT' if 'magnet:?xt=urn:btih:' in path else 'LINK DIRETO'
-            extra_info = extract_extra_info(path) if 'extract_extra_info' in globals() else ''
-            label = f"{source_type}{extra_info}"
 
-        items.append(label)
 
-    ret = dialog.select("Escolha uma fonte para assistir", items)
-    return paths[ret] if ret != -1 else None
 
     
 def get_jacktook_search_link(is_movie=True, title='', tmdb_id='', tvdb_id='None', imdb_id='', season=None, episode=None, showname=''):
@@ -186,9 +172,52 @@ def get_jacktook_search_link(is_movie=True, title='', tmdb_id='', tvdb_id='None'
 
 def is_jacktook_installed():
     return xbmc.getCondVisibility('System.HasAddon(plugin.video.jacktook)') == 1
+    
+
+def select_source(paths, movie_poster=None, movie_synopsis=None, is_series=False):
+    if not paths:
+        return None
+    
+    # Para séries com 1 link, já retorna direto, sem diálogo e sem buscar fontes
+    if is_series and len(paths) == 1:
+        return paths[0]
+
+    dialog = xbmcgui.Dialog()
+    items = []
+
+    # Para filmes, adiciona sempre a opção BUSCAR FONTES, mesmo que tenha só 1 link
+    # Para séries, NÃO adiciona essa opção
+    if not is_series:
+        items.append("[COLOR gold]BUSCAR FONTES[/COLOR]")
+        paths = ["search_sources"] + paths
+
+    start_index = 0 if is_series else 1
+    for path in paths[start_index:]:
+        if path == "search_sources":
+            continue
+
+        if 'magnet:?xt=urn:btih:' in path or 'uri=magnet:?xt=urn:btih:' in path:
+            source_type = 'TORRENT'
+        elif path.startswith("plugin://plugin.video.elementum"):
+            source_type = 'ELEMENTUM'
+        elif path.startswith("http://") or path.startswith("https://"):
+            source_type = 'LINK HTTP(S)'
+        else:
+            source_type = 'LINK DIRETO'
+
+        extra_info = extract_extra_info(path) if 'extract_extra_info' in globals() else ''
+        label = f"{source_type}{extra_info}"
+        items.append(label)
+
+    ret = dialog.select("Escolha uma fonte para assistir", items)
+    if ret == -1:
+        return None
+
+    return paths[ret if is_series else ret]
+   
 
 def play_video(paths, title='', tmdb_id='', tvdb_id='', imdb_id='', year=None, movie_poster='', movie_synopsis='', 
-               season=None, episode=None, showname=''):
+               season=None, episode=None, showname='', is_series=False):
     try:
         if not paths:
             raise ValueError("Nenhum path fornecido para reprodução")
@@ -199,7 +228,7 @@ def play_video(paths, title='', tmdb_id='', tvdb_id='', imdb_id='', year=None, m
         if tmdb_id or title:
             paths.append("search_sources")
 
-        selected_path = select_source(paths, movie_poster=movie_poster, movie_synopsis=movie_synopsis)
+        selected_path = select_source(paths, movie_poster=movie_poster, movie_synopsis=movie_synopsis, is_series=is_series)
         if not selected_path:
             return False
 

@@ -10,10 +10,13 @@ import sys
 import json
 import traceback
 import unicodedata
+import xbmcaddon
 
 
 HANDLE = int(sys.argv[1])
-ADDON_DATA_PATH = xbmcvfs.translatePath('special://profile/addon_data/plugin.video.cineroom')
+
+ADDON_ID = xbmcaddon.Addon().getAddonInfo('id')
+FAVORITES_FILE = xbmcvfs.translatePath(f"special://userdata/addon_data/{ADDON_ID}/favorites.json")
 
 if not os.path.exists(ADDON_DATA_PATH):
     os.makedirs(ADDON_DATA_PATH)

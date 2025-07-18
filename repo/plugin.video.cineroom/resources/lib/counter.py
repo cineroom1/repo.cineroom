@@ -8,7 +8,7 @@ from uuid import getnode as get_mac
 import xbmcvfs
 
 # --- Configuração do Firebase ---
-FIREBASE_URL = "https://kodi-stats-default-rtdb.firebaseio.com/counters.json"
+FIREBASE_URL = ""
 
 # --- Cache e Decaimento ---
 COUNTERS_CACHE = None

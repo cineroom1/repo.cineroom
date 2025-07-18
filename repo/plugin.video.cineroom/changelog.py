@@ -9,13 +9,11 @@ def show_about():
     # Dados separados para fácil manutenção
     CHANGELOG = [
     {
-        'version': '4.3.0',
+        'version': '4.3.1',
         'changes': [
-            ("[COLOR yellow]Novidades[/COLOR]", "Nova opção de busca integrada ao stremio."),
-            ("[COLOR blue]Melhoria[/COLOR]", "Dinamica de filtragem melhorada"),
-            ("[COLOR blue]Melhoria[/COLOR]", "Opção para escolher o seu player torrent favorito"),
-            ("[COLOR blue]Otimizações[/COLOR]", "Links diretos com resposta melhorada"),
-            ("[COLOR blue]Otimizações[/COLOR]", "Correções de desempenho e bugs menores")
+            ("[COLOR yellow]Novidades[/COLOR]", "Incluida opção de legendas automaticas"),
+            ("[COLOR yellow]Novidades[/COLOR]", "Capas de coleçoes agora via Api TMDb"),
+            ("[COLOR yellow]Melhorias[/COLOR]", "'Minha Lista' Agora com carregamneto melhorado")
         ]
     }
 ]

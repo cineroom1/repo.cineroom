@@ -16,11 +16,6 @@
 		         label="Exibir categoria: Pesquisar" 
 		         default="true"/>
 				 
-        <setting id="mostrar_canais" 
-		         type="bool" 
-		         label="Exibir categoria: Canais" 
-		         default="false"/>
-				 
         <setting id="mostrar_explorar" 
 		         type="bool" 
 		         label="Exibir categoria: Explorar" 
@@ -96,7 +91,13 @@
 		<setting id="default_search_provider" 
 		         type="enum" 
 				 label="Provedor de busca padrão" 
-				 values="Elementum|Jacktook" default="1" />		 
+				 values="Elementum|Jacktook" default="1" />	
+        
+		<setting id="use_tmdb_art" 
+		         type="bool" 
+				 label="Usar arte oficial TMDb nas coleções" 
+				 default="false" />
+				 
 			 
 	</category>			 
 				 		 

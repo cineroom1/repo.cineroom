@@ -22,7 +22,7 @@ from xbmcvfs import translatePath
 # resources.lib
 from resources.lib.players import play_video
 from resources.lib.utils import get_all_videos, clear_cache, VIDEO_CACHE, FILTERED_CACHE
-from resources.lib.menus import list_menu, list_subcategories, get_menu, show_donation, show_telegram, list_sub_external_links
+from resources.lib.menus import list_menu, list_subcategories, get_menu, show_donation, show_telegram
 from resources.lib.config import login
 from resources.lib.configs.urls import data_feed, credenciais
 from resources.lib.counter import register_menu_access
@@ -36,7 +36,7 @@ from resources.action.movies import (
     list_movies_by_popularity, list_movies_in_cinemas, list_recently_added,
     list_movies_by_collection, list_collections, list_movies_by_country,
     list_countries, list_4k_movies, list_movies_by_revenue, list_movies_by_keyword,
-    list_keywords
+    list_keywords, list_movies_legendados
 )
 from resources.action.tvshow import (
     list_series_genres, list_series_by_genre, list_series_studios,
@@ -44,10 +44,7 @@ from resources.action.tvshow import (
     list_series_by_popularity, list_anime_series, list_novela_series,
     list_recently_added_series, list_kids_series
 )
-from resources.action.m3u8 import (
-    list_canais, list_group, play_channel, carregar_m3u8, parse_m3u8,
-    get_default_playlist_url, search_canais
-)
+
 from resources.action.video_listing import (
     list_videos, list_collection, list_seasons, list_episodes, create_video_item
 )
@@ -88,6 +85,10 @@ def router():
     """
     # Extrai os parâmetros da URL
     params = dict(parse_qsl(sys.argv[2][1:]))
+    
+    
+    is_series = params.get('is_series', 'false').lower() == 'true'
+
     action = params.get('action')
 
     # Cria o dicionário kwargs com todos os parâmetros possíveis
@@ -151,7 +152,8 @@ def router():
             imdb_id=kwargs.get('imdb_id', ''),
             year=kwargs.get('year'),
             movie_poster=kwargs.get('movie_poster', ''),
-            movie_synopsis=kwargs.get('movie_synopsis', '')
+            movie_synopsis=kwargs.get('movie_synopsis', ''),
+            is_series=is_series
         ),
         'search_videos': lambda: search_videos(HANDLE),
         'open_video_folder': lambda: open_video_folder(HANDLE, kwargs['tmdb_id']),
@@ -165,10 +167,6 @@ def router():
         'list_keywords': lambda: list_keywords(),
         'list_studios': lambda: list_studios(),
         'list_movies_by_studio': lambda: list_movies_by_studio(kwargs['studio']),
-        'list_canais': lambda: list_canais(kwargs.get('external_link', '')),
-        'list_group': lambda: list_group(int(sys.argv[1]), kwargs.get('group', '')),
-        'play_channel': lambda: play_channel(kwargs.get('channel_url', '')),
-        'refresh': lambda: list_canais(kwargs.get('url') or kwargs.get('external_link', ''), force_refresh=True),
         'show_about': lambda: show_about(),
         'list_series_genres': lambda: list_series_genres(),
         'list_series_by_genre': lambda: list_series_by_genre(kwargs['genre']),
@@ -201,8 +199,6 @@ def router():
         'force_update_series': lambda: force_update_series(kwargs['video_id']),
         'list_week_recommendations': lambda: list_week_recommendations(),
         'clear_weekly_cache': lambda: [clear_weekly_recommendation_cache(), xbmcgui.Dialog().ok("Recomendações", "Cache limpo com sucesso!\nAs novas sugestões serão carregadas agora."), list_week_recommendations()],
-        'search_canais': lambda: search_canais(),
-        'list_sub_external_links': lambda: list_sub_external_links(int(kwargs.get('menu_index', 0))),
         'list_providers': lambda: list_providers(),
         'list_by_provider': lambda: list_by_provider(
             urllib.parse.unquote_plus(params.get('provider', '')),
@@ -220,7 +216,8 @@ def router():
             items_per_page=kwargs['items_per_page']
         ),
         'list_4k_movies': lambda: list_4k_movies(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
-        'list_movies_by_revenue': lambda: list_movies_by_revenue(page=kwargs['page'], items_per_page=kwargs['items_per_page'])
+        'list_movies_by_revenue': lambda: list_movies_by_revenue(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
+        'list_movies_legendados': lambda: list_movies_legendados(page=kwargs['page'], items_per_page=kwargs['items_per_page'])
     }
 
     # Executa a ação correspondente ou lista o menu principal

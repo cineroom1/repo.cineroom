@@ -12,102 +12,88 @@ import threading
 import time # Adicionado para time.sleep
 import urllib.error # Adicionado para urllib.error.HTTPError
 from concurrent.futures import ThreadPoolExecutor
+import concurrent.futures
 from datetime import datetime, timedelta
 from datetime import datetime
 
-    
-import concurrent.futures
-from resources.lib.utils import get_all_videos, VIDEO_CACHE, FILTERED_CACHE
-import urllib.request
+
 from resources.action.video_listing import create_video_item, list_videos
 from resources.action.favorites import load_favorites
 from resources.lib.utils_view import set_view_mode
 
+from resources.lib.utils import ( 
+    get_all_videos, VIDEO_CACHE, FILTERED_CACHE
+)    
 
+from resources.action.constants import (
+    PROVEDORES, ESTUDIOS_FILMES, GENRES, KEYWORDS,
+    IDIOMA_NOMES, IDIOMA_PARA_PAIS, ANOS_FILMES
+)
+
+
+
+
+import xbmcaddon
+addon = xbmcaddon.Addon()
+
+use_tmdb = addon.getSettingBool("use_tmdb_art")  # definir essa opção no settings.xml do seu addon
 
 HANDLE = int(sys.argv[1])
 
-PROVEDORES = [
-    {"name": "Netflix", "icon": "https://logopng.com.br/logos/netflix-94.png"},
-    {"name": "Amazon Prime Video", "icon": "https://upload.wikimedia.org/wikipedia/commons/f/f1/Prime_Video.png"},
-    {"name": "Disney Plus", "icon": "https://logospng.org/wp-content/uploads/disneyplus.png"},
-    {"name": "Max", "icon": "https://logospng.org/wp-content/uploads/hbo-max.png"},
-    {"name": "Globoplay", "icon": "https://logospng.org/wp-content/uploads/globoplay.png"},
-    {"name": "Star Plus", "icon": "https://logospng.org/wp-content/uploads/star-plus.png"},
-    {"name": "Paramount Plus", "icon": "https://logospng.org/wp-content/uploads/paramount-plus.png"},
-    {"name": "Apple TV+", "icon": "https://w7.pngwing.com/pngs/911/587/png-transparent-apple-tv-hd-logo.png"},
-    {"name": "Telecine Amazon Channel", "icon": "https://logospng.org/wp-content/uploads/telecine.png"},
-    {"name": "MUBI", "icon": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Mubi_logo.svg"},
-    {"name": "Crunchyroll", "icon": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Crunchyroll_Logo.svg"},
-    {"name": "YouTube Premium", "icon": "https://logospng.org/wp-content/uploads/youtube-premium.png"},
-    {"name": "Pluto TV", "icon": "https://logospng.org/wp-content/uploads/pluto-tv.png"},
-    {"name": "Tubi", "icon": "https://upload.wikimedia.org/wikipedia/commons/5/58/Tubi_logo.svg"},
-    {"name": "MGM+ Apple TV Channel", "icon": "https://logodownload.org/wp-content/uploads/2021/10/MGM+logo.png"},
-    {"name": "Looke", "icon": "https://seeklogo.com/images/L/looke-logo-4146BCD25D-seeklogo.com.png"}
-]
+
+def list_countries():
+    """
+    Lista os países/idiomas de origem disponíveis dos filmes,
+    mostrando apenas aqueles que estão no mapeamento IDIOMA_NOMES,
+    com bandeira ao lado do nome.
+    """
+    xbmcplugin.setPluginCategory(HANDLE, 'Filmes por País')
+    xbmcplugin.setContent(HANDLE, 'videos')
+
+    all_videos = get_all_videos()
+    unique_languages_in_data = set()
+    for movie in all_videos:
+        if movie.get('type') == 'movie' and movie.get('original_language'):
+            unique_languages_in_data.add(movie['original_language'])
+
+    if not unique_languages_in_data:
+        xbmcgui.Dialog().ok("Aviso", "Nenhum idioma original encontrado para os filmes.")
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+
+    displayable_languages = [
+        lang_code for lang_code in unique_languages_in_data 
+        if lang_code in IDIOMA_NOMES
+    ]
+
+    if not displayable_languages:
+        xbmcgui.Dialog().ok("Aviso", "Nenhum idioma reconhecido encontrado para os filmes. Verifique o dicionário IDIOMA_NOMES.")
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+
+    sorted_languages_to_display = sorted(displayable_languages, key=lambda x: IDIOMA_NOMES[x])
+
+    for lang_code in sorted_languages_to_display:
+        display_name = IDIOMA_NOMES[lang_code]
+        url = get_url(action='list_movies_by_country', country_code=lang_code)
+        list_item = xbmcgui.ListItem(label=display_name)
+        list_item.setInfo('video', {'title': display_name})
+
+        # Adiciona imagem da bandeira
+        country_code = IDIOMA_PARA_PAIS.get(lang_code, lang_code)
+        flag_url = f"https://flagcdn.com/w320/{country_code}.png"
+        list_item.setArt({
+            'icon': flag_url,
+            'thumb': flag_url,
+            'poster': flag_url
+        })
 
 
-# Lista de estúdios predefinidos
-ESTUDIOS_FILMES = [
-    "Universal Pictures", "Warner Bros.", "Paramount Pictures", "Sony Pictures",
-    "20th Century Studios", "Walt Disney Pictures", "Pixar", "DreamWorks Animation",
-    "Columbia Pictures", "Legendary Pictures", "DC Comics", "A24", "Marvel Studios",
-    "MGM", "Lionsgate", "New Line Cinema", "Original Film", "Fox 2000 Pictures",
-    "Sunday Night Productions", "Blue Sky Studios", "Lucasfilm Ltd.",
-    "Blumhouse Productions", "Skydance Media", "Studio Ghibli"
-]
+        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
 
-GENRES = [
-    {'name': 'Ação', 'key': 'Ação'},
-    {'name': 'Animação', 'key': 'Animação'},
-    {'name': 'Aventura', 'key': 'Aventura'}, 
-    {'name': 'Cinema TV', 'key': 'Cinema TV'},
-    {'name': 'Comédia', 'key': 'Comédia'},
-    {'name': 'Crime', 'key': 'Crime'},
-    {'name': 'Documentário', 'key': 'Documentário'},
-    {'name': 'Drama', 'key': 'Drama'},
-    {'name': 'Fantasia', 'key': 'Fantasia'}, 
-    {'name': 'Faroeste', 'key': 'Faroeste'},
-    {'name': 'Ficção Científica', 'key': 'Ficção científica'},
-    {'name': 'Família', 'key': 'Família'},
-    {'name': 'Guerra', 'key': 'Guerra'},
-    {'name': 'História', 'key': 'História'},
-    {'name': 'Mistério', 'key': 'Mistério'}, 
-    {'name': 'Música', 'key': 'Música'},
-    {'name': 'Romance', 'key': 'Romance'},
-    {'name': 'Terror', 'key': 'Terror'},
-    {'name': 'Thriller', 'key': 'Thriller'}
-]
+    xbmcplugin.endOfDirectory(HANDLE)
+    set_view_mode()
 
-
-KEYWORDS = [
-    {'name': 'Alienígena',     'key': 'alien'},
-    {'name': 'Anime',          'key': 'anime'},
-    {'name': 'Apocalipse',     'key': 'apocalypse'},
-    {'name': 'Assassinato',    'key': 'murder'},
-    {'name': 'Cristão',        'key': 'religion'},
-    {'name': 'Distopia',       'key': 'dystopia'},
-    {'name': 'Escravidão',     'key': 'slavery'},
-    {'name': 'Fantasma',       'key': 'ghost'},
-    {'name': 'Gelo',           'key': 'snow'},
-    {'name': 'LGBTQ+',         'key': 'lgbt'},
-    {'name': 'Loop Temporal',  'key': 'time loop'},
-    {'name': 'Luta',           'key': 'fight'},
-    {'name': 'Magia',          'key': 'magic'},
-    {'name': 'Natal',          'key': 'christmas'},
-    {'name': 'Pós-Apocalíptico','key': 'post-apocalyptic future'},
-    {'name': 'Paródia',        'key': 'parody'},
-    {'name': 'Robôs',          'key': 'robot'},
-    {'name': 'Samurai',        'key': 'samurai'},
-    {'name': 'Sátira',         'key': 'satire'},
-    {'name': 'Super-Herói',    'key': 'superhero'},
-    {'name': 'Vampiro',        'key': 'vampire'},
-    {'name': 'Zumbi',          'key': 'zombie'},
-]
-
-
-# Lista de anos pré-programados (últimos 20 anos, por exemplo)
-ANOS_FILMES = [str(year) for year in range(2024, 1939, -1)] 
 
 def get_url(action, **kwargs):
     """
@@ -651,6 +637,34 @@ def list_movies_by_actor(actor_name):
     xbmcplugin.endOfDirectory(HANDLE)
 
 
+def paginate_and_add_items(sorted_items, page, items_per_page, action_name):
+    """
+    Adiciona itens paginados ao Kodi e cria item 'Próxima Página' se necessário.
+
+    :param sorted_items: lista completa de itens já ordenados
+    :param page: página atual (int)
+    :param items_per_page: quantidade de itens por página (int)
+    :param action_name: nome da ação para montar a URL do próximo page
+    """
+    start = (page - 1) * items_per_page
+    end = start + items_per_page
+
+    for item in sorted_items[start:end]:
+        title = item.get('title', '')
+        if any('hdcam' in g.lower() for g in item.get('genres', [])):
+            title = f"[COLOR red]{title}[/COLOR]"
+        item['title'] = title
+        list_item, url, is_folder = create_video_item(item)
+        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
+
+    if end < len(sorted_items):
+        next_item = xbmcgui.ListItem(label="Próxima Página >>")
+        next_url = get_url(action=action_name, page=page + 1, items_per_page=items_per_page)
+        next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+        xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+
+
+
 def list_movies_by_popularity(page=1, items_per_page=70):
     """
     Lista filmes por popularidade usando diretamente get_all_videos() e VideoCache
@@ -718,28 +732,7 @@ def list_movies_by_popularity(page=1, items_per_page=70):
         xbmcplugin.setPluginCategory(HANDLE, 'Mais Populares')
         xbmcplugin.setContent(HANDLE, 'movies')
 
-        # Paginação
-        start = (page - 1) * items_per_page
-        end = start + items_per_page
-        for movie in sorted_movies[start:end]:
-            title = movie.get('title', '')
-            if any('hdcam' in g.lower() for g in movie.get('genres', [])):
-                title = f"[COLOR red]{title}[/COLOR]"
-            
-            movie['title'] = title
-            list_item, url, is_folder = create_video_item(movie)
-            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
-
-        # Próxima página se necessário
-        if end < len(sorted_movies):
-            next_item = xbmcgui.ListItem(label="Próxima Página >>")
-            next_url = get_url(
-                action='list_movies_by_popularity',
-                page=page + 1,
-                items_per_page=items_per_page
-            )
-            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
-            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+        paginate_and_add_items(sorted_movies, page, items_per_page, 'list_movies_by_popularity')
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
@@ -748,6 +741,49 @@ def list_movies_by_popularity(page=1, items_per_page=70):
         xbmc.log(f"Erro em list_movies_by_popularity: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)
 
+def list_movies_legendados(page=1, items_per_page=70):
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 100))
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+
+    def get_legendado_movies():
+        cache_key = "movies_legendados_v1"
+        cached = VIDEO_CACHE.get(cache_key)
+
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+
+        all_movies = get_all_videos()
+        legendado_movies = [
+            movie for movie in all_movies
+            if movie.get('type') == 'movie'
+            and movie.get('legendado') is True  # <-- Verifica se o campo "legendado" é True
+        ]
+
+        VIDEO_CACHE.set(cache_key, json.dumps(legendado_movies), expiry_hours=12)
+        return legendado_movies
+
+    try:
+        movies = get_legendado_movies()
+
+        if not movies:
+            xbmcgui.Dialog().ok("Aviso", "Nenhum filme legendado encontrado.")
+            return
+
+        xbmcplugin.setPluginCategory(HANDLE, 'Filmes Legendados')
+        xbmcplugin.setContent(HANDLE, 'movies')
+
+        paginate_and_add_items(movies, page, items_per_page, 'list_movies_legendados')
+
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode()
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_movies_legendados: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)
 
 
 def list_movies_by_revenue(page=1, items_per_page=70):
@@ -811,26 +847,7 @@ def list_movies_by_revenue(page=1, items_per_page=70):
         xbmcplugin.setPluginCategory(HANDLE, 'Maiores Bilheterias')
         xbmcplugin.setContent(HANDLE, 'movies')
 
-        start = (page - 1) * items_per_page
-        end = start + items_per_page
-        for movie in sorted_movies[start:end]:
-            title = movie.get('title', '')
-            if any('hdcam' in g.lower() for g in movie.get('genres', [])):
-                title = f"[COLOR red]{title}[/COLOR]"
-            
-            movie['title'] = title
-            list_item, url, is_folder = create_video_item(movie)
-            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
-
-        if end < len(sorted_movies):
-            next_item = xbmcgui.ListItem(label="Próxima Página >>")
-            next_url = get_url(
-                action='list_movies_by_revenue',
-                page=page + 1,
-                items_per_page=items_per_page
-            )
-            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
-            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+        paginate_and_add_items(sorted_movies, page, items_per_page, 'list_movies_by_revenue')
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
@@ -876,18 +893,7 @@ def list_movies_in_cinemas(page=1, items_per_page=70):
         xbmcplugin.setPluginCategory(HANDLE, 'Nos Cinemas')
         xbmcplugin.setContent(HANDLE, 'movies')
 
-        # Paginação
-        start = (page - 1) * items_per_page
-        end = start + items_per_page
-        for movie in movies[start:end]:
-            list_item, url, is_folder = create_video_item(movie)
-            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
-
-        if end < len(movies):
-            next_item = xbmcgui.ListItem(label="Próxima Página >>")
-            next_url = get_url(action='list_movies_in_cinemas', page=page + 1, items_per_page=items_per_page)
-            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
-            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+        paginate_and_add_items(sorted_movies, page, items_per_page, 'list_movies_in_cinemas')
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
@@ -915,11 +921,10 @@ def list_recently_added(page=1, items_per_page=70):
         return sorted(filtered, key=lambda x: x['date_added'], reverse=True)
 
     try:
-        # Usando o cache filtrado com tempo de expiração menor (1 hora)
         recent_movies = FILTERED_CACHE.get_sorted(
             sort_name='recently_added',
             sort_func=sort_recently_added,
-            expiry_hours=12  # Atualiza frequentemente pois são novos conteúdos
+            expiry_hours=6  # Atualiza frequentemente pois são novos conteúdos
         )
 
         if not recent_movies:
@@ -929,26 +934,7 @@ def list_recently_added(page=1, items_per_page=70):
         xbmcplugin.setPluginCategory(HANDLE, 'Adicionados Recentemente')
         xbmcplugin.setContent(HANDLE, 'movies')
 
-        # Paginação
-        start_index = (page - 1) * items_per_page
-        end_index = start_index + items_per_page
-        paginated_movies = recent_movies[start_index:end_index]
-
-        for movie in paginated_movies:
-            title = movie.get('title', '')
-            genres = movie.get('genres', [])
-            if any('hdcam' in genre.lower() for genre in genres):
-                title = f"[COLOR red]{title}[/COLOR]"
-            movie['title'] = title
-
-            list_item, url, is_folder = create_video_item(movie)
-            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
-
-        if end_index < len(recent_movies):
-            next_page_item = xbmcgui.ListItem(label="Próxima Página >>")
-            next_page_url = get_url(action='list_recently_added', page=page + 1, items_per_page=items_per_page)
-            next_page_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
-            xbmcplugin.addDirectoryItem(HANDLE, next_page_url, next_page_item, isFolder=True)
+        paginate_and_add_items(sorted_movies, page, items_per_page, 'list_recently_added')
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
@@ -958,10 +944,32 @@ def list_recently_added(page=1, items_per_page=70):
         xbmcgui.Dialog().notification("Erro", "Ocorreu um erro ao listar filmes recentes", xbmcgui.NOTIFICATION_ERROR)
 
 
+import concurrent.futures
+import urllib.request
+import json
+import hashlib
 
+TMDB_API_KEY = "f0b9cd2de131c900f5bb03a0a5776342"
+TMDB_IMAGE_BASE = "https://image.tmdb.org/t/p/w500"
+TMDB_BACKDROP_BASE = "https://image.tmdb.org/t/p/original"
 
-def list_collections(page=1, items_per_page=70):
-    """Lista coleções com cache inteligente e baixo consumo de recursos"""
+def fetch_collection_art(tmdb_id):
+    try:
+        url = f"https://api.themoviedb.org/3/movie/{tmdb_id}?api_key={TMDB_API_KEY}&language=pt-BR"
+        with urllib.request.urlopen(url, timeout=10) as resp:
+            data = json.loads(resp.read())
+        collection = data.get("belongs_to_collection")
+        if collection and collection.get("poster_path") and collection.get("backdrop_path"):
+            return {
+                "poster": TMDB_IMAGE_BASE + collection["poster_path"],
+                "backdrop": TMDB_BACKDROP_BASE + collection["backdrop_path"],
+                "name": collection["name"]
+            }
+    except Exception as e:
+        xbmc.log(f"[WARN] fetch_collection_art: erro ao buscar coleção TMDb id {tmdb_id}: {e}", xbmc.LOGWARNING)
+    return None
+
+def list_collections(page=1, items_per_page=70, use_tmdb_art=use_tmdb):
     try:
         page = max(1, int(page))
         items_per_page = max(10, min(int(items_per_page), 200))
@@ -978,29 +986,28 @@ def list_collections(page=1, items_per_page=70):
                     return json.loads(cached)
                 except:
                     VIDEO_CACHE.delete(cache_key)
-        
+
         all_videos = get_all_videos()
         collections = {}
-        
+
         for movie in all_videos:
-            if (movie.get('type') == 'movie' and 
-                movie.get('collection') and 
-                movie['collection'] != "null"):
-                
+            if (movie.get('type') == 'movie' and
+                movie.get('collection') and
+                movie['collection'].lower() != "null"):
+
                 collection_name = movie['collection']
                 if collection_name not in collections:
                     collections[collection_name] = []
                 collections[collection_name].append(movie)
-        
-        # Filtra coleções com pelo menos 2 filmes
+
         valid_collections = {
-            name: movies for name, movies in collections.items() 
+            name: movies for name, movies in collections.items()
             if len(movies) >= 2
         }
-        
+
         if VIDEO_CACHE.enabled and valid_collections:
             VIDEO_CACHE.set(cache_key, json.dumps(valid_collections), expiry_hours=12)
-        
+
         return valid_collections
 
     try:
@@ -1010,6 +1017,38 @@ def list_collections(page=1, items_per_page=70):
             xbmcplugin.endOfDirectory(HANDLE)
             return
 
+        def get_collection_art_cached(collection_name, movies):
+            cache_key = "collection_art_" + hashlib.md5(collection_name.encode()).hexdigest()
+            if VIDEO_CACHE.enabled:
+                cached = VIDEO_CACHE.get(cache_key)
+                if cached:
+                    try:
+                        return json.loads(cached)
+                    except:
+                        VIDEO_CACHE.delete(cache_key)
+
+            art = None
+            if use_tmdb_art:
+                tmdb_id = None
+                for m in movies:
+                    if m.get('tmdb_id'):
+                        tmdb_id = m['tmdb_id']
+                        break
+                if tmdb_id:
+                    art = fetch_collection_art(tmdb_id)
+
+            if art:
+                if VIDEO_CACHE.enabled:
+                    VIDEO_CACHE.set(cache_key, json.dumps(art), expiry_hours=24)
+                return art
+
+            # fallback
+            first_movie = movies[0]
+            return {
+                "poster": first_movie.get('poster', ''),
+                "backdrop": first_movie.get('backdrop', ''),
+            }
+
         xbmcplugin.setPluginCategory(HANDLE, 'Coleções')
         xbmcplugin.setContent(HANDLE, 'sets')
 
@@ -1018,10 +1057,13 @@ def list_collections(page=1, items_per_page=70):
         start = (page - 1) * items_per_page
         end = start + items_per_page
 
-        for name in sorted_names[start:end]:
-            movies = collections_data[name]
-            first_movie = movies[0]
-            
+        subset_names = sorted_names[start:end]
+        subset_movies = [collections_data[name] for name in subset_names]
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+            arts = list(executor.map(lambda nm_mv: get_collection_art_cached(nm_mv[0], nm_mv[1]), zip(subset_names, subset_movies)))
+
+        for name, art, movies in zip(subset_names, arts, subset_movies):
             item = xbmcgui.ListItem(label=name)
             item.setInfo('video', {
                 'title': name,
@@ -1029,11 +1071,11 @@ def list_collections(page=1, items_per_page=70):
                 'mediatype': 'set'
             })
             item.setArt({
-                'poster': first_movie.get('poster', ''),
-                'fanart': first_movie.get('backdrop', ''),
-                'thumb': first_movie.get('poster', '')
+                'poster': art.get('poster', ''),
+                'fanart': art.get('backdrop', ''),
+                'thumb': art.get('poster', '')
             })
-            
+
             url = get_url(action='list_movies_by_collection', collection=name)
             xbmcplugin.addDirectoryItem(HANDLE, url, item, True)
 
@@ -1053,6 +1095,7 @@ def list_collections(page=1, items_per_page=70):
     except Exception as e:
         xbmc.log(f"[ERRO] list_collections: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Falha ao carregar coleções", xbmcgui.NOTIFICATION_ERROR)
+
     
 def list_movies_by_collection(collection_name, page=1, items_per_page=70):
     """Lista filmes de uma coleção com cache seguro"""
@@ -1136,155 +1179,6 @@ def list_movies_by_collection(collection_name, page=1, items_per_page=70):
         xbmcgui.Dialog().notification("Erro", "Falha ao carregar coleção", xbmcgui.NOTIFICATION_ERROR)
 
 
-
-# Mapeamento de códigos de idioma para nomes amigáveis
-IDIOMA_NOMES = {
-    "en": "Estados Unidos / Reino Unido (Inglês)",
-    "pt": "Portugal / Brasil (Português)",
-    "es": "Espanha / América Latina (Espanhol)",
-    "fr": "França (Francês)",
-    "de": "Alemanha (Alemão)",
-    "ja": "Japão (Japonês)",
-    "ko": "Coreia do Sul (Coreano)",
-    "it": "Itália (Italiano)",
-    "ru": "Rússia (Russo)",
-    "zh": "China (Mandarim)",
-    "hi": "Índia (Hindi)",
-    # Adicione mais conforme necessário. APENAS OS CÓDIGOS AQUI SERÃO MOSTRADOS.
-}
-
-def list_countries():
-    """
-    Lista os países/idiomas de origem disponíveis dos filmes,
-    mostrando apenas aqueles que estão no mapeamento IDIOMA_NOMES.
-    """
-    xbmcplugin.setPluginCategory(HANDLE, 'Filmes por País')
-    xbmcplugin.setContent(HANDLE, 'genres') # content 'genres' é adequado para listas de categorias
-
-    all_videos = get_all_videos()
-    
-    unique_languages_in_data = set()
-    for movie in all_videos:
-        if movie.get('type') == 'movie' and movie.get('original_language'):
-            unique_languages_in_data.add(movie['original_language'])
-            
-    if not unique_languages_in_data:
-        xbmcgui.Dialog().ok("Aviso", "Nenhum idioma original encontrado para os filmes.")
-        xbmcplugin.endOfDirectory(HANDLE)
-        return
-
-    # *** MUDANÇA AQUI: Filtra apenas os idiomas que estão em IDIOMA_NOMES ***
-    displayable_languages = [
-        lang_code for lang_code in unique_languages_in_data 
-        if lang_code in IDIOMA_NOMES
-    ]
-
-    if not displayable_languages:
-        xbmcgui.Dialog().ok("Aviso", "Nenhum idioma reconhecido encontrado para os filmes. Verifique o dicionário IDIOMA_NOMES.")
-        xbmcplugin.endOfDirectory(HANDLE)
-        return
-
-    # Ordena os idiomas pelo nome amigável para exibição
-    sorted_languages_to_display = sorted(displayable_languages, key=lambda x: IDIOMA_NOMES[x])
-
-    for lang_code in sorted_languages_to_display:
-        display_name = IDIOMA_NOMES[lang_code] # Agora sabemos que ele existe em IDIOMA_NOMES
-        list_item = xbmcgui.ListItem(label=display_name)
-        list_item.setInfo('video', {'title': display_name})
-        
-        # Opcional: Adicione um ícone de bandeira se você tiver os recursos de arte
-        # Por exemplo, se você tiver imagens de bandeira em 'resources/media/flags/en.png'
-        # list_item.setArt({'icon': os.path.join(xbmcaddon.Addon().getAddonInfo('path'), 'resources', 'media', 'flags', f'{lang_code}.png')})
-
-        url = get_url(action='list_movies_by_country', country_code=lang_code)
-        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
-
-    xbmcplugin.endOfDirectory(HANDLE)
-    set_view_mode() # Garanta que esta função esteja definida
-
-
-def list_movies_by_country(country_code, page=1, items_per_page=70):
-    """
-    Lista os filmes que pertencem a um idioma original específico, com paginação.
-    """
-    try:
-        page = max(1, int(page))
-        items_per_page = max(10, min(int(items_per_page), 200))
-        country_code = urllib.parse.unquote(country_code) # Descodifica para garantir o código correto
-    except (ValueError, TypeError):
-        page = 1
-        items_per_page = 70
-
-    def filter_by_country(movies):
-        filtered = []
-        seen_ids = set()
-        for movie in movies:
-            if (
-                movie.get('type') == 'movie' and
-                movie.get('original_language') == country_code and
-                movie.get('tmdb_id') not in seen_ids # Evita duplicatas se tmdb_id for presente
-            ):
-                seen_ids.add(movie['tmdb_id'])
-                filtered.append(movie)
-        
-        # Opcional: Ordenar os filmes dentro do país (ex: por ano, rating ou popularidade)
-        filtered.sort(key=lambda x: (x.get('year', 0), x.get('title', '')), reverse=True)
-        return filtered
-
-    try:
-        # Usa um hash do country_code para o nome do cache
-        cache_key = f"country_{hashlib.md5(country_code.encode('utf-8')).hexdigest()}"
-        filtered_movies = FILTERED_CACHE.get_filtered(
-            cache_key,
-            filter_by_country,
-            expiry_hours=12 # Cache para filmes por país
-        )
-    except Exception as e:
-        xbmc.log(f"[ERRO] Falha ao acessar cache para filmes por país ({country_code}): {str(e)}", xbmc.LOGERROR)
-        filtered_movies = []
-
-    if not filtered_movies:
-        display_name = IDIOMA_NOMES.get(country_code, f"Desconhecido ({country_code.upper()})")
-        xbmcgui.Dialog().ok("Aviso", f"Nenhum filme encontrado com idioma original: {display_name}.")
-        xbmcplugin.endOfDirectory(HANDLE)
-        return
-
-    display_country_name = IDIOMA_NOMES.get(country_code, f"Filmes em {country_code.upper()}")
-    xbmcplugin.setPluginCategory(HANDLE, f'Filmes: {display_country_name}')
-    xbmcplugin.setContent(HANDLE, 'movies')
-
-    # Paginação
-    start_index = (page - 1) * items_per_page
-    end_index = start_index + items_per_page
-    paginated_movies = filtered_movies[start_index:end_index]
-
-    for movie in paginated_movies:
-        list_item, url, is_folder = create_video_item(movie)
-        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
-
-    # Próxima página
-    if end_index < len(filtered_movies):
-        next_page_item = xbmcgui.ListItem(label="Próxima Página >>")
-        next_page_url = get_url(
-            action='list_movies_by_country',
-            country_code=urllib.parse.quote_plus(country_code), # Codifica o nome do país para URL
-            page=page + 1,
-            items_per_page=items_per_page
-        )
-        next_page_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
-        xbmcplugin.addDirectoryItem(HANDLE, next_page_url, next_page_item, isFolder=True)
-            
-    xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_YEAR)
-    xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_TITLE)
-    xbmcplugin.endOfDirectory(HANDLE)
-    set_view_mode()    
-    
-
-import json
-
-import json
-# Assumindo que VIDEO_CACHE, xbmcgui, xbmcplugin, xbmc, get_all_videos, create_video_item, get_url, set_view_mode, HANDLE estão definidos em outro lugar.
-
 def get_4k_movies():
     """Junta todos os filmes que possuem a flag '4K': true."""
     cache_key = "all_4k_movies_list_v4_explicit_flag_sorted_popularity" # Recomendo mudar a cache key!
@@ -1340,26 +1234,8 @@ def list_4k_movies(page=1, items_per_page=70):
         xbmcplugin.setPluginCategory(HANDLE, '4K Ultra HD')
         xbmcplugin.setContent(HANDLE, 'movies')
 
-        start = (page - 1) * items_per_page
-        end = start + items_per_page
-        
-        for movie in movies_4k[start:end]:
-            list_item, url, is_folder = create_video_item(movie) # Assumindo que create_video_item existe
-            if list_item and url:
-                xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
+        paginate_and_add_items(movies_4k, page, items_per_page, 'list_4k_movies')
 
-        if end < len(movies_4k):
-            next_item = xbmcgui.ListItem(label="Próxima Página >>")
-            next_url = get_url(
-                action='list_4k_movies', # Ação para a próxima página
-                page=page + 1,
-                items_per_page=items_per_page
-            )
-            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"}) # Use um ícone real
-            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
-
-        # Você pode adicionar a popularidade como um método de ordenação manual no Kodi, se quiser
-        # xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_RUNTIME) # Exemplo para outras ordenações
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode() # Assumindo que set_view_mode existe
@@ -1367,3 +1243,79 @@ def list_4k_movies(page=1, items_per_page=70):
     except Exception as e:
         xbmc.log(f"[ERRO] list_4k_movies: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Falha ao carregar filmes 4K", xbmcgui.NOTIFICATION_ERROR)
+        
+def list_movies_by_country(country_code, page=1, items_per_page=70):
+    """
+    Lista os filmes que pertencem a um idioma original específico, com paginação.
+    """
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 200))
+        country_code = urllib.parse.unquote(country_code) # Descodifica para garantir o código correto
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+
+    def filter_by_country(movies):
+        filtered = []
+        seen_ids = set()
+        for movie in movies:
+            if (
+                movie.get('type') == 'movie' and
+                movie.get('original_language') == country_code and
+                movie.get('tmdb_id') not in seen_ids # Evita duplicatas se tmdb_id for presente
+            ):
+                seen_ids.add(movie['tmdb_id'])
+                filtered.append(movie)
+        
+        # Opcional: Ordenar os filmes dentro do país (ex: por ano, rating ou popularidade)
+        filtered.sort(key=lambda x: (x.get('year', 0), x.get('title', '')), reverse=True)
+        return filtered
+
+    try:
+        # Usa um hash do country_code para o nome do cache
+        cache_key = f"country_{hashlib.md5(country_code.encode('utf-8')).hexdigest()}"
+        filtered_movies = FILTERED_CACHE.get_filtered(
+            cache_key,
+            filter_by_country,
+            expiry_hours=12 # Cache para filmes por país
+        )
+    except Exception as e:
+        xbmc.log(f"[ERRO] Falha ao acessar cache para filmes por país ({country_code}): {str(e)}", xbmc.LOGERROR)
+        filtered_movies = []
+
+    if not filtered_movies:
+        display_name = IDIOMA_NOMES.get(country_code, f"Desconhecido ({country_code.upper()})")
+        xbmcgui.Dialog().ok("Aviso", f"Nenhum filme encontrado com idioma original: {display_name}.")
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+
+    display_country_name = IDIOMA_NOMES.get(country_code, f"Filmes em {country_code.upper()}")
+    xbmcplugin.setPluginCategory(HANDLE, f'{display_country_name}')
+    xbmcplugin.setContent(HANDLE, 'movies')
+
+    # Paginação
+    start_index = (page - 1) * items_per_page
+    end_index = start_index + items_per_page
+    paginated_movies = filtered_movies[start_index:end_index]
+
+    for movie in paginated_movies:
+        list_item, url, is_folder = create_video_item(movie)
+        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
+
+    # Próxima página
+    if end_index < len(filtered_movies):
+        next_page_item = xbmcgui.ListItem(label="Próxima Página >>")
+        next_page_url = get_url(
+            action='list_movies_by_country',
+            country_code=urllib.parse.quote_plus(country_code), # Codifica o nome do país para URL
+            page=page + 1,
+            items_per_page=items_per_page
+        )
+        next_page_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+        xbmcplugin.addDirectoryItem(HANDLE, next_page_url, next_page_item, isFolder=True)
+            
+    xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_YEAR)
+    xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_TITLE)
+    xbmcplugin.endOfDirectory(HANDLE)
+    set_view_mode()            

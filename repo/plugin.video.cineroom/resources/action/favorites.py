@@ -21,8 +21,10 @@ from resources.lib.utils import get_all_videos
 URL = sys.argv[0]
 HANDLE = int(sys.argv[1])
 
-# Caminho para o arquivo de favoritos
-FAVORITES_FILE = xbmcvfs.translatePath("special://userdata/addon_data/plugin.video.cineroom/favorites.json")
+
+ADDON_ID = xbmcaddon.Addon().getAddonInfo('id')
+FAVORITES_FILE = xbmcvfs.translatePath(f"special://userdata/addon_data/{ADDON_ID}/favorites.json")
+
 
 def show_notification(heading, message, icon=xbmcgui.NOTIFICATION_INFO, time=3000):
     """Exibe uma notificação no Kodi."""
@@ -147,43 +149,34 @@ def remove_from_favorites(video):
         show_notification("Sua Lista", f"{video.get('title', 'Item')} não está na sua lista!", xbmcgui.NOTIFICATION_INFO)
 
 def list_favorites():
-    """Lista os favoritos, buscando informações atualizadas do catálogo quando disponível."""
+    """Lista os favoritos usando apenas os dados salvos em favorites.json (sem consultar catálogo)."""
     from resources.action.video_listing import create_video_item
     favorites = load_favorites()
+    
     if not favorites:
         xbmcgui.Dialog().ok('Favoritos', 'Nenhum item encontrado na lista!')
-        xbmcplugin.endOfDirectory(HANDLE, succeeded=True) # Finaliza corretamente mesmo vazio
+        xbmcplugin.endOfDirectory(HANDLE, succeeded=True)
         return
 
     xbmcplugin.setPluginCategory(HANDLE, 'Minha Lista')
-    xbmcplugin.setContent(HANDLE, 'movies') # Pode ser 'tvshows' ou 'videos' dependendo do mix
-
-    # Para otimizar find_in_catalog, é melhor buscar o catálogo uma vez
-    # ou ter uma função get_item_by_id no seu 'get_all_videos'
-    all_catalog_items = get_all_videos() # CUIDADO: Se esta função for lenta, vai impactar a performance.
+    xbmcplugin.setContent(HANDLE, 'videos')  # ou 'movies', se preferir
 
     for video in favorites:
-        catalog_item = find_item_in_catalog(all_catalog_items, video.get('tmdb_id'), video.get('title'))
-        
-        # Prefere os dados do catálogo se atualizados, senão usa os dados do favorito
-        current_item = catalog_item if catalog_item else video
-        
-        # Certifique-se de que `create_video_item` pode lidar com a estrutura de `current_item`
-        list_item, url, is_folder = create_video_item(current_item)
-        
-        # Menu de contexto padrão (remover)
+        # Usa apenas os dados já salvos em favorites.json
+        list_item, url, is_folder = create_video_item(video)
+
         context_menu = [
             ('Remover da sua Lista', f'RunPlugin({get_url(action="remove_from_favorites", video=json.dumps(video))})')
         ]
-        
-        # Adiciona opção de atualização para séries
-        if current_item.get('type') == 'tvshow' and current_item.get('tmdb_id'):
-            context_menu.append(('Atualizar Série', f'RunPlugin({get_url(action="force_update_series", video_id=str(current_item["tmdb_id"]))})'))
-            
+
+        if video.get('type') == 'tvshow' and video.get('tmdb_id'):
+            context_menu.append(('Atualizar Série', f'RunPlugin({get_url(action="force_update_series", video_id=str(video["tmdb_id"]))})'))
+
         list_item.addContextMenuItems(context_menu)
         xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
 
     xbmcplugin.endOfDirectory(HANDLE)
+
 
 def find_item_in_catalog(catalog_data, tmdb_id, title):
     """

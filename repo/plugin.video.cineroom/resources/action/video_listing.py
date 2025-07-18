@@ -1,21 +1,22 @@
-# video_listing.py
-
-import json
-import xbmcgui
-import xbmcplugin
+# Built-in
 import sys
-import xbmc
 import time
 import json
-import xbmc
 import urllib.parse
 import urllib.request
 import hashlib
 
+# Kodi
+import xbmc
+import xbmcgui
+import xbmcplugin
+
+# Internos
 from urllib.parse import urlencode, parse_qsl
 from resources.action.favorites import load_favorites
 from resources.lib.utils import get_all_videos, VIDEO_CACHE, FILTERED_CACHE
 from resources.lib.utils_view import set_view_mode
+
 
 # No final da função, depois de xbmcplugin.endOfDirectory(HANDLE)
 
@@ -102,7 +103,8 @@ def create_video_item(video):
                 imdb_id=video.get('imdb_id', ''),
                 title=video.get('title', ''),
                 movie_poster=video.get('poster', ''),
-                movie_synopsis=video.get('synopsis', '')
+                movie_synopsis=video.get('synopsis', ''),
+                is_series='false'
             )
         elif mediatype == 'set':
             url = get_url(action='list_collection', collection=json.dumps(video))
@@ -185,7 +187,15 @@ def create_video_item(video):
             info['plot'] += plot_extra
 
         # Define as informações no ListItem
+                # Define as informações no ListItem
         list_item.setInfo('video', info)
+
+        # 🎯 NOVO: Adicionar legendas, se existirem
+        subtitles = video.get('subtitles')
+        if subtitles:
+            if isinstance(subtitles, str):
+                subtitles = [subtitles]
+            list_item.setSubtitles(subtitles)
 
         # Define como propriedade adicional
         list_item.setProperty('mediatype', mediatype)
@@ -401,7 +411,7 @@ def list_collection(collection_data):
         xbmcplugin.endOfDirectory(HANDLE)
 
     except Exception as e:
-        xbmc.log(f"[CINEROOM] Erro ao listar coleção: {e}", xbmc.LOGERROR)
+        xbmc.log(f"Erro ao listar coleção: {e}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification('Erro', 'Não foi possível exibir a coleção.', xbmcgui.NOTIFICATION_ERROR, 3000)
 
 
@@ -416,7 +426,7 @@ def list_seasons(serie_data):
         # Configurações iniciais
         clearlogo = serie.get('clearlogo', '')
         if clearlogo:
-            xbmcplugin.setPluginCategory(HANDLE, '[B]{}[/B]'.format(serie.get('title', '')))
+            xbmcplugin.setPluginCategory(HANDLE, '{}'.format(serie.get('title', '')))
             xbmcplugin.setProperty(HANDLE, 'clearlogo', clearlogo)
         
         xbmcplugin.setContent(HANDLE, 'seasons')
@@ -488,7 +498,7 @@ def list_episodes(season_data, season_title):
         serie_title = season.get('serie_title', 'Série')
         season_number = season.get('season_number', 1)  # Agora vem correto da list_seasons
         
-        header = f"{serie_title} - {season_title}"
+        header = f"{serie_title}"
         if clearlogo:
             xbmcplugin.setProperty(HANDLE, 'clearlogo', clearlogo)
             
@@ -536,7 +546,7 @@ def list_episodes(season_data, season_title):
             url = ep['url'] if isinstance(ep['url'], list) else [ep['url']]
             xbmcplugin.addDirectoryItem(
                 HANDLE,
-                get_url(action='play', video=json.dumps(url)),
+                get_url(action='play', video=json.dumps(url), is_series='true'),
                 li,
                 isFolder=False
             )
