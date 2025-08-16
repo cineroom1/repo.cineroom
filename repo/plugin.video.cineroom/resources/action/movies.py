@@ -7,6 +7,7 @@ import xbmc
 import hashlib
 import os
 import xbmcvfs
+import random
 import urllib.request
 import threading
 import time # Adicionado para time.sleep
@@ -22,7 +23,7 @@ from resources.action.favorites import load_favorites
 from resources.lib.utils_view import set_view_mode
 
 from resources.lib.utils import ( 
-    get_all_videos, VIDEO_CACHE, FILTERED_CACHE
+    get_all_videos, VIDEO_CACHE
 )    
 
 from resources.action.constants import (
@@ -166,7 +167,7 @@ def list_movies_by_keyword(keyword, page=1, items_per_page=70):
 
     # Adiciona os itens da página atual
     for movie in movies[start:end]:
-        list_item, url, is_folder = create_video_item(movie)
+        list_item, url, is_folder = create_video_item(HANDLE,movie)
         xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
     # Adiciona link para próxima página se necessário
@@ -260,7 +261,7 @@ def list_movies_by_genre(genre, page=1, items_per_page=70):
         start = (page - 1) * items_per_page
         end = start + items_per_page
         for movie in movies[start:end]:
-            list_item, url, is_folder = create_video_item(movie)
+            list_item, url, is_folder = create_video_item(HANDLE,movie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         if end < len(movies):
@@ -296,7 +297,7 @@ def list_movies_by_studio(studio):
         return value in [s.strip().lower() for s in studios]
     
     # Filtra e lista os filmes
-    filter_and_list_movies(studio_criteria, studio, f'Filmes do Estúdio: {studio}')
+    filter_and_list_movies(studio_criteria, studio, f'{studio}')
 
 def list_categories(categories, category_type):
     """
@@ -375,7 +376,7 @@ def filter_and_list_movies(criteria, value, title):
     Filtra e lista os filmes com base em um critério (gênero, estúdio ou ano),
     ignorando filmes com '4K' ou '(4K)' no título.
     """
-    xbmcplugin.setPluginCategory(HANDLE, f'Filmes - {title}')
+    xbmcplugin.setPluginCategory(HANDLE, f'{title}')
     xbmcplugin.setContent(HANDLE, 'movies')
 
     movies = get_all_videos()
@@ -479,7 +480,7 @@ def list_movies_by_specific_year(year):
         xbmcplugin.setContent(HANDLE, 'movies')
 
         for movie in movies:
-            list_item, url, is_folder = create_video_item(movie)
+            list_item, url, is_folder = create_video_item(HANDLE,movie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_YEAR)
@@ -544,7 +545,7 @@ def list_movies_by_rating(page=1, items_per_page=70):
         start = (page - 1) * items_per_page
         end = start + items_per_page
         for movie in movies[start:end]:
-            list_item, url, is_folder = create_video_item(movie)
+            list_item, url, is_folder = create_video_item(HANDLE,movie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         if end < len(movies):
@@ -631,7 +632,7 @@ def list_movies_by_actor(actor_name):
     xbmcplugin.setContent(HANDLE, 'movies')
 
     for video in filtered_videos:
-        list_item, url, is_folder = create_video_item(video)
+        list_item, url, is_folder = create_video_item(HANDLE,video)
         xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
 
     xbmcplugin.endOfDirectory(HANDLE)
@@ -654,7 +655,7 @@ def paginate_and_add_items(sorted_items, page, items_per_page, action_name):
         if any('hdcam' in g.lower() for g in item.get('genres', [])):
             title = f"[COLOR red]{title}[/COLOR]"
         item['title'] = title
-        list_item, url, is_folder = create_video_item(item)
+        list_item, url, is_folder = create_video_item(HANDLE,item)
         xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
     if end < len(sorted_items):
@@ -669,6 +670,7 @@ def list_movies_by_popularity(page=1, items_per_page=70):
     """
     Lista filmes por popularidade usando diretamente get_all_videos() e VideoCache
     com estratégia de cache mais simples e eficiente.
+    Colore de vermelho o título se 'hdcam' == True.
     """
     try:
         page = max(1, int(page))
@@ -685,19 +687,17 @@ def list_movies_by_popularity(page=1, items_per_page=70):
         if cached and not VIDEO_CACHE.is_expired(cache_key):
             return json.loads(cached)
         
-        # Processamento dos dados frescos
         all_videos = get_all_videos()
         if not all_videos:
             return []
-        
-        # Filtragem e ordenação
+            
+                # Filtragem e ordenação
         movies = [
             m for m in all_videos 
             if m.get('type') == 'movie' 
             and '(4K)' not in m.get('title', '')
-        ]
-        
-        # Remoção de duplicados por tmdb_id mantendo o mais popular
+        ]    
+            
         unique_movies = {}
         for movie in movies:
             tmdb_id = movie.get('tmdb_id')
@@ -708,27 +708,28 @@ def list_movies_by_popularity(page=1, items_per_page=70):
             if tmdb_id not in unique_movies or current_pop > unique_movies[tmdb_id].get('popularity', 0):
                 unique_movies[tmdb_id] = movie
         
-        # Ordenação final
         sorted_movies = sorted(
             unique_movies.values(),
             key=lambda x: x.get('popularity', 0),
             reverse=True
-        )[:1000]  # Limite de 1000 filmes
+        )[:1000]
         
-        # Armazena no cache por 12 horas
         VIDEO_CACHE.set(cache_key, json.dumps(sorted_movies), expiry_hours=12)
         xbmc.log(f"[DEBUG] Cache key {cache_key} updated. Expires in 12h.", xbmc.LOGINFO)
         return sorted_movies
 
     try:
-        # Obtém filmes (com cache automático)
         sorted_movies = get_and_sort_movies()
         
         if not sorted_movies:
             xbmcgui.Dialog().ok("Aviso", "Nenhum filme encontrado.")
             return
 
-        # Configuração da lista
+        # 🔹 Aplica a cor vermelha no título se for HDCAM
+        for movie in sorted_movies:
+            if movie.get("hdcam") is True:
+                movie["title"] = f"[COLOR red]{movie.get('title', '')}[/COLOR]"
+
         xbmcplugin.setPluginCategory(HANDLE, 'Mais Populares')
         xbmcplugin.setContent(HANDLE, 'movies')
 
@@ -740,6 +741,7 @@ def list_movies_by_popularity(page=1, items_per_page=70):
     except Exception as e:
         xbmc.log(f"Erro em list_movies_by_popularity: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)
+
 
 def list_movies_legendados(page=1, items_per_page=70):
     try:
@@ -893,6 +895,9 @@ def list_movies_in_cinemas(page=1, items_per_page=70):
         xbmcplugin.setPluginCategory(HANDLE, 'Nos Cinemas')
         xbmcplugin.setContent(HANDLE, 'movies')
 
+        # Se quiser ordenar por título
+        sorted_movies = sorted(movies, key=lambda x: x.get('title', '').lower())
+
         paginate_and_add_items(sorted_movies, page, items_per_page, 'list_movies_in_cinemas')
 
         xbmcplugin.endOfDirectory(HANDLE)
@@ -906,26 +911,32 @@ def list_movies_in_cinemas(page=1, items_per_page=70):
 
 def list_recently_added(page=1, items_per_page=70):
     try:
-        page = int(page)
-        items_per_page = int(items_per_page)
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 100))
     except (ValueError, TypeError):
         page = 1
         items_per_page = 70
 
-    def sort_recently_added(movies):
-        # Filtra e ordena por data
-        filtered = [
-            movie for movie in movies 
+    def get_recent_movies():
+        cache_key = "recently_added_movies"
+        cached = VIDEO_CACHE.get(cache_key)
+
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+
+        all_movies = get_all_videos()
+        recent_movies = [
+            movie for movie in all_movies 
             if movie.get('type') == 'movie' and movie.get('date_added') is not None
         ]
-        return sorted(filtered, key=lambda x: x['date_added'], reverse=True)
+        # Ordena do mais recente para o mais antigo
+        recent_movies.sort(key=lambda x: x['date_added'], reverse=True)
+
+        VIDEO_CACHE.set(cache_key, json.dumps(recent_movies), expiry_hours=6)
+        return recent_movies
 
     try:
-        recent_movies = FILTERED_CACHE.get_sorted(
-            sort_name='recently_added',
-            sort_func=sort_recently_added,
-            expiry_hours=6  # Atualiza frequentemente pois são novos conteúdos
-        )
+        recent_movies = get_recent_movies()
 
         if not recent_movies:
             xbmcgui.Dialog().ok("Aviso", "Nenhum filme adicionado recentemente encontrado.")
@@ -934,7 +945,7 @@ def list_recently_added(page=1, items_per_page=70):
         xbmcplugin.setPluginCategory(HANDLE, 'Adicionados Recentemente')
         xbmcplugin.setContent(HANDLE, 'movies')
 
-        paginate_and_add_items(sorted_movies, page, items_per_page, 'list_recently_added')
+        paginate_and_add_items(recent_movies, page, items_per_page, 'list_recently_added')
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
@@ -942,6 +953,7 @@ def list_recently_added(page=1, items_per_page=70):
     except Exception as e:
         xbmc.log(f"Erro em list_recently_added: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Ocorreu um erro ao listar filmes recentes", xbmcgui.NOTIFICATION_ERROR)
+
 
 
 import concurrent.futures
@@ -968,6 +980,9 @@ def fetch_collection_art(tmdb_id):
     except Exception as e:
         xbmc.log(f"[WARN] fetch_collection_art: erro ao buscar coleção TMDb id {tmdb_id}: {e}", xbmc.LOGWARNING)
     return None
+
+
+# Filmes por coleção
 
 def list_collections(page=1, items_per_page=70, use_tmdb_art=use_tmdb):
     try:
@@ -1075,6 +1090,18 @@ def list_collections(page=1, items_per_page=70, use_tmdb_art=use_tmdb):
                 'fanart': art.get('backdrop', ''),
                 'thumb': art.get('poster', '')
             })
+            
+            favorites = load_favorites()
+            if any(fav.get('title') == name and fav.get('type') == 'set' for fav in favorites):
+                item.addContextMenuItems([(
+                    'Remover da sua lista',
+                    f'RunPlugin({get_url(action="remove_from_favorites", video=json.dumps({"title": name, "type": "set"}))})'
+                )])
+            else:
+                item.addContextMenuItems([(
+                    'Adicionar à sua lista',
+                    f'RunPlugin({get_url(action="add_to_favorites", video=json.dumps({"title": name, "type": "set"}))})'
+                )])
 
             url = get_url(action='list_movies_by_collection', collection=name)
             xbmcplugin.addDirectoryItem(HANDLE, url, item, True)
@@ -1154,7 +1181,7 @@ def list_movies_by_collection(collection_name, page=1, items_per_page=70):
         end = start + items_per_page
         
         for movie in movies[start:end]:
-            list_item, url, is_folder = create_video_item(movie)
+            list_item, url, is_folder = create_video_item(HANDLE,movie)
             if list_item and url:
                 xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
@@ -1178,7 +1205,7 @@ def list_movies_by_collection(collection_name, page=1, items_per_page=70):
         xbmc.log(f"[ERRO] list_movies_by_collection: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Falha ao carregar coleção", xbmcgui.NOTIFICATION_ERROR)
 
-
+# Filmes em 4K
 def get_4k_movies():
     """Junta todos os filmes que possuem a flag '4K': true."""
     cache_key = "all_4k_movies_list_v4_explicit_flag_sorted_popularity" # Recomendo mudar a cache key!
@@ -1244,6 +1271,8 @@ def list_4k_movies(page=1, items_per_page=70):
         xbmc.log(f"[ERRO] list_4k_movies: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Falha ao carregar filmes 4K", xbmcgui.NOTIFICATION_ERROR)
         
+        
+# Filmes por pais        
 def list_movies_by_country(country_code, page=1, items_per_page=70):
     """
     Lista os filmes que pertencem a um idioma original específico, com paginação.
@@ -1251,35 +1280,38 @@ def list_movies_by_country(country_code, page=1, items_per_page=70):
     try:
         page = max(1, int(page))
         items_per_page = max(10, min(int(items_per_page), 200))
-        country_code = urllib.parse.unquote(country_code) # Descodifica para garantir o código correto
+        country_code = urllib.parse.unquote(country_code)  # Descodifica para garantir o código correto
     except (ValueError, TypeError):
         page = 1
         items_per_page = 70
 
-    def filter_by_country(movies):
+    def get_movies_by_country():
+        cache_key = f"country_{hashlib.md5(country_code.encode('utf-8')).hexdigest()}"
+        cached = VIDEO_CACHE.get(cache_key)
+
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+
+        all_movies = get_all_videos()
         filtered = []
         seen_ids = set()
-        for movie in movies:
+        for movie in all_movies:
             if (
                 movie.get('type') == 'movie' and
                 movie.get('original_language') == country_code and
-                movie.get('tmdb_id') not in seen_ids # Evita duplicatas se tmdb_id for presente
+                movie.get('tmdb_id') not in seen_ids  # Evita duplicatas
             ):
                 seen_ids.add(movie['tmdb_id'])
                 filtered.append(movie)
-        
-        # Opcional: Ordenar os filmes dentro do país (ex: por ano, rating ou popularidade)
+
+        # Ordena (ano decrescente, título)
         filtered.sort(key=lambda x: (x.get('year', 0), x.get('title', '')), reverse=True)
+
+        VIDEO_CACHE.set(cache_key, json.dumps(filtered), expiry_hours=12)
         return filtered
 
     try:
-        # Usa um hash do country_code para o nome do cache
-        cache_key = f"country_{hashlib.md5(country_code.encode('utf-8')).hexdigest()}"
-        filtered_movies = FILTERED_CACHE.get_filtered(
-            cache_key,
-            filter_by_country,
-            expiry_hours=12 # Cache para filmes por país
-        )
+        filtered_movies = get_movies_by_country()
     except Exception as e:
         xbmc.log(f"[ERRO] Falha ao acessar cache para filmes por país ({country_code}): {str(e)}", xbmc.LOGERROR)
         filtered_movies = []
@@ -1300,7 +1332,7 @@ def list_movies_by_country(country_code, page=1, items_per_page=70):
     paginated_movies = filtered_movies[start_index:end_index]
 
     for movie in paginated_movies:
-        list_item, url, is_folder = create_video_item(movie)
+        list_item, url, is_folder = create_video_item(HANDLE,movie)
         xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
 
     # Próxima página
@@ -1308,14 +1340,126 @@ def list_movies_by_country(country_code, page=1, items_per_page=70):
         next_page_item = xbmcgui.ListItem(label="Próxima Página >>")
         next_page_url = get_url(
             action='list_movies_by_country',
-            country_code=urllib.parse.quote_plus(country_code), # Codifica o nome do país para URL
+            country_code=urllib.parse.quote_plus(country_code),  # Codifica para URL
             page=page + 1,
             items_per_page=items_per_page
         )
         next_page_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
         xbmcplugin.addDirectoryItem(HANDLE, next_page_url, next_page_item, isFolder=True)
-            
+
     xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_YEAR)
     xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_TITLE)
     xbmcplugin.endOfDirectory(HANDLE)
-    set_view_mode()            
+    set_view_mode()
+
+
+def list_recommendations(page=1, items_per_page=70):
+    """
+    Gera e exibe uma lista de filmes recomendados com base nos favoritos do usuário,
+    usando paginação e cache.
+    """
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 100))
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+
+    def get_and_sort_recommendations():
+        """Obtém e ordena filmes recomendados, com cache."""
+        all_favorites = load_favorites()
+        # Filtra os favoritos para usar apenas filmes como base da recomendação
+        user_favorites = [m for m in all_favorites if m.get('type') == 'movie']
+
+        if not user_favorites:
+            return []
+
+        favorite_titles = sorted([m.get('title', '') for m in user_favorites])
+        cache_key = "recommendations_" + hashlib.md5(json.dumps(favorite_titles).encode('utf-8')).hexdigest()
+
+        cached_recommendations = VIDEO_CACHE.get(cache_key)
+
+        if cached_recommendations and not VIDEO_CACHE.is_expired(cache_key):
+            xbmc.log("[DEBUG] Carregando recomendações do cache.", xbmc.LOGINFO)
+            return json.loads(cached_recommendations)
+
+        xbmc.log("[DEBUG] Calculando novas recomendações.", xbmc.LOGINFO)
+
+        # Lógica de análise de preferências
+        genres_count = {}
+        actors_count = {}
+        keywords_count = {}
+        for movie in user_favorites:
+            genres = movie.get('genres', [])
+            if genres:
+                first_genre = genres[0]
+                genres_count[first_genre] = genres_count.get(first_genre, 0) + 2
+                for other_genre in genres[1:]:
+                    genres_count[other_genre] = genres_count.get(other_genre, 0) + 1
+            
+            for actor in movie.get('actors', []):
+                actors_count[actor] = actors_count.get(actor, 0) + 1
+            for keyword in movie.get('keywords', []):
+                keywords_count[keyword] = keywords_count.get(keyword, 0) + 1
+
+        all_content = get_all_videos()
+        # Filtra todo o conteúdo para usar apenas filmes
+        all_movies = [m for m in all_content if m.get('type') == 'movie']
+        recommendations = []
+        favorite_tmdb_ids = {m.get('tmdb_id') for m in user_favorites}
+
+        for movie in all_movies:
+            if movie.get('tmdb_id') in favorite_tmdb_ids:
+                continue
+
+            score = 0
+            
+            # Pontuação por gênero, ator e palavra-chave
+            for genre in movie.get('genres', []):
+                score += genres_count.get(genre, 0) * 1.5
+            for actor in movie.get('actors', []):
+                score += actors_count.get(actor, 0) * 1.0
+            for keyword in movie.get('keywords', []):
+                score += keywords_count.get(keyword, 0) * 0.5
+            
+            if score > 0:
+                movie['recommendation_score'] = score
+                recommendations.append(movie)
+
+        recommendations.sort(key=lambda x: x['recommendation_score'], reverse=True)
+        
+        top_recommendations = recommendations[:1000]
+
+        VIDEO_CACHE.set(cache_key, json.dumps(top_recommendations), expiry_hours=24)
+        return top_recommendations
+    
+    try:
+        recommendations = get_and_sort_recommendations()
+
+        if not recommendations:
+            xbmcgui.Dialog().ok("Aviso", "Nenhum filme recomendado encontrado. Adicione mais favoritos!")
+            xbmcplugin.endOfDirectory(HANDLE)
+            return
+
+        xbmcplugin.setPluginCategory(HANDLE, 'Recomendações para Você')
+        xbmcplugin.setContent(HANDLE, 'movies')
+        
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+
+        for movie in recommendations[start:end]:
+            list_item, url, is_folder = create_video_item(HANDLE, movie)
+            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
+
+        if end < len(recommendations):
+            next_item = xbmcgui.ListItem(label="Próxima Página >>")
+            next_url = get_url(action='list_recommendations', page=page + 1, items_per_page=items_per_page)
+            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode()
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_recommendations: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)

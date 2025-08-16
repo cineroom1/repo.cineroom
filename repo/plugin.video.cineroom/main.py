@@ -21,14 +21,15 @@ from xbmcvfs import translatePath
 # --- Imports de Módulos Personalizados ---
 # resources.lib
 from resources.lib.players import play_video
-from resources.lib.utils import get_all_videos, clear_cache, VIDEO_CACHE, FILTERED_CACHE
-from resources.lib.menus import list_menu, list_subcategories, get_menu, show_donation, show_telegram
+from resources.lib.utils import get_all_videos, clear_cache, VIDEO_CACHE
+from resources.lib.menus import list_menu, list_subcategories, get_menu, show_donation, show_telegram, verify_vip_access
 from resources.lib.config import login
 from resources.lib.configs.urls import data_feed, credenciais
-from resources.lib.counter import register_menu_access
 
 # resources.action
 from resources.action.search import search_videos, open_video_folder
+from firebase import list_most_searched, list_most_searched_tvshows
+
 from resources.action.movies import (
     list_movies_by_genre, list_genres, list_studios, list_movies_by_studio,
     list_years, list_movies_by_year, list_movies_by_specific_year, generate_url,
@@ -36,13 +37,13 @@ from resources.action.movies import (
     list_movies_by_popularity, list_movies_in_cinemas, list_recently_added,
     list_movies_by_collection, list_collections, list_movies_by_country,
     list_countries, list_4k_movies, list_movies_by_revenue, list_movies_by_keyword,
-    list_keywords, list_movies_legendados
+    list_keywords, list_movies_legendados, list_recommendations
 )
 from resources.action.tvshow import (
     list_series_genres, list_series_by_genre, list_series_studios,
     list_series_by_studio, list_series_by_rating, list_series_by_specific_year,
     list_series_by_popularity, list_anime_series, list_novela_series,
-    list_recently_added_series, list_kids_series
+    list_recently_added_series, list_kids_series, list_series_recommendations
 )
 
 from resources.action.video_listing import (
@@ -117,7 +118,8 @@ def router():
         'movie_synopsis': params.get('movie_synopsis', ''),
         'collection': params.get('collection', ''),
         'country_code': params.get('country_code', ''),
-        'keyword': params.get('keyword', '')
+        'keyword': params.get('keyword', ''),
+        'is_vip': params.get('is_vip', 'false')  # Adicione este parâmetro
     }
 
     # Processa parâmetros que podem ser JSON
@@ -131,13 +133,18 @@ def router():
     # Verifica o login antes de continuar
     if not login():
         return
+        
+    if kwargs.get('is_vip', 'false').lower() == 'true':
+        if not verify_vip_access():
+            xbmcgui.Dialog().notification('Acesso VIP', 'Você não tem acesso a este conteúdo', xbmcgui.NOTIFICATION_WARNING, 3000)
+            return    
 
     # Mapeamento de ações para funções
     actions = {
         'list_subcategories': lambda: list_subcategories(int(kwargs['menu_index'])),
         'list_videos': lambda: list_videos(kwargs['external_link'], kwargs['sort_method'], items_per_page=kwargs['items_per_page'], page=kwargs['page']),
-        'list_seasons': lambda: list_seasons(kwargs['serie']),
-        'list_episodes': lambda: list_episodes(kwargs['serie'], kwargs['season_title']),
+        'list_seasons': lambda: list_seasons(handle=HANDLE, serie_data=kwargs['serie']),
+        'list_episodes': lambda: list_episodes(handle=HANDLE, season_data=kwargs['serie'], season_title=kwargs['season_title']),
         'list_collection': lambda: list_collection(kwargs['collection']),
         'play': lambda: play_video(
             (
@@ -176,7 +183,7 @@ def router():
         'list_years': lambda: list_years(),
         'add_to_favorites': lambda: add_to_favorites(kwargs['video']),
         'remove_from_favorites': lambda: remove_from_favorites(kwargs['video']),
-        'list_favorites': lambda: list_favorites(),
+        'list_favorites': lambda: list_favorites(HANDLE),
         'list_movies_by_specific_year': lambda: list_movies_by_specific_year(2025),
         'list_series_by_specific_year': lambda: list_series_by_specific_year(2025),
         'list_movies_by_rating': lambda: list_movies_by_rating(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
@@ -215,9 +222,13 @@ def router():
             page=kwargs['page'],
             items_per_page=kwargs['items_per_page']
         ),
-        'list_4k_movies': lambda: list_4k_movies(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
         'list_movies_by_revenue': lambda: list_movies_by_revenue(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
-        'list_movies_legendados': lambda: list_movies_legendados(page=kwargs['page'], items_per_page=kwargs['items_per_page'])
+        'list_movies_legendados': lambda: list_movies_legendados(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
+        'list_recommendations': lambda: list_recommendations(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
+        'list_series_recommendations': lambda: list_series_recommendations(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
+        'list_most_searched': lambda: list_most_searched(HANDLE),
+        'list_most_searched_tvshows': lambda: list_most_searched_tvshows(HANDLE),
+        'list_4k_movies': lambda: list_4k_movies(page=kwargs['page'], items_per_page=kwargs['items_per_page'])
     }
 
     # Executa a ação correspondente ou lista o menu principal
@@ -231,5 +242,4 @@ def router():
         list_menu()
 
 if __name__ == '__main__':
-    register_menu_access()
     router()

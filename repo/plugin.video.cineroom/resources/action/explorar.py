@@ -13,7 +13,7 @@ import xbmcvfs
 
 from resources.action.video_listing import create_video_item
 from resources.action.favorites import load_favorites
-from resources.lib.utils import get_all_videos, VIDEO_CACHE, FILTERED_CACHE
+from resources.lib.utils import get_all_videos, VIDEO_CACHE
 from resources.lib.utils_view import set_view_mode
 
 
@@ -93,7 +93,7 @@ def list_trending():
         if 'title' not in item:
             continue
 
-        list_item, url, is_folder = create_video_item(item)
+        list_item, url, is_folder = create_video_item(HANDLE,item)
         if not list_item or not url:
             continue
 
@@ -166,7 +166,7 @@ def list_random():
         for item in items[:20]:  # Limite de 20 itens
             try:
                 # Usa create_video_item para criar o item principal
-                list_item, url, is_folder = create_video_item(item)
+                list_item, url, is_folder = create_video_item(HANDLE,item)
                 if list_item and url:
                     xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
             except Exception as e:
@@ -255,7 +255,7 @@ def list_week_recommendations():
 
     for item in items:
         # Usa create_video_item para criar o item principal
-        list_item, url, is_folder = create_video_item(item)
+        list_item, url, is_folder = create_video_item(HANDLE,item)
         
         if not list_item or not url:
             continue
@@ -375,7 +375,7 @@ def list_by_year(year, page=1):
 
     for item in pagina_atual:
         try:
-            list_item, url, is_folder = create_video_item(item)
+            list_item, url, is_folder = create_video_item(HANDLE,item)
             if list_item and url:
                 xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
         except Exception as e:
@@ -395,7 +395,7 @@ def list_by_year(year, page=1):
 
     xbmcplugin.endOfDirectory(HANDLE, cacheToDisc=True)
 
-# Na sua área de utilitários ou onde o FilteredCache está definido
+# Função de ordenação por data de adição (mantida como está)
 def sort_by_date_added_func(items):
     valid_items = []
     for item in items:
@@ -403,11 +403,9 @@ def sort_by_date_added_func(items):
             date_str = item.get('date_added', '')
             if not date_str or len(date_str) != 10 or date_str[4] != '-' or date_str[7] != '-':
                 continue
-            
             year, month, day = map(int, date_str.split('-'))
             if year < 1900 or not (1 <= month <= 12) or not (1 <= day <= 31):
                 continue
-                
             valid_items.append(item)
         except:
             continue
@@ -422,25 +420,25 @@ def sort_by_date_added_func(items):
     )
     return valid_items
 
-# E então, na sua função list_by_date_added:
+# --- Função de Listagem (AJUSTADA) ---
 def list_by_date_added(page=1):
-    from datetime import datetime
-    from xbmcaddon import Addon
-    
     addon = Addon()
     items_per_page = int(addon.getSettingString("items_per_page") or 20)
 
-    def get_recently_added():
-        cache_key = "recently_added_v2"
-        cached = VIDEO_CACHE.get(cache_key)
+    # Função interna para buscar a lista de filmes recentes
+    def get_recently_added_from_cache():
+        # A nova lógica busca a lista completa do cache principal
+        cached = VIDEO_CACHE.get("all_videos")
         
-        if cached and not VIDEO_CACHE.is_expired(cache_key):
-            return json.loads(cached)
+        if cached and not VIDEO_CACHE.is_expired("all_videos"):
+            all_items = json.loads(cached)
+        else:
+            # Se o cache principal não existir, carrega e salva (como fallback)
+            all_items = get_all_videos()
+            VIDEO_CACHE.set("all_videos", json.dumps(all_items), expiry_hours=6)
         
-        all_items = get_all_videos()
+        # Filtra e ordena a lista
         filtered = [item for item in all_items if item.get('date_added')]
-        
-        # Remove duplicados por tmdb_id
         seen_ids = set()
         unique_items = []
         for item in filtered:
@@ -449,14 +447,10 @@ def list_by_date_added(page=1):
                 unique_items.append(item)
                 seen_ids.add(tmdb_id)
         
-        # Ordena por data de adição (mais recente primeiro)
-        sorted_items = sorted(unique_items, key=lambda x: x['date_added'], reverse=True)
-        
-        VIDEO_CACHE.set(cache_key, json.dumps(sorted_items), expiry_hours=6)  # Cache curto (6h)
-        return sorted_items
+        return sorted(unique_items, key=lambda x: x['date_added'], reverse=True)
 
     try:
-        items = get_recently_added()
+        items = get_recently_added_from_cache()
         
         if not items:
             xbmcgui.Dialog().notification("Info", "Nenhum conteúdo disponível", xbmcgui.NOTIFICATION_INFO)
@@ -466,24 +460,22 @@ def list_by_date_added(page=1):
         xbmcplugin.setPluginCategory(HANDLE, "Adicionados Recentemente")
         xbmcplugin.setContent(HANDLE, 'movies')
 
-        # Paginação
         start = (page - 1) * items_per_page
         end = start + items_per_page
         for item in items[start:end]:
             try:
-                list_item, url, is_folder = create_video_item(item)
+                list_item, url, is_folder = create_video_item(HANDLE,item)
                 if list_item and url:
                     xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
             except Exception as e:
                 xbmc.log(f"Erro ao adicionar item {item.get('title', '')}: {str(e)}", xbmc.LOGERROR)
 
-        # Próxima página
         if end < len(items):
             next_item = xbmcgui.ListItem(label="Próxima página >>")
             next_url = get_url(action='list_by_date_added', page=page + 1)
             next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
             xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
-        
+            
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
 
@@ -491,6 +483,7 @@ def list_by_date_added(page=1):
         xbmc.log(f"ERRO em list_by_date_added: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Verifique os logs", xbmcgui.NOTIFICATION_ERROR)
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
+
 
 
 def list_by_provider(provider, page=1):
@@ -546,7 +539,7 @@ def list_by_provider(provider, page=1):
         end = start + items_per_page
         for item in items[start:end]:
             try:
-                list_item, url, is_folder = create_video_item(item)
+                list_item, url, is_folder = create_video_item(HANDLE,item)
                 if list_item and url:
                     xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
             except Exception as e:

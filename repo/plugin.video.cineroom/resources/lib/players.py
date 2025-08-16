@@ -175,25 +175,27 @@ def is_jacktook_installed():
     
 
 def select_source(paths, movie_poster=None, movie_synopsis=None, is_series=False):
+    """
+    Seleciona a fonte a ser reproduzida.
+    Evita diálogo se houver apenas 1 opção.
+    """
     if not paths:
         return None
-    
-    # Para séries com 1 link, já retorna direto, sem diálogo e sem buscar fontes
+
+    # Para séries com 1 link, retorna direto
     if is_series and len(paths) == 1:
+        return paths[0]
+
+    # Se houver apenas 1 opção de stream ou BUSCAR FONTES, retorna direto
+    if len(paths) == 1:
         return paths[0]
 
     dialog = xbmcgui.Dialog()
     items = []
 
-    # Para filmes, adiciona sempre a opção BUSCAR FONTES, mesmo que tenha só 1 link
-    # Para séries, NÃO adiciona essa opção
-    if not is_series:
-        items.append("[COLOR gold]BUSCAR FONTES[/COLOR]")
-        paths = ["search_sources"] + paths
-
-    start_index = 0 if is_series else 1
-    for path in paths[start_index:]:
+    for path in paths:
         if path == "search_sources":
+            items.append("[COLOR gold]BUSCAR FONTES[/COLOR]")
             continue
 
         if 'magnet:?xt=urn:btih:' in path or 'uri=magnet:?xt=urn:btih:' in path:
@@ -209,26 +211,27 @@ def select_source(paths, movie_poster=None, movie_synopsis=None, is_series=False
         label = f"{source_type}{extra_info}"
         items.append(label)
 
-    ret = dialog.select("Escolha uma fonte para assistir", items)
+    # Abre diálogo somente se houver mais de 1 opção
+    ret = dialog.select("Escolha uma fonte para assistir", items) if len(items) > 1 else 0
     if ret == -1:
         return None
 
-    return paths[ret if is_series else ret]
-   
+    return paths[ret]
 
-def play_video(paths, title='', tmdb_id='', tvdb_id='', imdb_id='', year=None, movie_poster='', movie_synopsis='', 
-               season=None, episode=None, showname='', is_series=False):
+def play_video(paths, title='', tmdb_id='', tvdb_id='', imdb_id='', year=None,
+               movie_poster='', movie_synopsis='', season=None, episode=None,
+               showname='', is_series=False):
+    """
+    Reproduz o vídeo selecionado.
+    """
     try:
         if not paths:
             raise ValueError("Nenhum path fornecido para reprodução")
 
         paths = [paths] if isinstance(paths, str) else list(paths)
 
-        # Adiciona opção única de pesquisa
-        if tmdb_id or title:
-            paths.append("search_sources")
-
-        selected_path = select_source(paths, movie_poster=movie_poster, movie_synopsis=movie_synopsis, is_series=is_series)
+        selected_path = select_source(paths, movie_poster=movie_poster,
+                                      movie_synopsis=movie_synopsis, is_series=is_series)
         if not selected_path:
             return False
 

@@ -1,4 +1,4 @@
-<addon id="plugin.video.cineroom" version="4.3.1" name="Cineroom" provider-name="Gael">
+<addon id="plugin.video.cineroom" version="4.3.2" name="cineroom" provider-name="Gael">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
@@ -8,16 +8,18 @@
     <provides>video</provides>
   </extension>
 
+  <!-- Serviço de monitoramento -->
+  <extension point="xbmc.service" library="service.py" start="startup"/>
+
   <!-- Metadados do addon -->
   <extension point="xbmc.addon.metadata">
-    <summary lang="pt_BR">Agregador de vídeos com foco em praticidade e desempenho.</summary>
-    <description lang="pt_BR">
-      O Cineroom é uma ferramenta versátil desenvolvida para o Kodi, com o objetivo de organizar e exibir conteúdos de vídeo de forma rápida e intuitiva. Ele permite integrar catálogos externos, navegar por categorias personalizadas, realizar buscas e acessar seus conteúdos favoritos com facilidade. Ideal para quem busca uma experiência de entretenimento fluida, leve e sem complicações.
-    </description>
-    <disclaimer lang="pt_BR">Este addon é destinado exclusivamente para fins educacionais.</disclaimer>
+    <summary lang="pt_BR">Addon de exemplo para demonstração no Kodi.</summary>
+    <description lang="pt_BR">Addon scraper. não hospedamos nenhum tipo de conteudo</description>
+    <disclaimer lang="pt_BR">Este addon é apenas para fins educacionais e não hospeda nenhum conteúdo próprio.</disclaimer>
     <platform>all</platform>
     <license>GPL-3.0-only</license>
-    <source>https://github.com/cineroom1/repo.cineroom</source>
+    <source>https://cinerrom1.github.io</source>
+    <email>cineroom.ofc@gmail.com</email>
     <assets>
       <icon>resources/images/icon.png</icon>
       <fanart>resources/images/fanart.jpg</fanart>

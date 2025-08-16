@@ -8,6 +8,7 @@ import json
 import xbmc
 import xbmcvfs
 import threading
+import hashlib
 import time # Adicionado para time.sleep
 import urllib.error # Adicionado para urllib.error.HTTPError
 from concurrent.futures import ThreadPoolExecutor
@@ -17,7 +18,7 @@ from resources.lib.utils import get_all_videos
 from urllib.parse import urlencode, parse_qsl
 from resources.action.favorites import load_favorites
 from resources.action.video_listing import create_video_item
-from resources.lib.utils import get_all_videos, VIDEO_CACHE, FILTERED_CACHE
+from resources.lib.utils import get_all_videos, VIDEO_CACHE
 from resources.lib.utils_view import set_view_mode
 
 
@@ -136,7 +137,7 @@ def list_series_by_genre(genre, page=1, items_per_page=70):
         start = (page - 1) * items_per_page
         end = start + items_per_page
         for serie in series[start:end]:
-            list_item, url, is_folder = create_video_item(serie)
+            list_item, url, is_folder = create_video_item(HANDLE,serie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         if end < len(series):
@@ -218,7 +219,7 @@ def list_series_by_studio(studio):
             return
 
         for serie in filtered_series:
-            list_item, url, is_folder = create_video_item(serie)
+            list_item, url, is_folder = create_video_item(HANDLE,serie)
             if list_item and url:
                 xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
 
@@ -276,7 +277,7 @@ def list_series_by_rating(page=1, items_per_page=100):
         start = (page - 1) * items_per_page
         end = start + items_per_page
         for serie in series[start:end]:
-            list_item, url, is_folder = create_video_item(serie)
+            list_item, url, is_folder = create_video_item(HANDLE,serie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         if end < len(series):
@@ -332,7 +333,7 @@ def list_series_by_specific_year(year):
         xbmcplugin.setContent(HANDLE, 'tvshows')
 
         for serie in series:
-            list_item, url, is_folder = create_video_item(serie)
+            list_item, url, is_folder = create_video_item(HANDLE,serie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         xbmcplugin.endOfDirectory(HANDLE)
@@ -385,7 +386,7 @@ def list_series_by_popularity(page=1, items_per_page=70):
         start = (page - 1) * items_per_page
         end = start + items_per_page
         for serie in series[start:end]:
-            list_item, url, is_folder = create_video_item(serie)
+            list_item, url, is_folder = create_video_item(HANDLE,serie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         if end < len(series):
@@ -406,45 +407,56 @@ def list_series_by_popularity(page=1, items_per_page=70):
         xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)
 
 
-
-    
-def list_anime_series():
+def list_anime_series(page=1, items_per_page=70):
     """
-    Lista as séries que têm "Anime" no campo de gêneros, reutilizando create_video_item.
+    Lista as séries que têm "Anime" no campo de gêneros, ordenadas por popularidade com cache.
     """
     try:
-        xbmcplugin.setPluginCategory(HANDLE, 'Animes')
-        xbmcplugin.setContent(HANDLE, 'tvshows')
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 200))
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
 
-        # Obtém todos os vídeos
+    def get_cached_anime_series():
+        cache_key = "anime_series_v2"
+        cached = VIDEO_CACHE.get(cache_key)
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+
         videos = get_all_videos()
-        if not videos:
-            xbmcgui.Dialog().ok("Erro", "Nenhum vídeo encontrado.")
-            return
+        anime_series = [v for v in videos if v.get('type') == 'tvshow' and 'Anime' in v.get('genres', [])]
+        anime_series = sorted(anime_series, key=lambda s: s.get('popularity', 0), reverse=True)
 
-        # Filtra apenas as séries do tipo Anime
-        anime_series = [
-            video for video in videos
-            if video.get('type') == 'tvshow' and 'Anime' in video.get('genres', [])
-        ]
+        VIDEO_CACHE.set(cache_key, json.dumps(anime_series), expiry_hours=12)
+        return anime_series
+
+    try:
+        anime_series = get_cached_anime_series()
 
         if not anime_series:
             xbmcgui.Dialog().ok("Aviso", "Nenhuma série de anime encontrada.")
             return
 
-        # Processa cada série usando create_video_item
-        for serie in anime_series:
-            list_item, url, is_folder = create_video_item(serie)
-            
+        xbmcplugin.setPluginCategory(HANDLE, 'Animes')
+        xbmcplugin.setContent(HANDLE, 'tvshows')
+
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+        for serie in anime_series[start:end]:
+            list_item, url, is_folder = create_video_item(HANDLE, serie)
             if list_item and url:
                 xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
-            else:
-                xbmc.log(f"Falha ao criar item para: {serie.get('title', 'Desconhecido')}", xbmc.LOGERROR)
 
-        # Métodos de ordenação
-        xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_LABEL)
-        xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_RATING)
-        xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_YEAR)
+        if end < len(anime_series):
+            next_item = xbmcgui.ListItem(label="Próxima Página >>")
+            next_url = get_url(
+                action='list_anime_series',
+                page=page + 1,
+                items_per_page=items_per_page
+            )
+            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
@@ -452,53 +464,70 @@ def list_anime_series():
     except Exception as e:
         xbmc.log(f"Erro em list_anime_series: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Ocorreu um erro ao listar animes", xbmcgui.NOTIFICATION_ERROR)
+
     
-def list_novela_series():
+def list_novela_series(page=1, items_per_page=70):
     """
-    Lista as séries que têm "Novela" no campo de gêneros.
+    Lista as séries que têm "Novela" no campo de gêneros, ordenadas por popularidade com cache.
     """
     try:
-        xbmcplugin.setPluginCategory(HANDLE, 'Novelas')
-        xbmcplugin.setContent(HANDLE, 'tvshows')
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 200))
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
 
-        # Obtém todos os vídeos (séries e filmes)
+    def get_cached_novela_series():
+        cache_key = "novela_series_v2"
+        cached = VIDEO_CACHE.get(cache_key)
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+
         videos = get_all_videos()
-        if not videos:
-            xbmcgui.Dialog().ok("Erro", "Nenhum vídeo encontrado.")
-            return
+        novela_series = [v for v in videos if v.get('type') == 'tvshow' and 'Novela' in v.get('genres', [])]
+        novela_series = sorted(novela_series, key=lambda s: s.get('popularity', 0), reverse=True)
 
-        # Filtra apenas as séries que têm "Novela" no campo de gêneros
-        novela_series = [
-            video for video in videos
-            if video.get('type') == 'tvshow' and 'Novela' in video.get('genres', [])
-        ]
+        VIDEO_CACHE.set(cache_key, json.dumps(novela_series), expiry_hours=12)
+        return novela_series
 
-        # Verifica se há séries filtradas
+    try:
+        novela_series = get_cached_novela_series()
+
         if not novela_series:
             xbmcgui.Dialog().ok("Aviso", "Nenhuma novela encontrada.")
             return
 
-        # Exibe as séries de novela usando create_video_item
-        for serie in novela_series:
-            list_item, url, is_folder = create_video_item(serie)
-            
+        xbmcplugin.setPluginCategory(HANDLE, 'Novelas')
+        xbmcplugin.setContent(HANDLE, 'tvshows')
+
+        # Paginação
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+        for serie in novela_series[start:end]:
+            list_item, url, is_folder = create_video_item(HANDLE, serie)
             if list_item and url:
-                xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
+                xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
             else:
                 xbmc.log(f"Falha ao criar item para: {serie.get('title', 'Desconhecido')}", xbmc.LOGERROR)
 
-        # Adiciona métodos de ordenação
-        xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_LABEL)
-        xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_RATING)
-        xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_YEAR)
+        # Adiciona item para próxima página, se houver
+        if end < len(novela_series):
+            next_item = xbmcgui.ListItem(label="Próxima Página >>")
+            next_url = get_url(
+                action='list_novela_series',
+                page=page + 1,
+                items_per_page=items_per_page
+            )
+            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
 
-        # Finaliza a lista
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
 
     except Exception as e:
         xbmc.log(f"Erro em list_novela_series: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Ocorreu um erro ao listar novelas", xbmcgui.NOTIFICATION_ERROR)
+
     
  
 def list_recently_added_series():
@@ -538,7 +567,7 @@ def list_recently_added_series():
         xbmcplugin.setContent(HANDLE, 'tvshows')
 
         for serie in series:
-            list_item, url, is_folder = create_video_item(serie)
+            list_item, url, is_folder = create_video_item(HANDLE,serie)
             xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
 
         xbmcplugin.endOfDirectory(HANDLE)
@@ -550,7 +579,7 @@ def list_recently_added_series():
     
 def list_kids_series():
     """
-    Lista as séries classificadas como infantis (Kids).
+    Lista as séries classificadas como infantis (Kids), ordenadas por popularidade.
     """
     try:
         xbmcplugin.setPluginCategory(HANDLE, 'Infantil')
@@ -579,15 +608,18 @@ def list_kids_series():
             xbmcgui.Dialog().ok("Aviso", "Nenhuma série infantil encontrada.")
             return
 
-        # Usa create_video_item para cada série
+        # Ordena por popularidade
+        unique_series = sorted(unique_series, key=lambda s: s.get('popularity', 0), reverse=True)
+
+        # Cria itens para cada série
         for serie in unique_series:
-            list_item, url, is_folder = create_video_item(serie)
+            list_item, url, is_folder = create_video_item(HANDLE, serie)
             if list_item and url:
                 xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
             else:
                 xbmc.log(f"Falha ao criar item para: {serie.get('title', 'Desconhecido')}", xbmc.LOGERROR)
 
-        # Métodos de ordenação
+        # Métodos de ordenação do Kodi (opcional)
         xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_RATING)
         xbmcplugin.addSortMethod(HANDLE, xbmcplugin.SORT_METHOD_VIDEO_YEAR)
 
@@ -596,7 +628,8 @@ def list_kids_series():
 
     except Exception as e:
         xbmc.log(f"Erro em list_kids_series: {str(e)}", xbmc.LOGERROR)
-        xbmcgui.Dialog().notification("Erro", "Falha ao listar séries infantis", xbmcgui.NOTIFICATION_ERROR) 
+        xbmcgui.Dialog().notification("Erro", "Falha ao listar séries infantis", xbmcgui.NOTIFICATION_ERROR)
+
 
 def list_recently_added_episodes():
     """
@@ -782,3 +815,110 @@ def list_series_episodes(serie_title):
         xbmc.log(f"Erro global em list_series_episodes: {str(global_error)}", xbmc.LOGERROR)
         xbmcgui.Dialog().ok("Erro", "Ocorreu um erro ao carregar os episódios.")
         xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
+        
+def list_series_recommendations(page=1, items_per_page=70):
+    """
+    Gera e exibe uma lista de séries recomendadas com base nos favoritos do usuário.
+    """
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 100))
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+
+    def get_and_sort_recommendations():
+        """Obtém e ordena séries recomendadas, com cache."""
+        all_favorites = load_favorites()
+        # Filtra apenas os favoritos que são séries
+        user_favorites = [m for m in all_favorites if m.get('type') == 'tvshow']
+
+        if not user_favorites:
+            return []
+
+        favorite_titles = sorted([s.get('title', '') for s in user_favorites])
+        cache_key = "series_recommendations_" + hashlib.md5(json.dumps(favorite_titles).encode('utf-8')).hexdigest()
+
+        cached_recommendations = VIDEO_CACHE.get(cache_key)
+
+        if cached_recommendations and not VIDEO_CACHE.is_expired(cache_key):
+            xbmc.log("[DEBUG] Carregando recomendações de séries do cache.", xbmc.LOGINFO)
+            return json.loads(cached_recommendations)
+
+        xbmc.log("[DEBUG] Calculando novas recomendações de séries.", xbmc.LOGINFO)
+
+        # Lógica de análise de preferências de séries
+        genres_count = {}
+        actors_count = {}
+        keywords_count = {}
+        for serie in user_favorites:
+            genres = serie.get('genres', [])
+            if genres:
+                first_genre = genres[0]
+                genres_count[first_genre] = genres_count.get(first_genre, 0) + 2
+                for other_genre in genres[1:]:
+                    genres_count[other_genre] = genres_count.get(other_genre, 0) + 1
+            
+            for actor in serie.get('actors', []):
+                actors_count[actor] = actors_count.get(actor, 0) + 1
+            for keyword in serie.get('keywords', []):
+                keywords_count[keyword] = keywords_count.get(keyword, 0) + 1
+
+        all_series = [s for s in get_all_videos() if s.get('type') == 'tvshow']
+        recommendations = []
+        favorite_tmdb_ids = {s.get('tmdb_id') for s in user_favorites}
+
+        for serie in all_series:
+            if serie.get('tmdb_id') in favorite_tmdb_ids:
+                continue
+
+            score = 0
+            
+            for genre in serie.get('genres', []):
+                score += genres_count.get(genre, 0) * 1.5
+            for actor in serie.get('actors', []):
+                score += actors_count.get(actor, 0) * 1.0
+            for keyword in serie.get('keywords', []):
+                score += keywords_count.get(keyword, 0) * 0.5
+            
+            if score > 0:
+                serie['recommendation_score'] = score
+                recommendations.append(serie)
+
+        recommendations.sort(key=lambda x: x['recommendation_score'], reverse=True)
+        
+        top_recommendations = recommendations[:1000]
+
+        VIDEO_CACHE.set(cache_key, json.dumps(top_recommendations), expiry_hours=24)
+        return top_recommendations
+
+    try:
+        recommendations = get_and_sort_recommendations()
+
+        if not recommendations:
+            xbmcgui.Dialog().ok("Aviso", "Nenhuma série recomendada encontrada. Adicione mais séries aos favoritos!")
+            xbmcplugin.endOfDirectory(HANDLE)
+            return
+
+        xbmcplugin.setPluginCategory(HANDLE, 'Recomendações de Séries')
+        xbmcplugin.setContent(HANDLE, 'tvshows')
+        
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+
+        for serie in recommendations[start:end]:
+            list_item, url, is_folder = create_video_item(HANDLE,serie)
+            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
+
+        if end < len(recommendations):
+            next_item = xbmcgui.ListItem(label="Próxima Página >>")
+            next_url = get_url(action='list_series_recommendations', page=page + 1, items_per_page=items_per_page)
+            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode()
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_series_recommendations: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)        

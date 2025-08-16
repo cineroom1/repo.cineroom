@@ -7,6 +7,8 @@ import xbmc
 import xbmcgui
 import xbmcplugin
 import xbmcaddon
+import hashlib
+
 
 from urllib.parse import urlencode
 
@@ -14,12 +16,8 @@ from resources.lib.encryption_utils import obfuscate_string, deobfuscate_string
 from resources.action.donation_window import DonationDialog
 from resources.action.telegram_window import TelegramDialog
 from resources.lib.configs.urls import data_feed
-from resources.lib.utils import get_all_videos, VIDEO_CACHE, FILTERED_CACHE
-from resources.lib.counter import (
-    get_firebase_counters,
-    update_firebase_counter,
-    get_decayed_counters,
-)
+from resources.lib.utils import get_all_videos, VIDEO_CACHE
+
 
 # Configurações do plugin
 URL = sys.argv[0]
@@ -29,13 +27,6 @@ ADDON = xbmcaddon.Addon()
 CACHE_KEY_MAIN_MENU = "main_menu_data"
 CACHE_EXPIRY_HOURS = 24
 
-DEFAULT_COUNTERS = {
-    "Filmes": 5,
-    "Séries": 5,
-    "Explorar": 5,
-    "Visitas_menu": 1,
-    "last_updated": ""
-}
 
 def get_url(**kwargs):
     """Cria uma URL para chamar o plugin recursivamente a partir dos argumentos fornecidos."""
@@ -122,19 +113,11 @@ def list_menu():
     if not menu:
         return
 
-    counters = get_firebase_counters()
-    last_access = ADDON.getSetting('last_menu_access')
-    current_date = time.strftime('%Y-%m-%d')
-
-    if last_access != current_date:
-        new_count = update_firebase_counter("Visitas_menu")
-        if new_count is not None:
-            counters["Visitas_menu"] = new_count
-            ADDON.setSetting('last_menu_access', current_date)
 
     settings_map = {
         "Filmes": ADDON.getSettingBool('mostrar_filmes'),
         "Séries": ADDON.getSettingBool('mostrar_series'),
+        "Exclusivo": ADDON.getSettingBool('mostrar_Exclusivo'),
         "Pesquisar": ADDON.getSettingBool('mostrar_pesquisar'),
         "Explorar": ADDON.getSettingBool('mostrar_explorar'),
         "Minha_Lista": ADDON.getSettingBool('mostrar_favoritos')
@@ -178,7 +161,7 @@ def list_menu():
     xbmcplugin.endOfDirectory(HANDLE)
 
 def list_subcategories(menu_index):
-    """Lista subcategorias com cache."""
+    """Lista subcategorias marcando as VIP e bloqueia acesso se subcategoria estiver off."""
     menu = get_menu()
     if not menu or menu_index >= len(menu):
         return
@@ -187,23 +170,35 @@ def list_subcategories(menu_index):
     if not subcategories:
         xbmcgui.Dialog().ok('Erro', 'Subcategorias não encontradas!')
         return
-    
-    category_key = menu[menu_index].get("menu_key", "")
-    
-    if category_key in ["Filmes", "Séries", "Explorar"]:
-        new_count = update_firebase_counter(category_key)
-    
+
     xbmcplugin.setPluginCategory(HANDLE, menu[menu_index].get("menu_title", "Subcategorias"))
     xbmcplugin.setContent(HANDLE, "files")
 
     for subcategory in subcategories:
-        label = subcategory['categories']
-            
+        # Bloqueia subcategoria com status off
+        if subcategory.get("status", "on").lower() == "off":
+            label = f"[COLOR red]•[/COLOR] {subcategory.get('categories', 'Indisponível')} - (Manutenção)"
+            info = {'title': f"{subcategory.get('categories', 'Indisponível')} - Indisponível", 'plot': 'Em manutenção'}
+            art = {
+                'icon': subcategory.get('poster', ''),
+                'fanart': subcategory.get('backdrop', menu[menu_index].get('fanart', '')),
+                'thumb': subcategory.get('poster', '')
+            }
+            list_item = create_list_item(label, art=art, info=info)
+            # Coloca como item não clicável (isFolder=False)
+            xbmcplugin.addDirectoryItem(HANDLE, "", list_item, isFolder=False)
+            continue
+
+        # Subcategoria ativa - lista normalmente
+        label = subcategory.get('categories', 'Sem título')
+        if subcategory.get('is_vip', False):
+            label = f"{label} [COLOR gold]★[/COLOR]"
+
         art = {
             'icon': subcategory.get('poster', ''),
             'fanart': subcategory.get('backdrop', menu[menu_index].get('fanart', ''))
         }
-        
+
         info = {
             'title': label,
             'plot': subcategory.get('description', '')
@@ -214,18 +209,117 @@ def list_subcategories(menu_index):
         
         list_item = create_list_item(label, art=art, info=info)
         
-        if 'action' in subcategory:
-            url = get_url(action=subcategory['action'])
-        else:
-            url = get_url(
-                action='list_videos',
-                external_link=subcategory.get('externallink'),
-                sort_method=subcategory.get('sort_method', '')
-            )
-
+        url_params = {
+            'action': subcategory.get('action', 'list_videos'),
+            'is_vip': 'true' if subcategory.get('is_vip', False) else 'false',
+            'content_name': subcategory['categories']
+        }
+        
+        if 'externallink' in subcategory:
+            url_params['external_link'] = subcategory['externallink']
+        if 'sort_method' in subcategory:
+            url_params['sort_method'] = subcategory['sort_method']
+        
+        url = get_url(**url_params)
         xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
 
     xbmcplugin.endOfDirectory(HANDLE)
+
+
+
+FIREBASE_URL = "https://vipacess-7ddc2-default-rtdb.firebaseio.com/vip_accesses"
+
+def get_today_date():
+    return time.strftime('%Y-%m-%d')
+
+def http_get(url):
+    try:
+        with urllib.request.urlopen(url, timeout=5) as response:
+            return response.read().decode('utf-8')
+    except Exception as e:
+        xbmc.log(f"[VIP] Erro no GET: {e}", xbmc.LOGERROR)
+        return None
+
+def http_put(url, data):
+    try:
+        req = urllib.request.Request(url, data=data.encode('utf-8'), method='PUT')
+        req.add_header('Content-Type', 'application/json')
+        with urllib.request.urlopen(req, timeout=5) as response:
+            return response.status == 200
+    except Exception as e:
+        xbmc.log(f"[VIP] Erro no PUT: {e}", xbmc.LOGERROR)
+        return False
+
+def get_access_count_for_today():
+    today = get_today_date()
+    url = f"{FIREBASE_URL}/{today}.json"
+    data = http_get(url)
+    if data is None or data == "null":
+        return 0
+    try:
+        return int(json.loads(data))
+    except:
+        return 0
+
+def increment_access_count():
+    today = get_today_date()
+    count = get_access_count_for_today()
+    count += 1
+    url = f"{FIREBASE_URL}/{today}.json"
+    success = http_put(url, json.dumps(count))
+    
+    # Verifica se foi bloqueado pelo Firebase
+    if not success and get_access_count_for_today() >= 1:
+        xbmcgui.Dialog().ok("Limite diário", "Limite Diario Atingido! (20 Usuarios)")
+    return success
+
+def generate_session_token():
+    secret_key = ADDON.getSetting('secret_key') or "DEFAULT_KEY_ALTERAR_NO_SETTINGS"
+    timestamp = str(int(time.time()) // 86400)
+    return hashlib.sha256((secret_key + timestamp).encode()).hexdigest()
+
+def validate_session_token(token):
+    return token == generate_session_token()
+
+def verify_vip_access():
+    today = get_today_date()
+
+    # Bloqueio local após 3 tentativas erradas
+    blocked_day = ADDON.getSetting('vip_blocked_day')
+    if blocked_day == today:
+        xbmcgui.Dialog().ok("Acesso Bloqueado", "Muitas tentativas incorretas. Tente novamente amanhã.")
+        return False
+
+    # Token válido existente
+    saved_token = ADDON.getSetting('vip_session_token')
+    if saved_token and validate_session_token(saved_token):
+        return True
+
+    # Usa teclado numérico
+    senha_digitada = xbmcgui.Dialog().numeric(0, "Acesso VIP\nDigite a senha:")
+    if senha_digitada:
+        senha_hash = hashlib.sha256(senha_digitada.encode()).hexdigest()
+        correct_hash = ADDON.getSetting('vip_password_hash')
+
+        if senha_hash == correct_hash:
+            if increment_access_count():
+                token = generate_session_token()
+                ADDON.setSetting('vip_session_token', token)
+                ADDON.setSetting('vip_failed_attempts', "0")
+                ADDON.setSetting('vip_blocked_day', "")
+                return True
+        else:
+            tentativas = int(ADDON.getSetting('vip_failed_attempts') or "0") + 1
+            ADDON.setSetting('vip_failed_attempts', str(tentativas))
+
+            if tentativas >= 3:
+                ADDON.setSetting('vip_blocked_day', today)
+                xbmcgui.Dialog().ok("Acesso Bloqueado", "3 tentativas incorretas. Tente novamente amanhã.")
+            else:
+                xbmcgui.Dialog().ok("Senha incorreta", "Senha VIP inválida.")
+    return False
+
+
 
 
 def show_donation():

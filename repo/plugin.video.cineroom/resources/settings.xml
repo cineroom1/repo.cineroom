@@ -15,11 +15,16 @@
 		         type="bool" 
 		         label="Exibir categoria: Pesquisar" 
 		         default="true"/>
-				 
+		
+        <setting id="mostrar_Exclusivo" 
+		         type="bool" 
+				 label="Exibir categoria: Exclusivo" 
+				 default="false"/>		
+		
         <setting id="mostrar_explorar" 
 		         type="bool" 
 		         label="Exibir categoria: Explorar" 
-		         default="true"/>
+		         default="false"/>
 				 
         <setting id="mostrar_favoritos" 
 		         type="bool" 
@@ -72,7 +77,7 @@
                  type="labelenum" 
                  label="Itens por página" 
                  values="5|10|15|20|25|30|35|40|45|50|100|150|200|250|300"
-                 default="35" />
+                 default="30" />
 		         <setting label="[COLOR orange][B]USE 25 ITENS PARA DISPOSITIVOS FRACOS[/B][/COLOR]" type="info"/>
 
 	    <setting id="threads_cache" 
@@ -86,7 +91,7 @@
 		         id="view_mode" 
 				 type="labelenum" 
 				 values="list|poster|iconwall|shift|infowall|widelist|wall|banner|fanart" 
-				 default="list" />
+				 default="wall" />
 		
 		<setting id="default_search_provider" 
 		         type="enum" 
@@ -96,12 +101,57 @@
 		<setting id="use_tmdb_art" 
 		         type="bool" 
 				 label="Usar arte oficial TMDb nas coleções" 
-				 default="false" />
-				 
+				 default="true" />
+        <setting id="firebase_user_id" type="text" visible="false" default="" />
+        		
 			 
-	</category>			 
-				 		 
-		 
+	</category>	
+
+    <category label="Configurações de Cache">
+        <!-- Configurações de Cache RAM -->
+        <setting id="ram_cache_enabled" 
+                 type="bool" 
+                 label="Ativar Cache em RAM" 
+                 default="true" 
+                 enable="!eq(-1,false)"/>
+        
+        <setting id="ram_cache_max_size" 
+                 type="number" 
+                 label="Tamanho máximo do Cache RAM (itens)" 
+                 default="50" 
+                 enable="eq(-1,true)"
+                 range="10,200" 
+                 subsetting="true"/>
+        
+        <!-- Configurações de Cache em Disco -->
+        <setting id="disk_cache_enabled" 
+                 type="bool" 
+                 label="Ativar Cache em Disco" 
+                 default="true"/>
+        
+        <setting id="max_disk_cache_mb" 
+                 type="number" 
+                 label="Tamanho máximo do Cache em Disco (MB)" 
+                 default="100" 
+                 enable="eq(-1,true)"
+                 range="10,500" 
+                 subsetting="true"/>
+    </category>
+
+
+    <category label="Segurança" visible="false">
+        <setting id="secret_key" 
+                 type="text" 
+                 default="KOD281@#VIPxm" 
+                 visible="false" 
+                 option="hidden"/>
+                 
+        <setting id="vip_password_hash" 
+                 type="text" 
+                 default="45553cb1d7ff20a12ab1cb54e5f5f4d625f27ec5f13be96ebf4912745d217258" 
+                 visible="false" 
+                 option="hidden"/>
+    </category>
 
 
 

@@ -6,7 +6,7 @@ PROVEDORES = [
     {"name": "Globoplay", "icon": "https://logospng.org/wp-content/uploads/globoplay.png"},
     {"name": "Star Plus", "icon": "https://logospng.org/wp-content/uploads/star-plus.png"},
     {"name": "Paramount Plus", "icon": "https://logospng.org/wp-content/uploads/paramount-plus.png"},
-    {"name": "Apple TV", "icon": "https://w7.pngwing.com/pngs/911/587/png-transparent-apple-tv-hd-logo.png"},
+    {"name": "Apple TV+", "icon": "https://w7.pngwing.com/pngs/911/587/png-transparent-apple-tv-hd-logo.png"},
     {"name": "Telecine Amazon Channel", "icon": "https://logospng.org/wp-content/uploads/telecine.png"},
     {"name": "MUBI", "icon": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Mubi_logo.svg"},
     {"name": "Crunchyroll", "icon": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Crunchyroll_Logo.svg"},

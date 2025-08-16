@@ -1,7 +1,7 @@
 import xbmcgui
 import xbmcaddon
 
-ADDON_ID = 'plugin.video.cineroom'
+ADDON_ID = xbmcaddon.Addon().getAddonInfo('id')
 ADDON_PATH = xbmcaddon.Addon(id=ADDON_ID).getAddonInfo('path')
 TELEGRAM_IMAGE = f"{ADDON_PATH}/resources/images/telegram.jpg"
 

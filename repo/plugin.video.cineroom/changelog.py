@@ -9,11 +9,13 @@ def show_about():
     # Dados separados para fácil manutenção
     CHANGELOG = [
     {
-        'version': '4.3.1',
+        'version': '4.3.2',
         'changes': [
-            ("[COLOR yellow]Novidades[/COLOR]", "Incluida opção de legendas automaticas"),
-            ("[COLOR yellow]Novidades[/COLOR]", "Capas de coleçoes agora via Api TMDb"),
-            ("[COLOR yellow]Melhorias[/COLOR]", "'Minha Lista' Agora com carregamneto melhorado")
+            ("[COLOR yellow]Novidades[/COLOR]", "Opção para salvar coleções a sua lista"),
+            ("[COLOR yellow]Novidades[/COLOR]", "Nova aba de recomendações focada em sua lista de favoritos"),
+            ("[COLOR yellow]Novidades[/COLOR]", "Nova aba 'Mais buscados', Focada nos filmes e series mais buscados do addon"),
+            ("[COLOR yellow]Novidades[/COLOR]", "Novo layout para filmes, deixando o menu mais leve"),
+            ("[COLOR yellow]Novidades[/COLOR]", "Cache aprimorado para dispositivos fracos")
         ]
     }
 ]
