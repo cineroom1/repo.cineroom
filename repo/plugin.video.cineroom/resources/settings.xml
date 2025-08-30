@@ -14,17 +14,7 @@
         <setting id="mostrar_pesquisar" 
 		         type="bool" 
 		         label="Exibir categoria: Pesquisar" 
-		         default="true"/>
-		
-        <setting id="mostrar_Exclusivo" 
-		         type="bool" 
-				 label="Exibir categoria: Exclusivo" 
-				 default="false"/>		
-		
-        <setting id="mostrar_explorar" 
-		         type="bool" 
-		         label="Exibir categoria: Explorar" 
-		         default="false"/>
+		         default="true"/>	
 				 
         <setting id="mostrar_favoritos" 
 		         type="bool" 
@@ -77,21 +67,14 @@
                  type="labelenum" 
                  label="Itens por página" 
                  values="5|10|15|20|25|30|35|40|45|50|100|150|200|250|300"
-                 default="30" />
+                 default="25" />
 		         <setting label="[COLOR orange][B]USE 25 ITENS PARA DISPOSITIVOS FRACOS[/B][/COLOR]" type="info"/>
-
-	    <setting id="threads_cache" 
-                 type="labelenum" 
-                 label="Número de Threads do Cache" 
-                 values="2|4|6|8|10|12|14|16|18|20|24|28|32" 
-                 default="2" />
-				 <setting label="[COLOR gold][B]PARA DISPOSITIVOS LENTOS USE ATÉ 6 THREADS[/B][/COLOR]" type="info"/>	
 				 
 		<setting label="Visualização" 
 		         id="view_mode" 
 				 type="labelenum" 
 				 values="list|poster|iconwall|shift|infowall|widelist|wall|banner|fanart" 
-				 default="wall" />
+				 default="list" />
 		
 		<setting id="default_search_provider" 
 		         type="enum" 
@@ -101,7 +84,7 @@
 		<setting id="use_tmdb_art" 
 		         type="bool" 
 				 label="Usar arte oficial TMDb nas coleções" 
-				 default="true" />
+				 default="false" />
         <setting id="firebase_user_id" type="text" visible="false" default="" />
         		
 			 
@@ -118,7 +101,7 @@
         <setting id="ram_cache_max_size" 
                  type="number" 
                  label="Tamanho máximo do Cache RAM (itens)" 
-                 default="50" 
+                 default="10" 
                  enable="eq(-1,true)"
                  range="10,200" 
                  subsetting="true"/>
@@ -132,7 +115,7 @@
         <setting id="max_disk_cache_mb" 
                  type="number" 
                  label="Tamanho máximo do Cache em Disco (MB)" 
-                 default="100" 
+                 default="20" 
                  enable="eq(-1,true)"
                  range="10,500" 
                  subsetting="true"/>

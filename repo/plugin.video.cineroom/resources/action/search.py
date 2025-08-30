@@ -13,6 +13,14 @@ from resources.lib.utils import get_all_videos, VIDEO_CACHE
 from resources.action.video_listing import create_video_item
 import re
 import xbmcaddon
+import datetime
+
+from resources.lib.players import (
+    is_elementum_installed, 
+    is_jacktook_installed, 
+    get_jacktook_search_link, 
+    play_video
+)
 
 ADDON = xbmcaddon.Addon()
 HANDLE = int(sys.argv[1])
@@ -25,7 +33,7 @@ def normalize(text):
     if not isinstance(text, str):
         return ''
     normalized = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII').lower()
-    normalized = normalized.replace('.', '').replace(':', '').replace('/', '').replace('#', '').replace('[', '').replace(']', '')
+    normalized = normalized.replace('.', '').replace(':', '').replace('/', '').replace('#', '').replace('[', '').replace(']', '').replace('-', '').replace(' ', '')
     return normalized
 
 def prompt_user_input():
@@ -171,43 +179,180 @@ def search_videos(handle):
 
     display_results(handle, filtered_videos, raw_term)
 
+import urllib.request, urllib.error, json, datetime
+import xbmc, xbmcgui, xbmcaddon, xbmcvfs
+
+FIREBASE_BASE_URL = "https://notify-313a5-default-rtdb.firebaseio.com"
+
+def report_error(video_info, status):
+    """
+    Envia um relatório de erro para o Firebase, atualizando a contagem
+    total e a contagem por tipo de erro para um filme específico.
+    """
+    tmdb_id = video_info.get('tmdb_id', 'unknown')
+
+    # Define o caminho para o arquivo de log de cooldown
+    addon = xbmcaddon.Addon()
+    cooldown_file = xbmcvfs.translatePath(f"{addon.getAddonInfo('profile')}report_cooldown.json")
+
+    cooldown_data = {}
+    if xbmcvfs.exists(cooldown_file):
+        try:
+            with xbmcvfs.File(cooldown_file, 'r') as f:
+                cooldown_data = json.load(f)
+        except Exception as e:
+            # Em caso de erro na leitura, loga e notifica o usuário
+            xbmc.log(f"Erro ao carregar o arquivo de cooldown: {e}", xbmc.LOGERROR)
+            xbmcgui.Dialog().notification("Erro", "Não foi possível carregar o cooldown. Tente novamente.", xbmcgui.NOTIFICATION_ERROR)
+            return False
+
+    # --- LÓGICA DE RATE-LIMITING ---
+    COOLDOWN_PERIOD_HOURS = 24
+    last_report_timestamp = cooldown_data.get(str(tmdb_id))
+    
+    if last_report_timestamp:
+        try:
+            last_report_dt = datetime.datetime.fromisoformat(last_report_timestamp)
+            time_since_last_report = datetime.datetime.now() - last_report_dt
+            
+            if time_since_last_report < datetime.timedelta(hours=COOLDOWN_PERIOD_HOURS):
+                remaining_time_minutes = (datetime.timedelta(hours=COOLDOWN_PERIOD_HOURS) - time_since_last_report).total_seconds() / 60
+                xbmc.log(f"Rate-limiting ativado. Tente novamente em aproximadamente {int(remaining_time_minutes)} minutos.", xbmc.LOGINFO)
+                
+                # CORREÇÃO AQUI
+                xbmcgui.Dialog().notification("Aguarde", f"Você pode reportar novamente este filme em {int(remaining_time_minutes)} minutos.", xbmcgui.NOTIFICATION_INFO)
+                
+                return False
+        except Exception as e:
+            xbmc.log(f"Erro ao processar timestamp do arquivo de cooldown: {e}", xbmc.LOGERROR)
+            
+            # CORREÇÃO AQUI
+            xbmcgui.Dialog().notification("Erro", "Erro interno no relatório. Tente novamente.", xbmcgui.NOTIFICATION_ERROR)
+            
+            return False
+
+    # --- FIM DA LÓGICA DE RATE-LIMITING ---
+    
+    firebase_url = f"{FIREBASE_BASE_URL}/relatorios_de_erros/{tmdb_id}.json"
+    current_data = None
+    try:
+        req = urllib.request.Request(firebase_url)
+        with urllib.request.urlopen(req) as resp:
+            if resp.getcode() == 200:
+                current_data = json.loads(resp.read().decode('utf-8'))
+    except urllib.error.HTTPError as e:
+        if e.code == 404:
+            xbmc.log(f"Primeiro relatório para o filme {tmdb_id}. Criando nova entrada.", xbmc.LOGINFO)
+        else:
+            xbmc.log(f"Erro ao buscar dados do Firebase: {e}", xbmc.LOGERROR)
+    except Exception as e:
+        xbmc.log(f"Erro inesperado ao buscar dados: {e}", xbmc.LOGERROR)
+
+    reports_count = 1
+    if current_data and 'reports_count' in current_data:
+        reports_count = current_data['reports_count'] + 1
+
+    error_types = current_data.get("error_types", {}) if current_data else {}
+    current_error_count = error_types.get(status, 0) + 1
+    error_types[status] = current_error_count
+
+    data_to_send = {
+        "video_info": video_info,
+        "last_status": status,
+        "timestamp": datetime.datetime.now().isoformat(),
+        "device_info": xbmc.getInfoLabel('System.BuildVersion'),
+        "reports_count": reports_count,
+        "error_types": error_types
+    }
+    payload = json.dumps(data_to_send).encode("utf-8")
+    
+    try:
+        req = urllib.request.Request(firebase_url, data=payload, method="PATCH")
+        with urllib.request.urlopen(req) as resp:
+            xbmc.log(f"Relatório de erro enviado. Status: {resp.getcode()}", xbmc.LOGINFO)
+            cooldown_data[str(tmdb_id)] = datetime.datetime.now().isoformat()
+            with xbmcvfs.File(cooldown_file, 'w') as f:
+                json.dump(cooldown_data, f, indent=4)
+            return True
+    except Exception as e:
+        xbmc.log(f"Erro ao enviar relatório para o Firebase: {e}", xbmc.LOGERROR)
+        return False
+
+
+def report_error_dialog(params):
+    """
+    Exibe um diálogo com opções de erro e envia um relatório para o Firebase.
+    """
+    import xbmcgui
+    
+    tmdb_id = params.get('tmdb_id')
+    title = params.get('title')
+
+    error_types = [
+        "Link quebrado",
+        "Legenda errada",
+        "Áudio desincronizado",
+        "Filme errado",
+        "Qualidade muito baixa"
+    ]
+
+    dialog = xbmcgui.Dialog()
+    choice = dialog.select(
+        f"Reportar erro em '{title}'", 
+        error_types
+    )
+
+    if choice == -1:
+        return
+
+    status = error_types[choice]
+
+    video_info = {
+        'tmdb_id': tmdb_id,
+        'title': title
+    }
+    
+    if report_error(video_info, status=status):
+        xbmcgui.Dialog().notification(
+            "Sucesso!", 
+            f"Relatório enviado: {status}", 
+            xbmcgui.NOTIFICATION_INFO
+        )
+    else:
+        # report_error já exibe a notificação de erro, então esta linha é redundante,
+        # mas pode ser útil para outros tipos de falha de retorno.
+        pass
+
+
+
 def open_video_folder(handle, tmdb_id):
     """
     Exibe opções de reprodução para um vídeo específico.
-    Busca automaticamente fontes no JackTook ou Elementum se necessário.
-    Inclui suporte a legendas.
     """
-    # Importe as dependências necessárias aqui
-    import xbmcgui, xbmcplugin, xbmc
-    # Certifique-se de que get_url, ADDON, etc. estão disponíveis.
-    from resources.lib.players import play_video, is_elementum_installed, is_jacktook_installed, get_jacktook_search_link, play_elementum
+    import xbmc, xbmcgui, xbmcplugin, sys, json
     
+    # Importações necessárias
+    from resources.lib.players import (
+        is_elementum_installed, 
+        is_jacktook_installed, 
+        get_jacktook_search_link
+    )
+
     xbmcplugin.setPluginCategory(handle, 'Fontes de Video')
+    xbmcplugin.setContent(handle, 'videos')
 
     try:
         tmdb_id = str(tmdb_id)
         cache_key = f"video_{tmdb_id}"
 
-        # Tenta pegar do cache
         main_video_json = VIDEO_CACHE.get(cache_key)
-        if main_video_json:
-            try:
-                main_video = json.loads(main_video_json)
-            except Exception:
-                main_video = None
-                VIDEO_CACHE.delete(cache_key)
-        else:
-            main_video = None
+        main_video = json.loads(main_video_json) if main_video_json else None
 
-        # Se não achou no cache, pega da lista geral
         if not main_video:
             all_videos = get_all_videos()
             main_video = next((v for v in all_videos if str(v.get('tmdb_id')) == tmdb_id), None)
             if main_video and VIDEO_CACHE.enabled:
-                try:
-                    VIDEO_CACHE.set(cache_key, json.dumps(main_video), expiry_hours=12)
-                except Exception:
-                    pass
+                VIDEO_CACHE.set(cache_key, json.dumps(main_video), expiry_hours=12)
 
         if not main_video:
             xbmcgui.Dialog().ok('Erro', 'Conteúdo não encontrado.')
@@ -215,26 +360,22 @@ def open_video_folder(handle, tmdb_id):
             return
 
         streams = main_video.get('streams', [])
-
-        # Se não houver streams, faz a busca automática
+        
         if not streams:
             provider = ADDON.getSetting('default_search_provider')
-            
             xbmcgui.Dialog().notification('Buscando fontes', 'Aguarde...')
 
-            if provider == "0":  # Elementum
+            if provider == "0":
                 if not is_elementum_installed():
                     xbmcgui.Dialog().notification('Elementum não instalado', 'Instale o Elementum para usar esta função.', xbmcgui.NOTIFICATION_ERROR)
                     xbmcplugin.endOfDirectory(handle)
                     return
-                
                 xbmc.executebuiltin(f'RunPlugin(plugin://plugin.video.elementum/search?tmdb={tmdb_id})')
-            else:  # JackTook
+            else:
                 if not is_jacktook_installed():
                     xbmcgui.Dialog().notification('JackTook não instalado', 'Instale o plugin JackTook para usar esta função.', xbmcgui.NOTIFICATION_ERROR)
                     xbmcplugin.endOfDirectory(handle)
                     return
-                
                 is_movie = 'season' not in main_video
                 search_link = get_jacktook_search_link(
                     is_movie=is_movie,
@@ -247,69 +388,83 @@ def open_video_folder(handle, tmdb_id):
                 )
                 if search_link:
                     xbmc.executebuiltin(f'RunPlugin({search_link})')
-
-            # Encerra o diretório para que o Kodi possa exibir a nova interface do plugin de busca
             xbmcplugin.endOfDirectory(handle)
             return
-
-        # Resto do código para exibir os streams, que só será executado se existirem streams
+        
+        # Lógica para listar os streams existentes
         quality_priority = {"4K": 1, "2160P": 1, "1080P": 2, "720P": 3, "SD": 4}
         quality_colors = {"4K": "orange", "2160P": "orange", "1080P": "deepskyblue",
                           "720P": "lightgreen", "SD": "white"}
-
-        if streams:
-            streams = sorted(streams, key=lambda s: quality_priority.get(s.get('quality', 'SD').upper(), 99))
-
-            for stream in streams:
-                quality = stream.get('quality', 'N/A').upper()
-                extras = stream.get('extras', [])
-                server = stream.get('server_name', 'Servidor')
-                color = quality_colors.get(quality, "white")
-                parts = [f"[COLOR {color}][B]{quality}[/B][/COLOR]"]
-                if server:
-                    parts.append(f"[COLOR yellow]{server}[/COLOR]")
-                if extras:
-                    parts.append(f"[COLOR gray]{' | '.join(extras)}[/COLOR]")
-                display_label = " • ".join(parts)
-
-                list_item = xbmcgui.ListItem(label=display_label)
-                list_item.setArt({
-                    'poster': main_video.get('poster', ''),
-                    'thumb': main_video.get('poster', ''),
-                    'fanart': main_video.get('backdrop', ''),
-                    'clearlogo': main_video.get('clearlogo', '')
-                })
-                list_item.setInfo('video', {
-                    'title': main_video.get('title', 'Sem título'),
-                    'plot': main_video.get('synopsis', 'Sem sinopse'),
-                    'year': int(main_video.get('year') or 0),
-                    'genre': main_video.get('genres', []),
-                    'mediatype': 'video'
-                })
-                subtitles = stream.get('subtitles') or main_video.get('subtitles')
-                if subtitles:
-                    if isinstance(subtitles, str):
-                        subtitles = [subtitles]
-                    list_item.setSubtitles(subtitles)
-
-                play_url = get_url(
-                    action='play',
-                    video=stream['url'],
-                    tmdb_id=main_video.get('tmdb_id', ''),
-                    title=main_video.get('title', ''),
-                    imdb_id=main_video.get('imdb_id', ''),
-                    year=main_video.get('year', 0),
-                    is_series='false'
-                )
-                list_item.setProperty('IsPlayable', 'true')
+        streams = sorted(streams, key=lambda s: quality_priority.get(s.get('quality', 'SD').upper(), 99))
+        
+        for stream in streams:
+            quality = stream.get('quality', 'N/A').upper()
+            extras = stream.get('extras', [])
+            stream_url = stream.get('url', '')
+            
+            # --- Lógica ajustada para detectar e definir o nome do servidor ---
+            server = stream.get('server_name', '')
+            if not server:
+                if stream_url.startswith('plugin'):
+                    server = 'TORRENT'
+                elif stream_url.startswith('http'):
+                    server = 'LINK DIRETO'
+                else:
+                    server = 'Servidor'
+            # -------------------------------------------------------------------
+            
+            color = quality_colors.get(quality, "white")
+            parts = [f"[COLOR {color}][B]{quality}[/B][/COLOR]"]
+            if server:
+                parts.append(f"[COLOR yellow]{server}[/COLOR]")
+            if extras:
+                parts.append(f"[COLOR gray]{' | '.join(extras)}[/COLOR]")
+            
+            display_label = " • ".join(parts)
+            list_item = xbmcgui.ListItem(label=display_label)
+            list_item.setArt({
+                'poster': main_video.get('poster', ''),
+                'thumb': main_video.get('poster', ''),
+                'fanart': main_video.get('backdrop', ''),
+                'clearlogo': main_video.get('clearlogo', '')
+            })
+            list_item.setInfo('video', {
+                'title': main_video.get('title', 'Sem título'),
+                'plot': main_video.get('synopsis', 'Sem sinopse'),
+                'year': int(main_video.get('year') or 0),
+                'genre': main_video.get('genres', []),
+                'duration': int(main_video.get('runtime', 0)) *60,
+                'mediatype': 'video'
+            })
+            
+            subtitles = stream.get('subtitles') or main_video.get('subtitles')
+            if subtitles:
+                if isinstance(subtitles, str):
+                    subtitles = [subtitles]
+                list_item.setSubtitles(subtitles)
                 
-                xbmcplugin.addDirectoryItem(handle, play_url, list_item, isFolder=False)
-    
+            play_url = get_url(
+                action='play',
+                video=stream['url'],
+                tmdb_id=main_video.get('tmdb_id', ''),
+                title=main_video.get('title', ''),
+                imdb_id=main_video.get('imdb_id', ''),
+                year=main_video.get('year', 0),
+                is_series='false'
+            )
+            list_item.setProperty('IsPlayable', 'true')
+            xbmcplugin.addDirectoryItem(handle, play_url, list_item, isFolder=False)
+
+        report_li = xbmcgui.ListItem(label="[COLOR red]Reportar Erro![/COLOR]")
+        report_url = get_url(
+            action='report_error_dialog', 
+            tmdb_id=main_video.get('tmdb_id', ''),
+            title=main_video.get('title', '')
+        )
+        xbmcplugin.addDirectoryItem(handle, report_url, report_li, isFolder=False)
+
     except Exception as e:
         xbmc.log(f"[open_video_folder] Erro: {e}", xbmc.LOGERROR)
         xbmcgui.Dialog().ok('Erro', f"Erro ao abrir o conteúdo: {str(e)}")
 
     xbmcplugin.endOfDirectory(handle, cacheToDisc=True)
-
-
-

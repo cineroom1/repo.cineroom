@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom" version="4.3.2" name="cineroom" provider-name="Gael">
+<addon id="plugin.video.cineroom" version="4.3.3" name="Cineroom" provider-name="Gael">
   <requires>
+    <import addon="script.module.requests" />
     <import addon="xbmc.python" version="3.0.0"/>
   </requires>
 
@@ -15,13 +16,12 @@
 
   <!-- Metadados do addon -->
   <extension point="xbmc.addon.metadata">
-    <summary lang="pt_BR">Addon de exemplo para demonstração no Kodi.</summary>
-    <description lang="pt_BR">Addon scraper. não hospedamos nenhum tipo de conteudo</description>
+    <description lang="pt_BR">Addon scraper. Não guardamos nenhum conteudo</description>
     <disclaimer lang="pt_BR">Este addon é apenas para fins educacionais e não hospeda nenhum conteúdo próprio.</disclaimer>
     <platform>all</platform>
     <license>GPL-3.0-only</license>
-    <source>https://cinerrom1.github.io</source>
-    <email>cineroom.ofc@gmail.com</email>
+    <source>https://cineroom1.github.io</source>
+    <email>contato@exemplo.com</email>
     <assets>
       <icon>resources/images/icon.png</icon>
       <fanart>resources/images/fanart.jpg</fanart>

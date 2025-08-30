@@ -20,6 +20,7 @@ from resources.action.favorites import load_favorites
 from resources.action.video_listing import create_video_item
 from resources.lib.utils import get_all_videos, VIDEO_CACHE
 from resources.lib.utils_view import set_view_mode
+from resources.action.constants import PROVIDERS
 
 
 
@@ -530,7 +531,15 @@ def list_novela_series(page=1, items_per_page=70):
 
     
  
-def list_recently_added_series():
+def list_recently_added_series(page=1, items_per_page=70):
+    
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 200))
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+        
     def get_recent_series():
         cache_key = "recent_series_v2"
         cached = VIDEO_CACHE.get(cache_key)
@@ -565,10 +574,27 @@ def list_recently_added_series():
 
         xbmcplugin.setPluginCategory(HANDLE, 'Adicionadas Recentemente')
         xbmcplugin.setContent(HANDLE, 'tvshows')
+        
+        # Paginação
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+        for serie in series[start:end]:
+            list_item, url, is_folder = create_video_item(HANDLE, serie)
+            if list_item and url:
+                xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=is_folder)
+            else:
+                xbmc.log(f"Falha ao criar item para: {serie.get('title', 'Desconhecido')}", xbmc.LOGERROR)
 
-        for serie in series:
-            list_item, url, is_folder = create_video_item(HANDLE,serie)
-            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
+        # Adiciona item para próxima página, se houver
+        if end < len(series):   # ✔ ajustado também aqui
+            next_item = xbmcgui.ListItem(label="Próxima Página >>")
+            next_url = get_url(
+                action='list_recently_added_series',
+                page=page + 1,
+                items_per_page=items_per_page
+            )
+            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
 
         xbmcplugin.endOfDirectory(HANDLE)
         set_view_mode()
@@ -921,4 +947,123 @@ def list_series_recommendations(page=1, items_per_page=70):
 
     except Exception as e:
         xbmc.log(f"Erro em list_series_recommendations: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR) 
+
+
+def list_series_by_provider(provider_name, page=1, items_per_page=70):
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 200))
+        provider_name = urllib.parse.unquote(provider_name)
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+
+    def normalize_name(name):
+        return name.lower().strip().replace(" ", "").replace("-", "").replace("+", "")
+
+    provider_info = next((p for p in PROVIDERS
+                          if normalize_name(p['name']) == normalize_name(provider_name) or
+                          normalize_name(p['key']) == normalize_name(provider_name)), None)
+
+    if not provider_info:
+        xbmcgui.Dialog().ok("Erro", f"Provedor '{provider_name}' não encontrado.")
+        return
+
+    provider_name_display = provider_info['name']
+    normalized_provider_key = normalize_name(provider_info['key'])
+    
+    def get_provider_series():
+        cache_key = f"provider_series_{normalized_provider_key}_v2"
+        cached = VIDEO_CACHE.get(cache_key)
+        
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+        
+        all_series = get_all_videos()
+        filtered = [
+            s for s in all_series
+            if (s.get('type') == 'tvshow' and
+                any(normalized_provider_key == normalize_name(p)
+                    for p in s.get('providers', [])))
+        ]
+        
+        seen_titles = set()
+        unique_series = []
+        for serie in filtered:
+            if serie.get('title') not in seen_titles:
+                unique_series.append(serie)
+                seen_titles.add(serie['title'])
+        
+        unique_series.sort(key=lambda x: x.get('popularity', 0), reverse=True)
+        
+        VIDEO_CACHE.set(cache_key, json.dumps(unique_series), expiry_hours=12)
+        return unique_series
+
+    try:
+        series = get_provider_series()
+        
+        if not series:
+            xbmcgui.Dialog().ok("Aviso", f"Nenhuma série encontrada no provedor {provider_name_display}.")
+            return
+
+        xbmcplugin.setPluginCategory(HANDLE, f'{provider_name_display}')
+        xbmcplugin.setContent(HANDLE, 'tvshows')
+
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+        for serie in series[start:end]:
+            list_item, url, is_folder = create_video_item(HANDLE, serie)
+            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
+
+        if end < len(series):
+            next_item = xbmcgui.ListItem(label="Próxima Página >>")
+            next_url = get_url(
+                action='list_series_by_provider',
+                provider_name=provider_name,
+                page=page + 1,
+                items_per_page=items_per_page
+            )
+            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+            
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode()
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_series_by_provider: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)        
+        
+def list_series_providers():
+    """
+    Cria uma lista de provedores de séries para o Kodi.
+    """
+    try:
+        xbmcplugin.setPluginCategory(HANDLE, "Provedores de Séries")
+        xbmcplugin.setContent(HANDLE, 'genres')
+
+        for provider in PROVIDERS:
+            # Constrói o URL para a próxima ação (listar séries do provedor)
+            url = get_url(
+                action='list_series_by_provider',  # <--- Ação diferente aqui
+                provider_name=provider['key']
+            )
+
+            # Cria o item de lista para o Kodi
+            li = xbmcgui.ListItem(provider['name'])
+            li.setArt({
+                'icon': provider['logo'],
+                'thumb': provider['logo']
+            })
+            li.setLabel(provider['name'])
+            li.setInfo('video', {'plot': f'Séries do provedor {provider["name"]}.'})
+
+            # Adiciona o item à lista do Kodi
+            xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=li, isFolder=True)
+
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode()
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_series_providers: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", "Não foi possível listar os provedores de séries.", xbmcgui.NOTIFICATION_ERROR)        

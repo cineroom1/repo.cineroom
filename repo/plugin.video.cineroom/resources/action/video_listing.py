@@ -73,49 +73,51 @@ def set_content_type(handle, videos):
         xbmcplugin.setContent(handle, 'movies')
 
 
-def create_video_item(handle, video):
-    """Cria um ListItem para exibir na interface do Kodi, aproveitando cache de vídeos."""
-    from resources.action.search import open_video_folder
+def create_video_item(handle, video, favorites_set=None):
+    """Cria um ListItem otimizado para o Kodi, aproveitando cache de vídeos e favoritos já carregados."""
     try:
-        list_item = xbmcgui.ListItem(label=video['title'])
+        # Cache de variáveis frequentes para melhor performance
+        tmdb_id = str(video.get('tmdb_id', ''))
+        mediatype = video.get('type')
+        title = video.get('title', '')
+        poster = video.get('poster', '')
+        backdrop = video.get('backdrop', '')
+        clearlogo = video.get('clearlogo', '')
+        
+        list_item = xbmcgui.ListItem(label=title)
         list_item.setArt({
-            'poster': video.get('poster', ''),
-            'thumb': video.get('poster', ''),
-            'fanart': video.get('backdrop', ''),
-            'clearlogo': video.get('clearlogo', '')
+            'poster': poster,
+            'thumb': poster,  # Reusa a mesma variável
+            'fanart': backdrop,
+            'clearlogo': clearlogo
         })
 
-        mediatype = video['type']
         media_info = MEDIA_TYPES.get(mediatype, {})
+        is_playable = 'true' if media_info.get('playable') else 'false'
+        list_item.setProperty('IsPlayable', is_playable)
         is_folder = media_info.get('folder', False)
-        list_item.setProperty('IsPlayable', 'true' if media_info.get('playable', False) else 'false')
 
-        # ---------- START: Otimização com cache ----------
+        # ---------- Cache de vídeos ----------
+        url = ''
         if mediatype == 'movie':
-            tmdb_id = str(video.get('tmdb_id'))
             cache_key = f"video_{tmdb_id}"
 
-            # Tenta usar cache
-            main_video_json = VIDEO_CACHE.get(cache_key)
-            if main_video_json:
-                try:
-                    main_video = json.loads(main_video_json)
-                except Exception:
-                    main_video = None
-                    VIDEO_CACHE.delete(cache_key)
-            else:
-                main_video = None
-
-            # Se não existir no cache, usa o vídeo atual e salva no cache
-            if not main_video:
-                main_video = video
-                if VIDEO_CACHE.enabled:
+            if VIDEO_CACHE.enabled:
+                cached = VIDEO_CACHE.get(cache_key)
+                if cached:
                     try:
-                        VIDEO_CACHE.set(cache_key, json.dumps(main_video), expiry_hours=12)
+                        main_video = json.loads(cached)
+                    except Exception:
+                        main_video = video
+                else:
+                    main_video = video
+                    try:
+                        VIDEO_CACHE.set(cache_key, json.dumps(video), expiry_hours=12)
                     except Exception:
                         pass
+            else:
+                main_video = video
 
-            # URL chama a função 'open_video_folder'
             url = get_url(action='open_video_folder', tmdb_id=tmdb_id)
             is_folder = True
 
@@ -123,103 +125,88 @@ def create_video_item(handle, video):
             url = get_url(action='list_collection', collection=json.dumps(video))
         elif mediatype == 'tvshow':
             url = get_url(action='list_seasons', serie=video)
-        else:
-            url = ''
 
-        # ---------- Informações do vídeo ----------
+        # ---------- Informações básicas OTIMIZADAS ----------
+        # Pré-computa valores para evitar múltiplos video.get()
+        synopsis = video.get('synopsis', '')
+        premiered = video.get('premiered', 'Ano não disponível')
+        date_added = video.get('date_added', '')
+        rating_val = float(video.get('rating', 0) or 0)
+        vote_count = int(video.get('vote_count', 0) or 0)
+        year_val = int(video.get('year', 0) or 0)
+        runtime_val = int(video.get('runtime', 0)) *60,
+        genres = video.get('genres', [])
+        
         info = {
-            'title': video['title'],
+            'title': title,
             'mediatype': mediatype,
-            'plot': video.get('synopsis', ''),
-            'premiered': video.get("premiered", "Ano não disponível"),
-            'dateadded': video.get('date_added', ''),
+            'plot': synopsis,
+            'premiered': premiered,
+            'dateadded': date_added,
+            'rating': rating_val,
+            'votes': vote_count,
+            'year': year_val,
+            'genre': genres if isinstance(genres, list) else [genres],
+            'duration': runtime_val
         }
 
-        try:
-            info['rating'] = float(video.get('rating', 0))
-        except (ValueError, TypeError):
-            info['rating'] = 0
-        try:
-            info['votes'] = int(video.get('vote_count', 0))
-        except (ValueError, TypeError):
-            info['votes'] = 0
-        try:
-            info['year'] = int(video.get('year', 0))
-        except (ValueError, TypeError):
-            info['year'] = 0
+        # REMOVIDO: Blocos de director e studio para melhor performance
 
-        genres = video.get('genres', [])
-        info['genre'] = genres if isinstance(genres, list) else [genres]
-
-        raw_director_data = video.get("director")
-        directors = []
-        if isinstance(raw_director_data, list):
-            directors = [str(d).strip() for d in raw_director_data if d]
-        elif isinstance(raw_director_data, str) and raw_director_data.strip():
-            directors = [raw_director_data.strip()]
-        if directors:
-            info['director'] = directors
-
-        studio_data = video.get('studio', [])
-        if isinstance(studio_data, list):
-            info['studio'] = ', '.join([str(s).strip() for s in studio_data if s])
-        elif isinstance(studio_data, str):
-            info['studio'] = studio_data.strip()
-
-        info['duration'] = video.get("runtime", 0)
-
-        # Bilheteria
-        plot_extra = ""
+        # Bilheteria - apenas se for valor significativo
         revenue = video.get('revenue', 0)
-        if revenue:
-            formatted_revenue = f"\n[COLOR gold]Bilheteria[/COLOR]: ${revenue:,.0f}".replace(",", ".")
-            plot_extra += f"\n{formatted_revenue}"
+        if revenue and revenue > 1000:  # Evita processamento para valores baixos
+            info['plot'] += f"\n[COLOR gold]Bilheteria[/COLOR]: ${revenue:,.0f}".replace(',', '.')
 
         # IMDb
-        imdb_id = video.get('imdb_id', '')
+        imdb_id = video.get('imdb_id')
         if imdb_id:
             info['imdbnumber'] = imdb_id
             list_item.setProperty('imdb_id', imdb_id)
             try:
                 list_item.setUniqueIDs({'imdb': imdb_id})
-            except Exception as e:
-                xbmc.log(f"Erro ao definir UniqueIDs: {e}", xbmc.LOGDEBUG)
-
-        if plot_extra:
-            info['plot'] += plot_extra
+            except Exception:
+                pass
 
         list_item.setInfo('video', info)
 
-        # Subtitles
-        subtitles = video.get('subtitles')
-        if subtitles:
-            if isinstance(subtitles, str):
-                subtitles = [subtitles]
-            list_item.setSubtitles(subtitles)
+        # Subtitles - processamento condicional otimizado
+        subs = video.get('subtitles')
+        if subs:
+            if isinstance(subs, str):
+                list_item.setSubtitles([subs])
+            elif isinstance(subs, list):
+                list_item.setSubtitles(subs)
 
         list_item.setProperty('mediatype', mediatype)
         if revenue:
             list_item.setProperty('revenue', str(revenue))
 
-        # Favoritos
-        favorites = load_favorites()
-        if any(fav['title'] == video['title'] for fav in favorites):
+        # ---------- Context menu favoritos OTIMIZADO ----------
+        # Usa tmdb_id como chave principal (mais eficiente que título)
+        key = tmdb_id or str(video.get('title', ''))
+        
+        # Serializa o vídeo apenas UMA vez (grande ganho de performance)
+        video_json = json.dumps(video)
+        
+        if favorites_set and key in favorites_set:
             list_item.addContextMenuItems([(
                 'Remover da sua lista',
-                f'RunPlugin({get_url(action="remove_from_favorites", video=json.dumps(video))})'
+                f'RunPlugin({get_url(action="remove_from_favorites", video=video_json)})'
             )])
         else:
             list_item.addContextMenuItems([(
                 'Adicionar à sua lista',
-                f'RunPlugin({get_url(action="add_to_favorites", video=json.dumps(video))})'
+                f'RunPlugin({get_url(action="add_to_favorites", video=video_json)})'
             )])
 
-        xbmc.log(f"DEBUG: create_video_item - Valor final de is_folder: {is_folder} (Tipo: {type(is_folder)})", xbmc.LOGDEBUG)
         return list_item, url, is_folder
 
     except Exception as e:
         xbmc.log(f"Erro ao criar item de vídeo: {e}", xbmc.LOGERROR)
         return None, None, False
+
+
+
 
 
 
@@ -512,6 +499,7 @@ def list_episodes(handle, season_data, season_title):
                 'plot': ep.get('synopsis', ''),
                 'aired': ep.get('air_date', ''),
                 'rating': ep.get('rating', 0),
+                'duration': int(ep.get('runtime', 0)) * 60,
                 'mediatype': 'episode'
             })
 

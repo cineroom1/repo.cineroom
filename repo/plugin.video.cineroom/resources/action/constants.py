@@ -1,20 +1,13 @@
-PROVEDORES = [
-    {"name": "Netflix", "icon": "https://logopng.com.br/logos/netflix-94.png"},
-    {"name": "Amazon Prime Video", "icon": "https://upload.wikimedia.org/wikipedia/commons/f/f1/Prime_Video.png"},
-    {"name": "Disney Plus", "icon": "https://logospng.org/wp-content/uploads/disneyplus.png"},
-    {"name": "Max", "icon": "https://logospng.org/wp-content/uploads/hbo-max.png"},
-    {"name": "Globoplay", "icon": "https://logospng.org/wp-content/uploads/globoplay.png"},
-    {"name": "Star Plus", "icon": "https://logospng.org/wp-content/uploads/star-plus.png"},
-    {"name": "Paramount Plus", "icon": "https://logospng.org/wp-content/uploads/paramount-plus.png"},
-    {"name": "Apple TV+", "icon": "https://w7.pngwing.com/pngs/911/587/png-transparent-apple-tv-hd-logo.png"},
-    {"name": "Telecine Amazon Channel", "icon": "https://logospng.org/wp-content/uploads/telecine.png"},
-    {"name": "MUBI", "icon": "https://upload.wikimedia.org/wikipedia/commons/3/3c/Mubi_logo.svg"},
-    {"name": "Crunchyroll", "icon": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Crunchyroll_Logo.svg"},
-    {"name": "YouTube Premium", "icon": "https://logospng.org/wp-content/uploads/youtube-premium.png"},
-    {"name": "Pluto TV", "icon": "https://logospng.org/wp-content/uploads/pluto-tv.png"},
-    {"name": "Tubi", "icon": "https://upload.wikimedia.org/wikipedia/commons/5/58/Tubi_logo.svg"},
-    {"name": "MGM+ Apple TV Channel", "icon": "https://logodownload.org/wp-content/uploads/2021/10/MGM+logo.png"},
-    {"name": "Looke", "icon": "https://seeklogo.com/images/L/looke-logo-4146BCD25D-seeklogo.com.png"}
+PROVIDERS = [
+    {"name": "Netflix", "logo": "https://logopng.com.br/logos/netflix-94.png", "key": "netflix"},
+    {"name": "Amazon Prime Video", "logo": "https://upload.wikimedia.org/wikipedia/commons/f/f1/Prime_Video.png", "key": "amazonprimevideo"},
+    {"name": "Disney Plus", "logo": "https://logospng.org/wp-content/uploads/disneyplus.png", "key": "disneyplus"},
+    {"name": "Max", "logo": "https://logospng.org/wp-content/uploads/hbo-max.png", "key": "max"},
+    {"name": "Globoplay", "logo": "https://logospng.org/wp-content/uploads/globoplay.png", "key": "globoplay"},
+    {"name": "Paramount Plus", "logo": "https://logospng.org/wp-content/uploads/paramount-plus.png", "key": "paramountplus"},
+    {"name": "Apple TV+", "logo": "https://w7.pngwing.com/pngs/911/587/png-transparent-apple-tv-hd-logo.png", "key": "appletv+"},
+    {"name": "Crunchyroll", "logo": "https://upload.wikimedia.org/wikipedia/commons/1/1e/Crunchyroll_Logo.svg", "key": "crunchyroll"},
+    {"name": "Looke", "logo": "https://seeklogo.com/images/L/looke-logo-4146BCD25D-seeklogo.com.png", "key": "looke"}
 ]
 
 
@@ -60,7 +53,6 @@ KEYWORDS = [
     {'name': 'Católico',       'key': 'catholic'},
     {'name': 'Cristão',        'key': 'religion'},
     {'name': 'Distopia',       'key': 'dystopia'},
-    {'name': 'Dublados',       'key': 'dublado'},
     {'name': 'Escravidão',     'key': 'slavery'},
     {'name': 'Fantasma',       'key': 'ghost'},
     {'name': 'Games',          'key': 'video game'},

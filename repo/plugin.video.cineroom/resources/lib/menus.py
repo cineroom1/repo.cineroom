@@ -113,13 +113,10 @@ def list_menu():
     if not menu:
         return
 
-
     settings_map = {
         "Filmes": ADDON.getSettingBool('mostrar_filmes'),
         "Séries": ADDON.getSettingBool('mostrar_series'),
-        "Exclusivo": ADDON.getSettingBool('mostrar_Exclusivo'),
         "Pesquisar": ADDON.getSettingBool('mostrar_pesquisar'),
-        "Explorar": ADDON.getSettingBool('mostrar_explorar'),
         "Minha_Lista": ADDON.getSettingBool('mostrar_favoritos')
     }
 
@@ -147,6 +144,8 @@ def list_menu():
         }
         list_item = create_list_item(label, art=art, info=info)
 
+        # O único ajuste necessário aqui é simplificar a lógica, pois o externallink
+        # será removido do JSON. O código abaixo já está correto para o seu caso.
         if 'subcategorias' in menu_info:
             url = get_url(action='list_subcategories', menu_index=index)
         elif isinstance(menu_info.get("externallink"), list):
@@ -159,33 +158,31 @@ def list_menu():
         xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
 
     xbmcplugin.endOfDirectory(HANDLE)
-
-def list_subcategories(menu_index):
-    """Lista subcategorias marcando as VIP e bloqueia acesso se subcategoria estiver off."""
-    menu = get_menu()
-    if not menu or menu_index >= len(menu):
-        return
     
-    subcategories = menu[menu_index].get('subcategorias', [])
-    if not subcategories:
+def list_subcategories(category_list):
+    """
+    Lista subcategorias de uma lista de itens.
+    Esta função agora é genérica e pode ser usada para qualquer nível de subcategoria.
+    """
+    if not category_list:
         xbmcgui.Dialog().ok('Erro', 'Subcategorias não encontradas!')
         return
 
-    xbmcplugin.setPluginCategory(HANDLE, menu[menu_index].get("menu_title", "Subcategorias"))
+    # Use a primeira categoria da lista para definir o título da pasta
+    xbmcplugin.setPluginCategory(HANDLE, category_list[0].get("categories", "Subcategorias"))
     xbmcplugin.setContent(HANDLE, "files")
 
-    for subcategory in subcategories:
+    for subcategory in category_list:
         # Bloqueia subcategoria com status off
         if subcategory.get("status", "on").lower() == "off":
             label = f"[COLOR red]•[/COLOR] {subcategory.get('categories', 'Indisponível')} - (Manutenção)"
             info = {'title': f"{subcategory.get('categories', 'Indisponível')} - Indisponível", 'plot': 'Em manutenção'}
             art = {
                 'icon': subcategory.get('poster', ''),
-                'fanart': subcategory.get('backdrop', menu[menu_index].get('fanart', '')),
+                'fanart': subcategory.get('backdrop', ''),
                 'thumb': subcategory.get('poster', '')
             }
             list_item = create_list_item(label, art=art, info=info)
-            # Coloca como item não clicável (isFolder=False)
             xbmcplugin.addDirectoryItem(HANDLE, "", list_item, isFolder=False)
             continue
 
@@ -196,7 +193,7 @@ def list_subcategories(menu_index):
 
         art = {
             'icon': subcategory.get('poster', ''),
-            'fanart': subcategory.get('backdrop', menu[menu_index].get('fanart', ''))
+            'fanart': subcategory.get('backdrop', '')
         }
 
         info = {
@@ -209,22 +206,42 @@ def list_subcategories(menu_index):
         
         list_item = create_list_item(label, art=art, info=info)
         
-        url_params = {
-            'action': subcategory.get('action', 'list_videos'),
-            'is_vip': 'true' if subcategory.get('is_vip', False) else 'false',
-            'content_name': subcategory['categories']
-        }
-        
-        if 'externallink' in subcategory:
-            url_params['external_link'] = subcategory['externallink']
-        if 'sort_method' in subcategory:
-            url_params['sort_method'] = subcategory['sort_method']
-        
-        url = get_url(**url_params)
-        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
+        # ⚠️ AQUI ESTÁ O AJUSTE PRINCIPAL
+        # Se for o item "Tudo", chame a ação para listar todos os vídeos
+        if subcategory.get('categories') == 'Tudo' and not subcategory.get('externallink'):
+            url_params = {
+                'action': 'list_all_videos',
+                'is_movie_list': 'true' if 'Filmes' in xbmcplugin.getPluginCategory(HANDLE) else 'false'
+            }
+            url = get_url(**url_params)
+            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
+        # Verifica se o item atual tem subcategorias aninhadas
+        elif 'subcategorias' in subcategory and subcategory['subcategorias']:
+            # Se tiver, cria uma URL para chamar a mesma função (list_subcategories)
+            # e passa a lista de subcategorias como um parâmetro JSON.
+            url_params = {
+                'action': 'list_subcategories',
+                'category_list_json': json.dumps(subcategory['subcategorias'])
+            }
+            url = get_url(**url_params)
+            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
+        else:
+            # Se não tiver, age como um item final que lista vídeos
+            action = subcategory.get('action', 'list_videos')
+            url_params = {
+                'action': action,
+                'is_vip': 'true' if subcategory.get('is_vip', False) else 'false',
+                'content_name': subcategory['categories']
+            }
+            if 'externallink' in subcategory:
+                url_params['external_link'] = subcategory['externallink']
+            if 'sort_method' in subcategory:
+                url_params['sort_method'] = subcategory['sort_method']
+            
+            url = get_url(**url_params)
+            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, isFolder=True)
 
-    xbmcplugin.endOfDirectory(HANDLE)
-
+    xbmcplugin.endOfDirectory(HANDLE)    
 
 
 FIREBASE_URL = "https://vipacess-7ddc2-default-rtdb.firebaseio.com/vip_accesses"

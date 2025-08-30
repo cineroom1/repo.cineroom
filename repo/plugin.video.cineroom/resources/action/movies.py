@@ -23,11 +23,11 @@ from resources.action.favorites import load_favorites
 from resources.lib.utils_view import set_view_mode
 
 from resources.lib.utils import ( 
-    get_all_videos, VIDEO_CACHE
+    get_all_videos, VIDEO_CACHE, ram_cache_get, ram_cache_set
 )    
 
 from resources.action.constants import (
-    PROVEDORES, ESTUDIOS_FILMES, GENRES, KEYWORDS,
+    PROVIDERS, ESTUDIOS_FILMES, GENRES, KEYWORDS,
     IDIOMA_NOMES, IDIOMA_PARA_PAIS, ANOS_FILMES
 )
 
@@ -637,10 +637,11 @@ def list_movies_by_actor(actor_name):
 
     xbmcplugin.endOfDirectory(HANDLE)
 
+# O restante do seu código (create_video_item, get_url, etc.) permanece o mesmo.
 
 def paginate_and_add_items(sorted_items, page, items_per_page, action_name):
     """
-    Adiciona itens paginados ao Kodi e cria item 'Próxima Página' se necessário.
+    Adiciona itens paginados ao Kodi em lote e cria item 'Próxima Página' se necessário.
 
     :param sorted_items: lista completa de itens já ordenados
     :param page: página atual (int)
@@ -649,27 +650,43 @@ def paginate_and_add_items(sorted_items, page, items_per_page, action_name):
     """
     start = (page - 1) * items_per_page
     end = start + items_per_page
+    
+    # 1. Crie uma lista para armazenar os itens do Kodi.
+    items_to_add = []
+    
+    # 2. Obtenha os favoritos apenas uma vez, fora do loop.
+    favorites_set = load_favorites()
 
+    # 3. Itere sobre os itens da página atual.
     for item in sorted_items[start:end]:
         title = item.get('title', '')
         if any('hdcam' in g.lower() for g in item.get('genres', [])):
             title = f"[COLOR red]{title}[/COLOR]"
         item['title'] = title
-        list_item, url, is_folder = create_video_item(HANDLE,item)
-        xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
-
+        
+        # 4. Chame sua função create_video_item.
+        list_item, url, is_folder = create_video_item(HANDLE, item, favorites_set)
+        
+        # 5. Adicione o item à lista, em vez de adicioná-lo ao Kodi diretamente.
+        items_to_add.append((url, list_item, is_folder))
+        
+    # 6. Verifique se há uma próxima página e adicione o item correspondente.
     if end < len(sorted_items):
         next_item = xbmcgui.ListItem(label="Próxima Página >>")
         next_url = get_url(action=action_name, page=page + 1, items_per_page=items_per_page)
         next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
-        xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+        
+        # Adicione o item da próxima página à lista.
+        items_to_add.append((next_url, next_item, True))
+
+    # 7. Adicione todos os itens ao Kodi de uma só vez.
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
 
 
 
 def list_movies_by_popularity(page=1, items_per_page=70):
     """
-    Lista filmes por popularidade usando diretamente get_all_videos() e VideoCache
-    com estratégia de cache mais simples e eficiente.
+    Lista filmes por popularidade usando cache de RAM para paginação instantânea.
     Colore de vermelho o título se 'hdcam' == True.
     """
     try:
@@ -680,23 +697,40 @@ def list_movies_by_popularity(page=1, items_per_page=70):
         items_per_page = 70
 
     def get_and_sort_movies():
-        """Obtém e ordena filmes com cache direto no VideoCache"""
+        """Obtém e ordena filmes com cache de RAM e Disco."""
         cache_key = "movies_by_popularity_v2"
-        cached = VIDEO_CACHE.get(cache_key)
         
-        if cached and not VIDEO_CACHE.is_expired(cache_key):
-            return json.loads(cached)
+        # Tentar cache de RAM primeiro para paginação instantânea
+        cached_ram = ram_cache_get(cache_key)
+        if cached_ram:
+            xbmc.log("[DEBUG] Carregando filmes da RAM.", xbmc.LOGINFO)
+            return cached_ram
+
+        # Se não estiver na RAM, tentar o cache de disco
+        cached_disk = VIDEO_CACHE.get(cache_key)
         
+        if cached_disk and not VIDEO_CACHE.is_expired(cache_key):
+            try:
+                sorted_movies = json.loads(cached_disk)
+                ram_cache_set(cache_key, sorted_movies) # Salva na RAM para as próximas páginas
+                xbmc.log("[DEBUG] Carregando filmes do disco.", xbmc.LOGINFO)
+                return sorted_movies
+            except Exception as e:
+                xbmc.log(f"[ERRO] Falha ao carregar cache do disco: {str(e)}", xbmc.LOGERROR)
+                VIDEO_CACHE.delete(cache_key)
+        
+        # Se não houver cache válido, buscar da rede, processar e salvar
+        xbmc.log("[DEBUG] Buscando e processando novos dados.", xbmc.LOGINFO)
         all_videos = get_all_videos()
         if not all_videos:
             return []
             
-                # Filtragem e ordenação
+        # Filtragem e ordenação
         movies = [
-            m for m in all_videos 
-            if m.get('type') == 'movie' 
+            m for m in all_videos
+            if m.get('type') == 'movie'
             and '(4K)' not in m.get('title', '')
-        ]    
+        ]
             
         unique_movies = {}
         for movie in movies:
@@ -715,7 +749,9 @@ def list_movies_by_popularity(page=1, items_per_page=70):
         )[:1000]
         
         VIDEO_CACHE.set(cache_key, json.dumps(sorted_movies), expiry_hours=12)
+        ram_cache_set(cache_key, sorted_movies) # Salva na RAM para as próximas páginas
         xbmc.log(f"[DEBUG] Cache key {cache_key} updated. Expires in 12h.", xbmc.LOGINFO)
+        
         return sorted_movies
 
     try:
@@ -953,6 +989,70 @@ def list_recently_added(page=1, items_per_page=70):
     except Exception as e:
         xbmc.log(f"Erro em list_recently_added: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", "Ocorreu um erro ao listar filmes recentes", xbmcgui.NOTIFICATION_ERROR)
+
+
+def list_now_playing_movies(page=1, items_per_page=70):
+    
+    from concurrent.futures import ThreadPoolExecutor
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 100))
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+
+    def get_now_playing_movies():
+        cache_key = "now_playing_movies"
+        cached = VIDEO_CACHE.get(cache_key)
+
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+
+        all_movies = get_all_videos()
+        from datetime import datetime, timedelta
+
+        hoje = datetime.now()
+        limite = hoje - timedelta(days=45)  # últimos 45 dias contam como "em exibição"
+
+        now_playing = []
+        for movie in all_movies:
+            if movie.get('type') != 'movie':
+                continue
+            if movie.get('status') != 'Released':
+                continue
+            premiered = movie.get('premiered')
+            if premiered:
+                try:
+                    data_estreia = datetime.strptime(premiered, "%Y-%m-%d")
+                    if limite <= data_estreia <= hoje:
+                        now_playing.append(movie)
+                except ValueError:
+                    pass
+
+        # ordenar do mais recente para o mais antigo
+        now_playing.sort(key=lambda x: x['premiered'], reverse=True)
+
+        VIDEO_CACHE.set(cache_key, json.dumps(now_playing), expiry_hours=6)
+        return now_playing
+
+    try:
+        movies = get_now_playing_movies()
+
+        if not movies:
+            xbmcgui.Dialog().ok("Aviso", "Nenhum filme em exibição encontrado.")
+            return
+
+        xbmcplugin.setPluginCategory(HANDLE, 'Em Exibição')
+        xbmcplugin.setContent(HANDLE, 'movies')
+
+        paginate_and_add_items(movies, page, items_per_page, 'list_now_playing_movies')
+
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode()
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_now_playing_movies: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", "Ocorreu um erro ao listar filmes em exibição", xbmcgui.NOTIFICATION_ERROR)
 
 
 
@@ -1463,3 +1563,127 @@ def list_recommendations(page=1, items_per_page=70):
     except Exception as e:
         xbmc.log(f"Erro em list_recommendations: {str(e)}", xbmc.LOGERROR)
         xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)
+
+
+def list_movies_by_provider(provider_name, page=1, items_per_page=70):
+    try:
+        page = max(1, int(page))
+        items_per_page = max(10, min(int(items_per_page), 200))
+        provider_name = urllib.parse.unquote(provider_name)
+    except (ValueError, TypeError):
+        page = 1
+        items_per_page = 70
+
+    def normalize_name(name):
+        return name.lower().strip().replace(" ", "").replace("-", "")
+
+    provider_info = next((p for p in PROVIDERS
+                          if normalize_name(p['name']) == normalize_name(provider_name) or
+                          normalize_name(p['key']) == normalize_name(provider_name)), None)
+
+    if not provider_info:
+        xbmcgui.Dialog().ok("Erro", f"Provedor '{provider_name}' não encontrado.")
+        return
+
+    provider_name = provider_info['name']
+    normalized_provider = normalize_name(provider_name)
+    
+    def get_provider_movies():
+        cache_key = f"provider_{normalized_provider}_v2"
+        cached = VIDEO_CACHE.get(cache_key)
+        
+        if cached and not VIDEO_CACHE.is_expired(cache_key):
+            return json.loads(cached)
+        
+        all_movies = get_all_videos()
+        filtered = [
+            movie for movie in all_movies
+            if (movie.get('type') == 'movie' and
+                '(4K)' not in movie.get('title', '') and
+                any(normalized_provider == normalize_name(p)
+                    for p in movie.get('providers', [])))
+        ]
+        
+        seen_ids = set()
+        unique_movies = []
+        for movie in filtered:
+            tmdb_id = movie.get('tmdb_id')
+            if tmdb_id and tmdb_id not in seen_ids:
+                unique_movies.append(movie)
+                seen_ids.add(tmdb_id)
+        
+        unique_movies.sort(
+            key=lambda x: x.get('popularity', 0),
+            reverse=True
+        )
+        
+        VIDEO_CACHE.set(cache_key, json.dumps(unique_movies), expiry_hours=12)
+        return unique_movies
+
+    try:
+        movies = get_provider_movies()
+        
+        if not movies:
+            xbmcgui.Dialog().ok("Aviso", f"Nenhum filme encontrado no provedor {provider_name}.")
+            return
+
+        xbmcplugin.setPluginCategory(HANDLE, provider_name)
+        xbmcplugin.setContent(HANDLE, 'movies')
+
+        start = (page - 1) * items_per_page
+        end = start + items_per_page
+        for movie in movies[start:end]:
+            list_item, url, is_folder = create_video_item(HANDLE, movie)
+            xbmcplugin.addDirectoryItem(HANDLE, url, list_item, is_folder)
+
+        if end < len(movies):
+            next_item = xbmcgui.ListItem(label="Próxima Página >>")
+            next_url = get_url(
+                action='list_movies_by_provider',
+                provider_name=provider_name,
+                page=page + 1,
+                items_per_page=items_per_page
+            )
+            next_item.setArt({"icon": "https://raw.githubusercontent.com/Gael1303/mr/refs/heads/main/1700740365615.png"})
+            xbmcplugin.addDirectoryItem(HANDLE, next_url, next_item, True)
+            
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode()
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_movies_by_provider: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", str(e), xbmcgui.NOTIFICATION_ERROR)        
+
+def list_providers():
+    """
+    Cria uma lista de provedores de filmes para o Kodi.
+    """
+    try:
+        xbmcplugin.setPluginCategory(HANDLE, "Provedores")
+        xbmcplugin.setContent(HANDLE, 'genres')
+
+        for provider in PROVIDERS:
+            # Constrói o URL para a próxima ação (listar filmes do provedor)
+            url = get_url(
+                action='list_movies_by_provider',
+                provider_name=provider['key'] # Use a 'key' normalizada aqui
+            )
+
+            # Cria o item de lista para o Kodi
+            li = xbmcgui.ListItem(provider['name'])
+            li.setArt({
+                'icon': provider['logo'],
+                'thumb': provider['logo']
+            })
+            li.setLabel(provider['name'])
+            li.setInfo('video', {'plot': f'Filmes do provedor {provider["name"]}.'})
+
+            # Adiciona o item à lista do Kodi
+            xbmcplugin.addDirectoryItem(handle=HANDLE, url=url, listitem=li, isFolder=True)
+
+        xbmcplugin.endOfDirectory(HANDLE)
+        set_view_mode() # Supondo que você tenha essa função para definir o modo de visualização
+
+    except Exception as e:
+        xbmc.log(f"Erro em list_providers: {str(e)}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Erro", "Não foi possível listar os provedores.", xbmcgui.NOTIFICATION_ERROR)       

@@ -27,7 +27,7 @@ from resources.lib.config import login
 from resources.lib.configs.urls import data_feed, credenciais
 
 # resources.action
-from resources.action.search import search_videos, open_video_folder
+from resources.action.search import search_videos, open_video_folder, report_error_dialog
 from firebase import list_most_searched, list_most_searched_tvshows
 
 from resources.action.movies import (
@@ -37,13 +37,14 @@ from resources.action.movies import (
     list_movies_by_popularity, list_movies_in_cinemas, list_recently_added,
     list_movies_by_collection, list_collections, list_movies_by_country,
     list_countries, list_4k_movies, list_movies_by_revenue, list_movies_by_keyword,
-    list_keywords, list_movies_legendados, list_recommendations
+    list_keywords, list_movies_legendados, list_recommendations, list_movies_by_provider, 
+    list_providers, list_now_playing_movies
 )
 from resources.action.tvshow import (
     list_series_genres, list_series_by_genre, list_series_studios,
     list_series_by_studio, list_series_by_rating, list_series_by_specific_year,
     list_series_by_popularity, list_anime_series, list_novela_series,
-    list_recently_added_series, list_kids_series, list_series_recommendations
+    list_recently_added_series, list_kids_series, list_series_recommendations, list_series_by_provider, list_series_providers
 )
 
 from resources.action.video_listing import (
@@ -52,7 +53,7 @@ from resources.action.video_listing import (
 from resources.action.explorar import (
     list_trending, list_random, list_week_recommendations,
     clear_weekly_recommendation_cache, list_years_explorar, list_by_year,
-    list_by_provider, list_providers, list_by_date_added
+    list_by_date_added
 )
 from resources.action.favorites import (
     list_favorites, add_to_favorites, load_favorites, save_favorites,
@@ -119,8 +120,16 @@ def router():
         'collection': params.get('collection', ''),
         'country_code': params.get('country_code', ''),
         'keyword': params.get('keyword', ''),
-        'is_vip': params.get('is_vip', 'false')  # Adicione este parâmetro
+        'is_vip': params.get('is_vip', 'false'),
+        'provider_name': params.get('provider_name', '')
     }
+
+    if 'category_list_json' in params:
+        try:
+            kwargs['category_list_json'] = json.loads(params['category_list_json'])
+        except json.JSONDecodeError as e:
+            xbmc.log(f"Erro ao decodificar category_list_json: {e}", xbmc.LOGERROR)
+            kwargs['category_list_json'] = None
 
     # Processa parâmetros que podem ser JSON
     for key in ['video', 'serie', 'collection']:
@@ -141,7 +150,6 @@ def router():
 
     # Mapeamento de ações para funções
     actions = {
-        'list_subcategories': lambda: list_subcategories(int(kwargs['menu_index'])),
         'list_videos': lambda: list_videos(kwargs['external_link'], kwargs['sort_method'], items_per_page=kwargs['items_per_page'], page=kwargs['page']),
         'list_seasons': lambda: list_seasons(handle=HANDLE, serie_data=kwargs['serie']),
         'list_episodes': lambda: list_episodes(handle=HANDLE, season_data=kwargs['serie'], season_title=kwargs['season_title']),
@@ -194,7 +202,7 @@ def router():
         'list_series_by_popularity': lambda: list_series_by_popularity(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
         'list_anime_series': lambda: list_anime_series(),
         'list_novela_series': lambda: list_novela_series(),
-        'list_recently_added_series': lambda: list_recently_added_series(),
+        'list_recently_added_series': lambda: list_recently_added_series(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
         'list_kids_series': lambda: list_kids_series(),
         'list_movies_in_cinemas': lambda: list_movies_in_cinemas(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
         'list_random':lambda: list_random(),
@@ -206,11 +214,6 @@ def router():
         'force_update_series': lambda: force_update_series(kwargs['video_id']),
         'list_week_recommendations': lambda: list_week_recommendations(),
         'clear_weekly_cache': lambda: [clear_weekly_recommendation_cache(), xbmcgui.Dialog().ok("Recomendações", "Cache limpo com sucesso!\nAs novas sugestões serão carregadas agora."), list_week_recommendations()],
-        'list_providers': lambda: list_providers(),
-        'list_by_provider': lambda: list_by_provider(
-            urllib.parse.unquote_plus(params.get('provider', '')),
-            int(params.get('page', '1'))
-        ),
         'list_years_explorar': lambda: list_years_explorar(),
         'list_by_year': lambda: list_by_year(kwargs['year'], kwargs['page']),
         'list_by_date_added': lambda: list_by_date_added(page=kwargs['page']),
@@ -228,8 +231,33 @@ def router():
         'list_series_recommendations': lambda: list_series_recommendations(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
         'list_most_searched': lambda: list_most_searched(HANDLE),
         'list_most_searched_tvshows': lambda: list_most_searched_tvshows(HANDLE),
-        'list_4k_movies': lambda: list_4k_movies(page=kwargs['page'], items_per_page=kwargs['items_per_page'])
+        'list_4k_movies': lambda: list_4k_movies(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
+        'list_providers': lambda: list_providers(),
+        'list_movies_by_provider': lambda: list_movies_by_provider(kwargs['provider_name'], page=kwargs['page'], items_per_page=kwargs['items_per_page']),
+        'list_series_by_provider': lambda: list_series_by_provider(
+            kwargs['provider_name'], 
+            page=kwargs['page'], 
+            items_per_page=kwargs['items_per_page']
+    ),
+        'list_series_providers': lambda: list_series_providers(),
+        'list_now_playing_movies': lambda: list_now_playing_movies(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
+        'report_error_dialog': lambda: report_error_dialog(kwargs)
+
     }
+    
+    # Executa a ação correspondente ou lista o menu principal
+    if action == 'list_subcategories':
+        # Esta é a lógica para lidar com todos os níveis de subcategorias
+        if kwargs.get('category_list_json'):
+            list_subcategories(kwargs['category_list_json'])
+        elif kwargs.get('menu_index'):
+            menu = get_menu()
+            menu_index = int(kwargs['menu_index'])
+            if menu and menu_index < len(menu):
+                category_list = menu[menu_index].get('subcategorias', [])
+                list_subcategories(category_list)
+        else:
+            xbmcgui.Dialog().ok('Erro', 'Parâmetros de subcategoria inválidos.')
 
     # Executa a ação correspondente ou lista o menu principal
     if action in actions:

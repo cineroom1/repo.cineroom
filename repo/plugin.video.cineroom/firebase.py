@@ -19,14 +19,14 @@ from resources.lib.utils import get_all_videos, VIDEO_CACHE
 ADDON_ID = xbmcaddon.Addon().getAddonInfo('id')
 FIREBASE_BASE_URL = "https://notify-313a5-default-rtdb.firebaseio.com"
 
-CACHE_EXPIRY_HOURS = 12         # Cache de vídeos populares
-SEARCH_CACHE_EXPIRY_HOURS = 2   # Cache de buscas
+CACHE_EXPIRY_HOURS = 24 * 2
+SEARCH_CACHE_EXPIRY_HOURS = 0.5   # Cache de buscas
 SEARCH_CACHE_KEY = "search_terms_buffer"
 
 URL = sys.argv[0]
 
 # ThreadPoolExecutor para sincronização em background
-executor = ThreadPoolExecutor(max_workers=2)
+executor = ThreadPoolExecutor(max_workers=4)
 
 
 def get_url(**kwargs):
@@ -37,7 +37,7 @@ def normalize(text):
     if not isinstance(text, str):
         return ''
     normalized = unicodedata.normalize('NFKD', text).encode('ASCII', 'ignore').decode('ASCII').lower()
-    for ch in ['.', ':', '/', '#', '[', ']', ' ']:
+    for ch in ['.', ':', '/', '#', '[', ']', ' ', '-']:
         normalized = normalized.replace(ch, '')
     return normalized
 
@@ -48,12 +48,23 @@ def match_video(video, search_term):
     title_norm = normalize(video.get('title', ''))
     tmdb_id = str(video.get('tmdb_id', ''))
     
+    # Busca exata
     if search_term == title_norm:
         return True
     if search_term.isdigit() and search_term == tmdb_id:
         return True
+    
+    # Busca parcial no título
     if search_term in title_norm:
         return True
+    
+    # Verificar se é variação do mesmo filme (ex: "sing" vs "sing2")
+    # Se o search_term está contido no título OU o título está contido no search_term
+    if search_term in title_norm or title_norm in search_term:
+        # Verificar se são do mesmo "filme família"
+        common_base = get_common_base(search_term, title_norm)
+        if common_base and len(common_base) > 3:  # Pelo menos 4 caracteres em comum
+            return True
     
     actors = video.get('actors', [])
     directors = video.get('director', [])
@@ -65,6 +76,15 @@ def match_video(video, search_term):
         return True
         
     return False
+
+def get_common_base(term1, term2):
+    """Encontra a base comum entre dois termos"""
+    # Encontrar a substring comum mais longa
+    # Implementação simplificada - pode ser melhorada
+    for i in range(min(len(term1), len(term2)), 0, -1):
+        if term1[:i] == term2[:i]:
+            return term1[:i]
+    return ""
 
 def load_search_cache_from_disk(video_type):
     file_path = xbmcvfs.translatePath(
@@ -169,7 +189,42 @@ def sync_all_search_caches():
     return movie_synced or tv_synced
 
 
-def list_most_searched_generic(handle, content_type, title, min_count=10):
+def get_remote_min_count(content_type):
+    """
+    Busca o min_count remoto no nó /config do Firebase.
+    Retorna 1 se houver algum problema ou se não houver valor configurado.
+    """
+    try:
+        firebase_url = f"{FIREBASE_BASE_URL}/config.json"
+        req = urllib.request.Request(firebase_url)
+        with urllib.request.urlopen(req) as response:
+            if response.getcode() != 200:
+                xbmc.log(f"[Firebase] Não foi possível obter config, usando min_count=1 para {content_type}", xbmc.LOGWARNING)
+                return 1
+
+            config_data = json.loads(response.read().decode("utf-8"))
+            
+            # Chave depende do tipo de conteúdo
+            if content_type == 'movie':
+                min_count = int(config_data.get("min_count_movie", 1))
+            elif content_type == 'tvshow':
+                min_count = int(config_data.get("min_count_tvshow", 1))
+            else:
+                min_count = 1
+
+            xbmc.log(f"[Firebase] min_count remoto para {content_type}: {min_count}", xbmc.LOGINFO)
+            return min_count
+
+    except Exception as e:
+        xbmc.log(f"[Firebase] Erro ao obter min_count remoto para {content_type}: {e}", xbmc.LOGERROR)
+        return 1
+
+
+def list_most_searched_generic(handle, content_type, title):
+    # --- Buscar min_count remoto ---
+    min_count = get_remote_min_count(content_type)
+    MAX_ITEMS = 50  # Limite máximo de itens a serem exibidos
+
     xbmcplugin.setPluginCategory(handle, title)
     xbmcplugin.setContent(handle, 'movies' if content_type == 'movie' else 'tvshows')
 
@@ -178,8 +233,10 @@ def list_most_searched_generic(handle, content_type, title, min_count=10):
     cached_items = VIDEO_CACHE.get(cache_key)
     if cached_items:
         xbmc.log(f"[CACHE] Usando cache 'mais buscados' de {content_type}", xbmc.LOGINFO)
-        for item_data in json.loads(cached_items):
-            item, url, is_folder = create_video_item(item_data)
+        cached_data = json.loads(cached_items)
+        # Limitar a exibição aos primeiros 50 itens do cache (já ordenados)
+        for item_data in cached_data[:MAX_ITEMS]:
+            item, url, is_folder = create_video_item(handle, item_data)
             xbmcplugin.addDirectoryItem(handle, url, item, is_folder)
         xbmcplugin.endOfDirectory(handle)
         return
@@ -202,30 +259,66 @@ def list_most_searched_generic(handle, content_type, title, min_count=10):
 
             search_history = json.loads(response_text)
 
+        # DEBUG: Log dos top searches
+        xbmc.log(f"[DEBUG] Search history completo: {json.dumps(search_history, indent=2)}", xbmc.LOGINFO)
+
         filtered_searches = {t: c for t, c in search_history.items() if c > min_count}
+        
+        # DEBUG: Log dos filtered searches
+        xbmc.log(f"[DEBUG] Filtrados (count > {min_count}): {json.dumps(filtered_searches, indent=2)}", xbmc.LOGINFO)
+
         if not filtered_searches:
             xbmcgui.Dialog().ok("Aviso", f"Nenhum(a) {title.lower()} popular o suficiente para ser listado(a).")
             xbmcplugin.endOfDirectory(handle)
             return
 
-        top_searches = sorted(filtered_searches.items(), key=lambda i: i[1], reverse=True)
+        # Ordenar por contagem (decrescente) e pegar os top 50
+        top_searches = sorted(filtered_searches.items(), key=lambda i: i[1], reverse=True)[:MAX_ITEMS]
+
+        # DEBUG: Log dos top searches ordenados
+        xbmc.log(f"[DEBUG] Top searches ordenados: {top_searches}", xbmc.LOGINFO)
 
         all_content = get_all_videos()
         filtered_videos = [v for v in all_content if v.get('type') == content_type]
 
+        # DEBUG: Log dos vídeos disponíveis
+        video_titles = [v.get('title', '') for v in filtered_videos]
+        xbmc.log(f"[DEBUG] Vídeos disponíveis: {video_titles}", xbmc.LOGINFO)
+
         added_tmdb_ids = set()
         cache_data = []
+        match_count = 0
 
-        for term, _ in top_searches:
+        for term, count in top_searches:
+            matched = False
             for video in filtered_videos:
                 if match_video(video, term) and video.get('tmdb_id') not in added_tmdb_ids:
-                    cache_data.append(video)
-                    item, url, is_folder = create_video_item(video)
+                    # DEBUG: Log do match encontrado
+                    xbmc.log(f"[DEBUG] MATCH: term='{term}' count={count} -> video='{video.get('title', '')}' tmdb_id={video.get('tmdb_id', '')}", xbmc.LOGINFO)
+                    
+                    # Adicionar a contagem de buscas ao vídeo para manter a ordem
+                    video_with_count = video.copy()
+                    video_with_count['search_count'] = count
+                    cache_data.append(video_with_count)
+                    
+                    item, url, is_folder = create_video_item(handle, video)
                     xbmcplugin.addDirectoryItem(handle, url, item, is_folder)
                     added_tmdb_ids.add(video.get('tmdb_id'))
+                    matched = True
+                    match_count += 1
                     break
+            
+            if not matched:
+                # DEBUG: Log de termos sem match
+                xbmc.log(f"[DEBUG] NO MATCH: term='{term}' count={count} - nenhum vídeo correspondente", xbmc.LOGINFO)
 
+        # DEBUG: Log final
+        xbmc.log(f"[DEBUG] Total de matches encontrados: {match_count}", xbmc.LOGINFO)
+
+        # Garantir que o cache mantenha a ordem dos mais buscados
         if cache_data:
+            # Ordenar pelo search_count para garantir a ordem no cache
+            cache_data.sort(key=lambda x: x.get('search_count', 0), reverse=True)
             VIDEO_CACHE.set(cache_key, json.dumps(cache_data), expiry_hours=CACHE_EXPIRY_HOURS)
 
         xbmcplugin.endOfDirectory(handle)
@@ -237,8 +330,8 @@ def list_most_searched_generic(handle, content_type, title, min_count=10):
 
 
 def list_most_searched(handle):
-    list_most_searched_generic(handle, 'movie', 'Filmes Mais Buscados')
+    list_most_searched_generic(handle, 'movie', 'Mais Buscados')
 
 
 def list_most_searched_tvshows(handle):
-    list_most_searched_generic(handle, 'tvshow', 'Séries Mais Buscadas')
+    list_most_searched_generic(handle, 'tvshow', 'Mais Buscadas')
