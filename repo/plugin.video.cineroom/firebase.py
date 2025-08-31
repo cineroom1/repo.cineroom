@@ -20,7 +20,7 @@ ADDON_ID = xbmcaddon.Addon().getAddonInfo('id')
 FIREBASE_BASE_URL = "https://notify-313a5-default-rtdb.firebaseio.com"
 
 CACHE_EXPIRY_HOURS = 24 * 2
-SEARCH_CACHE_EXPIRY_HOURS = 0.5   # Cache de buscas
+SEARCH_CACHE_EXPIRY_HOURS = 5   # Cache de buscas
 SEARCH_CACHE_KEY = "search_terms_buffer"
 
 URL = sys.argv[0]
