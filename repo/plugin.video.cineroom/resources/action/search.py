@@ -180,114 +180,169 @@ def search_videos(handle):
     display_results(handle, filtered_videos, raw_term)
 
 import urllib.request, urllib.error, json, datetime
-import xbmc, xbmcgui, xbmcaddon, xbmcvfs
+import xbmc, xbmcgui, xbmcaddon
 
-FIREBASE_BASE_URL = "https://notify-313a5-default-rtdb.firebaseio.com"
+ADDON = xbmcaddon.Addon()
+SUPABASE_URL = "https://iyvsukmykhdnmzqzwflo.supabase.co"
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Iml5dnN1a215a2hkbm16cXp3ZmxvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY3MzEzNzgsImV4cCI6MjA3MjMwNzM3OH0.j1hosUAlhFxayL0P7rg8_bs13J1i_JJ_jJrckA7pI8g"
 
-def report_error(video_info, status):
-    """
-    Envia um relatório de erro para o Firebase, atualizando a contagem
-    total e a contagem por tipo de erro para um filme específico.
-    """
-    tmdb_id = video_info.get('tmdb_id', 'unknown')
+import json
+import os
+import xbmcvfs
+import xbmcaddon
 
-    # Define o caminho para o arquivo de log de cooldown
-    addon = xbmcaddon.Addon()
-    cooldown_file = xbmcvfs.translatePath(f"{addon.getAddonInfo('profile')}report_cooldown.json")
+addon = xbmcaddon.Addon()
 
-    cooldown_data = {}
-    if xbmcvfs.exists(cooldown_file):
-        try:
-            with xbmcvfs.File(cooldown_file, 'r') as f:
-                cooldown_data = json.load(f)
-        except Exception as e:
-            # Em caso de erro na leitura, loga e notifica o usuário
-            xbmc.log(f"Erro ao carregar o arquivo de cooldown: {e}", xbmc.LOGERROR)
-            xbmcgui.Dialog().notification("Erro", "Não foi possível carregar o cooldown. Tente novamente.", xbmcgui.NOTIFICATION_ERROR)
-            return False
+COOLDOWN_PERIOD_HOURS = 24
+COOLDOWN_FILE = xbmcvfs.translatePath(f"{addon.getAddonInfo('profile')}report_cooldown.json")
 
-    # --- LÓGICA DE RATE-LIMITING ---
-    COOLDOWN_PERIOD_HOURS = 24
+def load_cooldown_data():
+    try:
+        if os.path.exists(COOLDOWN_FILE):
+            with open(COOLDOWN_FILE, "r") as f:
+                return json.load(f)
+    except Exception as e:
+        xbmc.log(f"[Cooldown] Erro ao ler arquivo de cooldown: {e}", xbmc.LOGERROR)
+    return {}
+
+def save_cooldown_data(data):
+    try:
+        os.makedirs(os.path.dirname(COOLDOWN_FILE), exist_ok=True)
+        with open(COOLDOWN_FILE, "w") as f:
+            json.dump(data, f)
+    except Exception as e:
+        xbmc.log(f"[Cooldown] Erro ao salvar arquivo de cooldown: {e}", xbmc.LOGERROR)
+
+def can_report_video(tmdb_id):
+    cooldown_data = load_cooldown_data()
     last_report_timestamp = cooldown_data.get(str(tmdb_id))
-    
+
     if last_report_timestamp:
         try:
             last_report_dt = datetime.datetime.fromisoformat(last_report_timestamp)
             time_since_last_report = datetime.datetime.now() - last_report_dt
-            
+
             if time_since_last_report < datetime.timedelta(hours=COOLDOWN_PERIOD_HOURS):
-                remaining_time_minutes = (datetime.timedelta(hours=COOLDOWN_PERIOD_HOURS) - time_since_last_report).total_seconds() / 60
-                xbmc.log(f"Rate-limiting ativado. Tente novamente em aproximadamente {int(remaining_time_minutes)} minutos.", xbmc.LOGINFO)
-                
-                # CORREÇÃO AQUI
-                xbmcgui.Dialog().notification("Aguarde", f"Você pode reportar novamente este filme em {int(remaining_time_minutes)} minutos.", xbmcgui.NOTIFICATION_INFO)
-                
+                remaining_time_minutes = int((datetime.timedelta(hours=COOLDOWN_PERIOD_HOURS) - time_since_last_report).total_seconds() / 60)
+                xbmc.log(f"[Cooldown] Rate-limiting ativado para {tmdb_id}. Aguarde {remaining_time_minutes} minutos.", xbmc.LOGINFO)
+                xbmcgui.Dialog().notification(
+                    "Aguarde",
+                    f"Você pode reportar novamente este filme em {remaining_time_minutes} minutos.",
+                    xbmcgui.NOTIFICATION_INFO
+                )
                 return False
         except Exception as e:
-            xbmc.log(f"Erro ao processar timestamp do arquivo de cooldown: {e}", xbmc.LOGERROR)
-            
-            # CORREÇÃO AQUI
+            xbmc.log(f"[Cooldown] Erro ao processar timestamp: {e}", xbmc.LOGERROR)
             xbmcgui.Dialog().notification("Erro", "Erro interno no relatório. Tente novamente.", xbmcgui.NOTIFICATION_ERROR)
-            
             return False
 
-    # --- FIM DA LÓGICA DE RATE-LIMITING ---
-    
-    firebase_url = f"{FIREBASE_BASE_URL}/relatorios_de_erros/{tmdb_id}.json"
-    current_data = None
-    try:
-        req = urllib.request.Request(firebase_url)
-        with urllib.request.urlopen(req) as resp:
-            if resp.getcode() == 200:
-                current_data = json.loads(resp.read().decode('utf-8'))
-    except urllib.error.HTTPError as e:
-        if e.code == 404:
-            xbmc.log(f"Primeiro relatório para o filme {tmdb_id}. Criando nova entrada.", xbmc.LOGINFO)
-        else:
-            xbmc.log(f"Erro ao buscar dados do Firebase: {e}", xbmc.LOGERROR)
-    except Exception as e:
-        xbmc.log(f"Erro inesperado ao buscar dados: {e}", xbmc.LOGERROR)
+    # Se passou, atualiza timestamp
+    cooldown_data[str(tmdb_id)] = datetime.datetime.now().isoformat()
+    save_cooldown_data(cooldown_data)
+    return True
 
-    reports_count = 1
-    if current_data and 'reports_count' in current_data:
-        reports_count = current_data['reports_count'] + 1
 
-    error_types = current_data.get("error_types", {}) if current_data else {}
-    current_error_count = error_types.get(status, 0) + 1
-    error_types[status] = current_error_count
-
-    data_to_send = {
-        "video_info": video_info,
-        "last_status": status,
-        "timestamp": datetime.datetime.now().isoformat(),
-        "device_info": xbmc.getInfoLabel('System.BuildVersion'),
-        "reports_count": reports_count,
-        "error_types": error_types
+def get_supabase_headers():
+    return {
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/json",
+        "Prefer": "return=representation"
     }
-    payload = json.dumps(data_to_send).encode("utf-8")
-    
+
+def report_error_supabase(video_info_str, status):
+    """
+    Envia um relatório de erro diretamente para o Supabase.
+    Agora recebe apenas uma string no formato "Título: TMDb_ID".
+    """
     try:
-        req = urllib.request.Request(firebase_url, data=payload, method="PATCH")
+        # Extrai o TMDb ID da string (assume que vem depois de ": ")
+        if ": " in video_info_str:
+            video_title, tmdb_id = video_info_str.split(": ", 1)
+        else:
+            video_title = video_info_str
+            tmdb_id = "unknown"
+
+        # --- LÓGICA DE RATE-LIMITING ---
+        if not can_report_video(tmdb_id):
+            return False  # Sai, usuário não pode reportar ainda
+
+        # URL da tabela 'relatorios_de_erros'
+        url_get = f"{SUPABASE_URL}/rest/v1/relatorios_de_erros?tmdb_id=eq.{tmdb_id}"
+
+        current_data = None
+        try:
+            req = urllib.request.Request(url_get, headers=get_supabase_headers())
+            with urllib.request.urlopen(req) as resp:
+                if resp.getcode() == 200:
+                    data = json.loads(resp.read().decode('utf-8'))
+                    if data:
+                        current_data = data[0]
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                xbmc.log(f"[Supabase] Erro ao buscar dados existentes: {e}", xbmc.LOGERROR)
+        except Exception as e:
+            xbmc.log(f"[Supabase] Erro inesperado: {e}", xbmc.LOGERROR)
+
+        # Prepara dados para envio
+        reports_count = 1
+        error_types = {}
+
+        if current_data:
+            reports_count = current_data.get('reports_count', 0) + 1
+            error_types = current_data.get('error_types', {})
+
+        error_types[status] = error_types.get(status, 0) + 1
+
+        payload = {
+            "tmdb_id": tmdb_id,
+            "video_info": video_info_str,  # agora é a string simples
+            "last_status": status,
+            "timestamp": datetime.datetime.now().isoformat(),
+            "reports_count": reports_count,
+            "error_types": error_types
+        }
+
+        method = "PATCH" if current_data else "POST"
+        url = f"{SUPABASE_URL}/rest/v1/relatorios_de_erros?tmdb_id=eq.{tmdb_id}" if current_data else f"{SUPABASE_URL}/rest/v1/relatorios_de_erros"
+
+        req = urllib.request.Request(
+            url,
+            data=json.dumps(payload).encode("utf-8"),
+            method=method,
+            headers=get_supabase_headers()
+        )
         with urllib.request.urlopen(req) as resp:
-            xbmc.log(f"Relatório de erro enviado. Status: {resp.getcode()}", xbmc.LOGINFO)
-            cooldown_data[str(tmdb_id)] = datetime.datetime.now().isoformat()
-            with xbmcvfs.File(cooldown_file, 'w') as f:
-                json.dump(cooldown_data, f, indent=4)
+            xbmc.log(f"[Supabase] Relatório enviado com sucesso. Status: {resp.getcode()}", xbmc.LOGINFO)
+            xbmcgui.Dialog().notification("Relatório enviado!", f"Tipo de erro: {status}", xbmcgui.NOTIFICATION_INFO, 3000)
             return True
+
     except Exception as e:
-        xbmc.log(f"Erro ao enviar relatório para o Firebase: {e}", xbmc.LOGERROR)
+        xbmc.log(f"[Supabase] Erro ao enviar relatório: {e}", xbmc.LOGERROR)
+        xbmcgui.Dialog().notification("Falha ao enviar", "Não foi possível enviar o relatório.", xbmcgui.NOTIFICATION_ERROR, 3000)
         return False
+
 
 
 def report_error_dialog(params):
     """
-    Exibe um diálogo com opções de erro e envia um relatório para o Firebase.
+    Exibe um diálogo para reportar erros e envia um relatório para o Supabase.
     """
     import xbmcgui
-    
-    tmdb_id = params.get('tmdb_id')
-    title = params.get('title')
 
+    # Aviso inicial
+    dialog = xbmcgui.Dialog()
+    title = "Aviso Importante!"
+    message = (
+        "Reporte apenas problemas reais. Relatórios falsos prejudicam todos os usuários\n"
+        "Verifique todos os links antes de enviar um report."
+    )
+    dialog.ok(title, message)
+
+    # Obter informações do vídeo a partir de params (dicionário)
+    tmdb_id = params.get('tmdb_id')
+    video_title = params.get('title', 'Este conteúdo')
+
+    # Tipos de erro
     error_types = [
         "Link quebrado",
         "Legenda errada",
@@ -296,33 +351,32 @@ def report_error_dialog(params):
         "Qualidade muito baixa"
     ]
 
-    dialog = xbmcgui.Dialog()
-    choice = dialog.select(
-        f"Reportar erro em '{title}'", 
-        error_types
-    )
-
+    # Seleção do tipo de erro
+    choice = dialog.select(f"Reportar erro em '{video_title}'", error_types)
     if choice == -1:
-        return
+        return  # Usuário cancelou
 
     status = error_types[choice]
 
-    video_info = {
-        'tmdb_id': tmdb_id,
-        'title': title
-    }
-    
-    if report_error(video_info, status=status):
+    # Converte para string simples no formato "Título: TMDb_ID" apenas para o Supabase
+    video_info_str = f"{video_title}: {tmdb_id}"
+
+    # Envio do relatório para Supabase
+    success = report_error_supabase(video_info_str, status=status)
+    if success:
         xbmcgui.Dialog().notification(
-            "Sucesso!", 
-            f"Relatório enviado: {status}", 
-            xbmcgui.NOTIFICATION_INFO
+            "Relatório enviado com sucesso!",
+            f"Tipo de erro: {status}",
+            xbmcgui.NOTIFICATION_INFO,
+            5000
         )
     else:
-        # report_error já exibe a notificação de erro, então esta linha é redundante,
-        # mas pode ser útil para outros tipos de falha de retorno.
-        pass
-
+        xbmcgui.Dialog().notification(
+            "Falha ao enviar",
+            "Não foi possível enviar o relatório. Tente novamente.",
+            xbmcgui.NOTIFICATION_ERROR,
+            5000
+        )
 
 
 def open_video_folder(handle, tmdb_id):

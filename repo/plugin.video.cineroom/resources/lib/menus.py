@@ -114,9 +114,10 @@ def list_menu():
         return
 
     settings_map = {
+        "Pesquisar": ADDON.getSettingBool('mostrar_pesquisar'),
         "Filmes": ADDON.getSettingBool('mostrar_filmes'),
         "Séries": ADDON.getSettingBool('mostrar_series'),
-        "Pesquisar": ADDON.getSettingBool('mostrar_pesquisar'),
+        "Exclusivo": ADDON.getSettingBool('mostrar_exclusivo'),
         "Minha_Lista": ADDON.getSettingBool('mostrar_favoritos')
     }
 

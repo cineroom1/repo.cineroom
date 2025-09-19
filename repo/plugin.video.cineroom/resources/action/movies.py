@@ -1528,7 +1528,7 @@ def list_recommendations(page=1, items_per_page=70):
 
         recommendations.sort(key=lambda x: x['recommendation_score'], reverse=True)
         
-        top_recommendations = recommendations[:1000]
+        top_recommendations = recommendations[:75]
 
         VIDEO_CACHE.set(cache_key, json.dumps(top_recommendations), expiry_hours=24)
         return top_recommendations

@@ -1,6 +1,11 @@
 <settings>
 
     <category label="Menu Principal">
+	    <setting id="mostrar_pesquisar" 
+		         type="bool" 
+		         label="Exibir categoria: Pesquisar" 
+		         default="true"/>	
+				 
         <setting id="mostrar_filmes" 
 		         type="bool" 
 				 label="Exibir categoria: Filmes" 
@@ -11,10 +16,10 @@
 		         label="Exibir categoria: Séries" 
 		         default="true"/>
 				 
-        <setting id="mostrar_pesquisar" 
+        <setting id="mostrar_exclusivo" 
 		         type="bool" 
-		         label="Exibir categoria: Pesquisar" 
-		         default="true"/>	
+		         label="Exibir categoria: Exclusivo" 
+		         default="false"/>	
 				 
         <setting id="mostrar_favoritos" 
 		         type="bool" 
@@ -86,6 +91,12 @@
 				 label="Usar arte oficial TMDb nas coleções" 
 				 default="false" />
         <setting id="firebase_user_id" type="text" visible="false" default="" />
+		
+		<setting id="enable_notifications" 
+		         type="bool" 
+				 label="Mostrar notificações" 
+				 default="true"/>
+
         		
 			 
 	</category>	

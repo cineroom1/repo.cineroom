@@ -7,6 +7,7 @@ import json
 import subprocess
 from urllib.parse import urlencode, parse_qsl
 import urllib.request
+import urllib.error  # Importa o módulo para tratamento de erros
 from datetime import datetime
 
 # --- Imports da Biblioteca Kodi ---
@@ -72,7 +73,14 @@ ICONS_DIR = os.path.join(ADDON_PATH, 'resources', 'images', 'icons')  # Diretór
 FANART_DIR = os.path.join(ADDON_PATH, 'resources', 'images', 'fanart')  # Diretório de fanarts
 
 
+# --- Configurações de Notificação do GitHub ---
+# Chave para armazenar o conteúdo da última notificação vista
+LAST_NOTIFICATION_CONTENT_KEY = "last_notification_content"
 
+# Substitua este URL pelo seu URL "Raw" do arquivo JSON no GitHub
+GITHUB_NOTIFICATIONS_URL = "https://raw.githubusercontent.com/Gael1303/flixroom/refs/heads/main/cineroom/notify/mensagem.json"
+
+# --- Funções do Plugin ---
 def get_url(**kwargs):
     """
     Cria uma URL para chamar o plugin recursivamente a partir dos argumentos fornecidos.
@@ -81,13 +89,51 @@ def get_url(**kwargs):
     """
     return '{}?{}'.format(URL, urlencode(kwargs))
 
+# --- Funções do Plugin ---
+def check_for_notifications():
+    """Busca e exibe novas notificações do GitHub ao abrir o addon."""
+    try:
+        # Verifica se o usuário desativou notificações
+        if not Addon().getSettingBool('enable_notifications'):
+            return
+        
+        # Obtém o conteúdo da última notificação vista, se existir
+        last_content_seen = Addon().getSetting(LAST_NOTIFICATION_CONTENT_KEY)
+        
+        req = urllib.request.Request(GITHUB_NOTIFICATIONS_URL)
+        with urllib.request.urlopen(req, timeout=5) as response:
+            if response.getcode() == 200:
+                notification_data = json.loads(response.read().decode('utf-8'))
+                
+                if not notification_data:
+                    return
+                
+                # Usa o conteúdo como forma de saber se é uma notificação nova
+                current_content = json.dumps(notification_data, sort_keys=True)
+                
+                if current_content != last_content_seen:
+                    dialog = xbmcgui.Dialog()
+                    
+                    # Caixa de diálogo 'ok' para a notificação
+                    dialog.ok(
+                        heading=notification_data.get('titulo', 'Notificação'),
+                        message=notification_data.get('mensagem', '')
+                    )
+                    
+                    # Salva o novo conteúdo para não mostrar de novo
+                    Addon().setSetting(LAST_NOTIFICATION_CONTENT_KEY, current_content)
+
+    except (urllib.error.URLError, json.JSONDecodeError, Exception) as e:
+        xbmc.log(f"[ADDON] Erro ao verificar notificações do GitHub: {str(e)}", xbmc.LOGERROR)
+
+
+
 def router():
     """
     Roteia as ações do plugin com base nos parâmetros da URL.
     """
     # Extrai os parâmetros da URL
     params = dict(parse_qsl(sys.argv[2][1:]))
-    
     
     is_series = params.get('is_series', 'false').lower() == 'true'
 
@@ -150,7 +196,13 @@ def router():
 
     # Mapeamento de ações para funções
     actions = {
-        'list_videos': lambda: list_videos(kwargs['external_link'], kwargs['sort_method'], items_per_page=kwargs['items_per_page'], page=kwargs['page']),
+        'list_videos': lambda: list_videos(
+            handle=HANDLE,
+            external_link=kwargs['external_link'],
+            sort_method=kwargs['sort_method'],
+            items_per_page=kwargs['items_per_page'],
+            page=kwargs['page']
+        ),
         'list_seasons': lambda: list_seasons(handle=HANDLE, serie_data=kwargs['serie']),
         'list_episodes': lambda: list_episodes(handle=HANDLE, season_data=kwargs['serie'], season_title=kwargs['season_title']),
         'list_collection': lambda: list_collection(kwargs['collection']),
@@ -238,7 +290,7 @@ def router():
             kwargs['provider_name'], 
             page=kwargs['page'], 
             items_per_page=kwargs['items_per_page']
-    ),
+        ),
         'list_series_providers': lambda: list_series_providers(),
         'list_now_playing_movies': lambda: list_now_playing_movies(page=kwargs['page'], items_per_page=kwargs['items_per_page']),
         'report_error_dialog': lambda: report_error_dialog(kwargs)
@@ -270,4 +322,6 @@ def router():
         list_menu()
 
 if __name__ == '__main__':
+    # Chama a função de verificação de notificações antes de iniciar o roteador
+    check_for_notifications()
     router()

@@ -9,12 +9,9 @@ def show_about():
     # Dados separados para fácil manutenção
     CHANGELOG = [
     {
-        'version': '4.3.3',
+        'version': '4.3.4',
         'changes': [
-            ("[COLOR yellow]Novidades[/COLOR]", "Nova aba de recomendações focada em sua lista de favoritos"),
-            ("[COLOR yellow]Novidades[/COLOR]", "Nova aba 'Mais buscados', Focada nos filmes e series mais buscados do addon"),
-            ("[COLOR yellow]Novidades[/COLOR]", "Novo layout para filmes, deixando o menu mais leve"),
-            ("[COLOR yellow]Melhorias[/COLOR]", "Cache aprimorado para dispositivos fracos")
+            ("[COLOR yellow]Melhorias[/COLOR]", "Ajuste de bugs."),
         ]
     }
 ]

@@ -36,28 +36,21 @@ def get_url(**kwargs) -> str:
             params[key] = value
     return f"{URL}?{urlencode(params)}"
 
+# Gêneros de séries padronizados para uso no plugin
 GENRES_SERIES = [
-    {'name': 'Ação', 'key': 'Ação'},
+    {'name': 'Ação', 'key': 'Action & Adventure'},
     {'name': 'Animação', 'key': 'Animação'},
-    {'name': 'Aventura', 'key': 'Aventura'}, 
-    {'name': 'Cinema TV', 'key': 'Cinema TV'},
     {'name': 'Comédia', 'key': 'Comédia'},
     {'name': 'Crime', 'key': 'Crime'},
     {'name': 'Documentário', 'key': 'Documentário'},
     {'name': 'Drama', 'key': 'Drama'},
-    {'name': 'Fantasia', 'key': 'Fantasia'}, 
     {'name': 'Faroeste', 'key': 'Faroeste'},
-    {'name': 'Ficção Cientifica', 'key': 'Ficção Cientifica'},
     {'name': 'Família', 'key': 'Família'},
-    {'name': 'Guerra', 'key': 'Guerra'},
-    {'name': 'História', 'key': 'História'},
-    {'name': 'Mistério', 'key': 'Mistério'}, 
-    {'name': 'Música', 'key': 'Música'},
-    {'name': 'Romance', 'key': 'Romance'},
-    {'name': 'Terror', 'key': 'Horror'},
-    {'name': 'Thriller', 'key': 'Thriller'}
-    # Adicione mais gêneros conforme necessário
+    {'name': 'Guerra', 'key': 'War & Politics'},
+    {'name': 'Mistério', 'key': 'Mistério'},
+    {'name': 'Sci-Fi & Fantasy', 'key': 'Ficção Científica'}  # mapeamento extra do TMDb
 ]
+
 
 def list_series_genres():
     """
@@ -913,7 +906,7 @@ def list_series_recommendations(page=1, items_per_page=70):
 
         recommendations.sort(key=lambda x: x['recommendation_score'], reverse=True)
         
-        top_recommendations = recommendations[:1000]
+        top_recommendations = recommendations[:75]
 
         VIDEO_CACHE.set(cache_key, json.dumps(top_recommendations), expiry_hours=24)
         return top_recommendations
