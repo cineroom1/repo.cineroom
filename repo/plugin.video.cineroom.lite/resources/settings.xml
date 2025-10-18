@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<settings>
+
+    <category label="Geral">
+        <setting id="pages"
+                 type="labelenum"
+                 label="Itens por Página"
+                 values="20|25|50|75|100"
+                 default="25" />
+        
+        <setting id="view_mode"
+                 type="labelenum"
+                 label="Modo de Visualização Padrão"
+                 values="list|poster|iconwall|shift|infowall|widelist|wall|banner|fanart"
+                 default="wall" />
+				 
+		<setting id="enable_details_dialog" 
+		         type="bool" 
+				 label="Ativar Detalhes Extras" 
+				 default="true" />		 
+				 
+		
+    </category>
+
+    <category label="Atualizações">
+        
+        <setting label="Verificar novo conteúdo" 
+		         type="labelenum" 
+				 id="update_interval" 
+                 values="Desativado|A cada 3 horas|A cada 5 horas|A cada 12 horas|A cada 24 horas (Diariamente)" 
+                 default="A cada 5 horas" />
+
+        <setting label="[internal] Última data de verificação" 
+		         type="text" 
+				 id="last_update_check" 
+				 visible="false" />
+    </category>
+	
+	<category label="Provedores">
+	    <setting label="Selecionar Provedores" type="lsep"/>
+        <setting id="provider.torrentio.enabled"
+                 type="bool"
+                 label="Ativar Torrentio"
+                 default="false" />
+
+        <setting id="provider.brazuca.enabled"
+                 type="bool"
+                 label="Ativar Brazuca"
+                 default="false" />
+
+        <setting id="provider.mycine.enabled"
+                 type="bool"
+                 label="Ativar MyCine (não configurável)"
+                 default="true" />
+
+	
+        <setting label="Filtros (Torrentio/Brazuca)" type="lsep"/>
+        <setting id="filter.quality.4k" type="bool" label="Incluir fontes 4K" default="true"/>
+        <setting id="filter.quality.1080p" type="bool" label="Incluir fontes 1080p" default="true"/>
+        <setting id="filter.quality.720p" type="bool" label="Incluir fontes 720p" default="true"/>
+        <setting id="filter.quality.sd" type="bool" label="Incluir fontes SD (480p e inferior)" default="false"/>
+
+        <setting label="Ordenação e Limites" type="lsep"/>
+        <setting id="sort.type" type="enum" label="Ordenar fontes por" values="Qualidade|Seeders|Tamanho" default="1"/>
+        <setting id="filter.limit" type="number" label="Máximo de fontes por provedor" default="20"/>
+
+        <setting label="Idioma e Exclusão" type="lsep"/>
+        <setting id="filter.lang" type="text" label="Idiomas preferidos (ex: dublado,legendado)" default="dual,portugues,pt,en"/>
+        <setting id="filter.exclude" type="text" label="Excluir termos (ex: CAM,HDCAM)" default="cam,hdcam,screener,avc"/>
+    </category>
+    
+</settings>

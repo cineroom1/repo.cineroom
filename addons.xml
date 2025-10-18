@@ -1,28 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom" version="4.3.4" name="Cineroom" provider-name="Gael">
+<addon id="plugin.video.cineroom.lite" version="1.0" name="Cineroom [COLOR cyan]Lite[/COLOR]" provider-name="Gael">
   <requires>
     <import addon="script.module.requests" />
     <import addon="xbmc.python" version="3.0.0"/>
+	<import addon="script.module.simplejson" version="3.19.1"/> 
   </requires>
 
-  <!-- Extensão principal do plugin -->
   <extension point="xbmc.python.pluginsource" library="main.py">
     <provides>video</provides>
   </extension>
 
-  <!-- Serviço de monitoramento -->
-  <extension point="xbmc.service" library="service.py" start="startup"/>
+  <extension point="xbmc.service" library="service.py" start="login" />
 
-  <!-- Metadados do addon -->
   <extension point="xbmc.addon.metadata">
-    <description lang="pt_BR">Addon scraper. Não guardamos nenhum conteudo</description>
-    <disclaimer lang="pt_BR">Este addon é apenas para fins educacionais e não hospeda nenhum conteúdo próprio.</disclaimer>
+    <description lang="pt_BR">Este é um addon sem fins lucrativos. Somos apenas uma biblioteca de itens</description>
+    <disclaimer lang="pt_BR">OBRIGADO PELA PREFERENCIA S2</disclaimer>
     <platform>all</platform>
     <license>GPL-3.0-only</license>
     <source>https://cineroom1.github.io</source>
-    <email>contato@exemplo.com</email>
+    <email>cineroom.ofc@gmail.com</email>
     <assets>
+	  <po>resources/language</po>
       <icon>resources/images/icon.png</icon>
       <fanart>resources/images/fanart.jpg</fanart>
       <screenshot>resources/images/screenshot-1.jpg</screenshot>
