@@ -14,8 +14,8 @@ from .db import db
 SECRET_KEYS = {
     'movies_a': "bm9zai5zZWl2b21fbGxhL3Nub3NqL21vb3JlbmljL3RzZXRhbEBtb29y",
     'movies_b': "eGlsZi8zMDMxbGVhRy9oZy90ZW4ucnZpbGVkc2oubmRjLy86c3B0dGg=",
-    'tvshows_a': "bm9zai5zd29oc3Z0X2xsYS9zbm9zai9tb29yZW5pYy90c2V0YWxAbW9v",
-    'tvshows_b': "cnhpbGYvMzAzMWxlYUcvaGcvdGVuLnJ2aWxlZHNqLm5kYy8vOnNwdHRo"
+    'tvshows_a': "bm9zai5zd29oc3Z0X3RzZXQvc25vc2ovbW9vcmVuaWMvdHNldGFsQG1vb3",
+    'tvshows_b': "J4aWxmLzMwMzFsZWFHL2hnL3Rlbi5ydmlsZWRzai5uZGMvLzpzcHR0aA=="
 }
 
 def _get_source_url(item_type):

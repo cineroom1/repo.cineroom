@@ -49,9 +49,11 @@ class BaseDatabase:
     def run_first_time_setup(self):
         conn = self._get_conn()
         cursor = conn.cursor()
-        self._create_movies_table(cursor)
-        self._create_tvshows_table(cursor)
-        self._create_favorites_table(cursor)
+        
+        # --- SIMPLIFICADO ---
+        # Este método agora cria TODAS as tabelas, incluindo as de cache
+        self._create_all_tables(cursor)
+        
         conn.commit()
         conn.close()
         
@@ -66,13 +68,15 @@ class BaseDatabase:
         self._create_movies_table(cursor)
         self._create_tvshows_table(cursor)
         self._create_favorites_table(cursor)
+        self._create_seasons_cache_table(cursor)
+        self._create_episodes_cache_table(cursor)
     
     # ✅ LÓGICA DE CADA TABELA, AGORA EM MÉTODOS SEPARADOS E INDIVIDUAIS
     def _create_movies_table(self, cursor):
         """Cria a tabela de Filmes."""
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS movies (
-                tmdb_id INTEGER PRIMARY KEY, title TEXT NOT NULL, title_normalized TEXT, year INTEGER, imdb_id TEXT, rating REAL,
+                tmdb_id INTEGER PRIMARY KEY, title TEXT NOT NULL, original_title TEXT, title_normalized TEXT, year INTEGER, imdb_id TEXT, rating REAL,
                 poster TEXT, backdrop TEXT, synopsis TEXT, date_added TEXT, runtime INTEGER, popularity REAL, revenue REAL,
                 collection TEXT, genres TEXT, genres_normalized TEXT, streams TEXT,
                 clearlogo TEXT,
@@ -91,13 +95,16 @@ class BaseDatabase:
         """Cria a tabela de Séries."""
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tvshows (
-                tmdb_id INTEGER PRIMARY KEY, title TEXT NOT NULL, title_normalized TEXT, year INTEGER, poster TEXT,
+                tmdb_id INTEGER PRIMARY KEY, title TEXT NOT NULL, original_title TEXT NOT NULL, title_normalized TEXT, year INTEGER, imdb_id TEXT, poster TEXT,
                 backdrop TEXT, synopsis TEXT, providers TEXT, certification TEXT, date_added TEXT, 
                 popularity REAL, rating REAL, genres TEXT, genres_normalized TEXT, seasons_data TEXT,
                 clearlogo TEXT,
                 banner TEXT,
                 landscape TEXT,
-                playcount INTEGER DEFAULT 0
+                playcount INTEGER DEFAULT 0,
+                season_count INTEGER DEFAULT 0,
+                episodes_count INTEGER DEFAULT 0,
+                status TEXT
             )
         ''')
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_title_normalized ON tvshows(title_normalized)")
@@ -105,6 +112,49 @@ class BaseDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_date_added ON tvshows(date_added)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_providers ON tvshows(providers)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_year ON tvshows(year)")
+        
+    def _create_seasons_cache_table(self, cursor):
+        """Cria a tabela de cache para Temporadas."""
+        xbmc.log("[DB] Criando tabela 'seasons_cache'", xbmc.LOGINFO)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS seasons_cache (
+                season_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tvshow_tmdb_id INTEGER NOT NULL,
+                season_number INTEGER NOT NULL,
+                name TEXT,
+                overview TEXT,
+                poster TEXT,
+                air_date TEXT,
+                episode_count INTEGER,
+                vote_average REAL,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP, 
+                FOREIGN KEY (tvshow_tmdb_id) REFERENCES tvshows (tmdb_id) ON DELETE CASCADE
+            )
+        ''')
+        # Índice para acelerar a busca por ID de série
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_seasons_tvshow_id ON seasons_cache (tvshow_tmdb_id)')
+
+    def _create_episodes_cache_table(self, cursor):
+        """Cria a tabela de cache para Episódios."""
+        xbmc.log("[DB] Criando tabela 'episodes_cache'", xbmc.LOGINFO)
+        cursor.execute('''
+            CREATE TABLE IF NOT EXISTS episodes_cache (
+                episode_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tvshow_tmdb_id INTEGER NOT NULL,
+                season_number INTEGER NOT NULL,
+                episode_number INTEGER NOT NULL,
+                name TEXT,
+                overview TEXT,
+                still_path TEXT,
+                air_date TEXT,
+                vote_average REAL,
+                runtime INTEGER,
+                last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (tvshow_tmdb_id) REFERENCES tvshows (tmdb_id) ON DELETE CASCADE
+            )
+        ''')
+        # Índice para acelerar a busca por série + temporada
+        cursor.execute('CREATE INDEX IF NOT EXISTS idx_episodes_tvshow_season ON episodes_cache (tvshow_tmdb_id, season_number)')    
 
     def _create_favorites_table(self, cursor):
         """Cria a tabela de Favoritos."""
@@ -159,9 +209,14 @@ class BaseDatabase:
         items = []
         for row in results:
             item = dict(row)
-            # Deserializa campos JSON comuns aqui para não repetir
             if 'genres' in item:
-                item['genres'] = json.loads(item['genres']) if item['genres'] else []
+                try:
+                    if item['genres'] and item['genres'].strip().startswith('['):
+                        item['genres'] = json.loads(item['genres'])
+                    else:
+                        item['genres'] = []
+                except (json.JSONDecodeError, TypeError):
+                    item['genres'] = []        
             if 'streams' in item:
                 item['streams'] = json.loads(item['streams']) if item['streams'] else []
             if 'seasons_data' in item:
@@ -187,6 +242,8 @@ class BaseDatabase:
         cursor.execute("DROP TABLE IF EXISTS movies")
         cursor.execute("DROP TABLE IF EXISTS tvshows")
         cursor.execute("DROP TABLE IF EXISTS favorites")
+        cursor.execute("DROP TABLE IF EXISTS seasons_cache")
+        cursor.execute("DROP TABLE IF EXISTS episodes_cache")
         conn.commit()
 
         self._create_all_tables(cursor)

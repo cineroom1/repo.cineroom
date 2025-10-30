@@ -137,7 +137,8 @@ def router():
             'tmdb_id': params.get('tmdb_id'),
             'imdb_id': params.get("imdb_id") or '', # Proteção contra valores nulos
             'media_type': params.get('media_type'),
-            # Você pode adicionar outros dados aqui se precisar, como 'title'
+            'title': params.get('title') or '',            # título traduzido
+            'original_title': params.get('original_title') or '',
     }
     
         # 2. Chame a função passando o dicionário para o argumento 'item_data'
@@ -146,6 +147,26 @@ def router():
             season=params.get('season'),
             episode=params.get('episode')
     )
+    
+    elif action == 'find_and_play_episode':
+            # 1. Pega os parâmetros da URL (enviados pelo tvshows.py)
+            item_data_str = params.get('item_data')
+            season = params.get('season')
+            episode = params.get('episode')
+            
+            if item_data_str:
+                # 2. Decodifica e carrega o dicionário de dados do episódio
+                item_data_dict = json.loads(unquote_plus(item_data_str))
+                
+                # 3. Chama a função de busca de fontes
+                #    (Ela já está importada no seu main.py)
+                find_and_play_sources(
+                    item_data=item_data_dict, 
+                    autoplay=False, 
+                    season=season, 
+                    episode=episode
+                )
+    
 
     elif action == 'play':
         play_movie(

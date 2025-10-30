@@ -19,24 +19,33 @@ def get_url(**kwargs):
     return f"{BASE_URL}?{urlencode(kwargs)}"
 
 
+import xbmcgui
+
 def create_video_item(item_data, media_type, show_data=None):
-    label = item_data.get('title', 'Título Desconhecido')
+    # 1. TRATAMENTO DO LABEL
+    
+    # O TMDB usa 'name' para o título da temporada/episódio, e 'title' para o título do filme.
+    # Usamos um fallback robusto.
+    label = item_data.get('title') or item_data.get('name', 'Título Desconhecido')
     ep_number = 0
-    season_number = 0
+    season_number = item_data.get('season_number', item_data.get('number', 0))
 
     if media_type == 'episode':
-        season_number = int(item_data.get('season_number', 0))
-        ep_number_str = item_data.get('number', '0')
-        ep_number = int(ep_number_str) if ep_number_str.isdigit() else 0
-        label = f"{season_number}x{ep_number:02d}. {item_data.get('title', '')}"
+        ep_number = item_data.get('episode_number', 0)
+        # Formato de label específico para episódio (Ex: 1x02. Título do Episódio)
+        label = f"{season_number}x{ep_number:02d}. {item_data.get('name', '')}"
+    
+    # Se for temporada (season), o label já foi definido acima (Ex: "Temporada 1")
 
     li = xbmcgui.ListItem(label=label)
 
-    # --- 1. setInfo simplificado ---
+    # --- 2. setInfo com Mapeamento de Chaves TMDB ---
+    
+    # O TMDB usa 'overview' para sinopse em todos os níveis.
     info = {
         'title': label,
-        'plot': item_data.get('synopsis', ''),
-        'premiered': item_data.get('premiered'),
+        'plot': item_data.get('synopsis', item_data.get('overview', '')), # Prioriza 'synopsis' (local), senão usa 'overview' (TMDB)
+        'premiered': item_data.get('premiered', item_data.get('air_date')), # TMDB usa air_date para série/temporada/episódio
         'mediatype': media_type
     }
 
@@ -44,26 +53,56 @@ def create_video_item(item_data, media_type, show_data=None):
         info['year'] = int(item_data.get('year', 0))
         info['duration'] = int(item_data.get('runtime', 0)) * 60
         info['rating'] = float(item_data.get('rating', 0))
-    elif media_type in ['tvshow', 'season', 'episode']:
+        
+    elif media_type == 'tvshow':
         info['year'] = int(item_data.get('year', 0))
-        info['rating'] = float(item_data.get('rating', 0)) if media_type == 'tvshow' else None
+        info['rating'] = float(item_data.get('rating', 0))
+        info['seasoncount'] = item_data.get('season_count', 0)
+        info['episodecount'] = item_data.get('episodes_count', 0)
+        info['status'] = item_data.get('status')
+        info['playcount'] = int(item_data.get('playcount', 0))
+        
+    elif media_type == 'season':
+        # ✅ CORREÇÃO CHAVE: Temporadas usam chaves de avaliação do TMDB
+        info['rating'] = float(item_data.get('rating', item_data.get('vote_average', 0.0)))
+        info['season'] = season_number
+        
+    elif media_type == 'episode':
+        # ✅ CORREÇÃO CHAVE: Episódios usam chaves de avaliação do TMDB
+        info['rating'] = float(item_data.get('rating', item_data.get('vote_average', 0.0)))
+        info['season'] = season_number
+        info['episode'] = ep_number
+        # 'runtime' (do TMDB) é o que define a duração do episódio
+        info['duration'] = int(item_data.get('runtime', 0)) * 60
 
     li.setInfo('video', {k: v for k, v in info.items() if v is not None})
 
-    # --- 2. Arte (pode remover fanart/clearlogo para acelerar) ---
+    item_poster_url = item_data.get('poster') or (
+        f"https://image.tmdb.org/t/p/w500{item_data.get('poster_path')}" if item_data.get('poster_path') else None
+    )
+    
+    item_backdrop_url = item_data.get('backdrop') or (
+        f"https://image.tmdb.org/t/p/w780{item_data.get('backdrop_path')}" if item_data.get('backdrop_path') else None
+    )
+
     art = {
-        'poster': item_data.get('poster') or (show_data and show_data.get('poster')),
-        'thumb': item_data.get('poster') or (show_data and show_data.get('poster')),
-        'fanart': item_data.get('backdrop') or (show_data and show_data.get('backdrop')),
-        'clearlogo': item_data.get('clearlogo') or (show_data and show_data.get('clearlogo'))
+        # Prioridade 1: Poster do item atual (seja série ou temporada)
+        'poster': item_poster_url,
+        # Prioridade 2: Fanart (geralmente backdrop) do item atual
+        'fanart': item_backdrop_url,
+        # Prioridade 3: Se o item for Season/Episode, use a arte da série mãe
+        'tvshow.poster': show_data and show_data.get('poster'),
+        'tvshow.fanart': show_data and show_data.get('backdrop'),
+        'tvshow.clearlogo': show_data and show_data.get('clearlogo')
     }
+    
+    # Remove entradas vazias antes de setar
     li.setArt({k: v for k, v in art.items() if v})
 
-    # --- 3. Marcável como reproduzível ---
+    # --- 4. Marcável como reproduzível ---
     if media_type in ['movie', 'episode']:
         li.setProperty('IsPlayable', 'true')
-
-
+        
     return li
 
     

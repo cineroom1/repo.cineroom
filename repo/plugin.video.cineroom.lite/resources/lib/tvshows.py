@@ -4,6 +4,7 @@
 import os
 import re
 import json
+import requests
 import sys
 import xbmcaddon
 import xbmcgui
@@ -14,12 +15,14 @@ from urllib.parse import urlencode
 from .db import db
 from .utils import create_video_item, with_view_mode
 from .navigation import _fetch_json_from_url
+from .tmdb_api import fetch_show_details # Usada por list_seasons
 
 # Configurações e funções comuns
 ADDON = xbmcaddon.Addon()
 HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
 DEFAULT_ITEMS_PER_PAGE = int(ADDON.getSetting("pages"))
+TMDB_API_KEY = "f0b9cd2de131c900f5bb03a0a5776342"
 
 ADDON_PATH = ADDON.getAddonInfo('path')
 ICON_PATH = os.path.join(ADDON_PATH, 'resources', 'medias', 'icons')
@@ -40,6 +43,7 @@ def _prepare_details_data(item_data):
         'tmdb_id': item_data.get('tmdb_id'),
         'imdb_id': item_data.get('imdb_id'),
         'title': item_data.get('title'),
+        'original_title': item_data.get('original_title', item_data.get('title')),  # ✅ adicione aqui
         'clearlogo': item_data.get('clearlogo'),
         'synopsis': item_data.get('synopsis'),
         'poster': item_data.get('poster'),
@@ -100,168 +104,211 @@ def add_next_page_item(items_on_current_page, current_page, **kwargs):
 
         xbmcplugin.addDirectoryItem(HANDLE, next_page_url, li_next, isFolder=True)
 
-
-# --- TEMPORADAS E EPISÓDIOS ---
-
 def list_seasons(tvshow_tmdb_id):
-    """Lista as temporadas de uma série."""
+    """
+    Lista temporadas, AGORA COM CACHE.
+    """
+    
+    # 1. Busca dados da SÉRIE no DB local (como antes)
     show = db.get_tvshow_by_id(tvshow_tmdb_id)
     if not show:
-        xbmcgui.Dialog().ok("Erro", "Série não encontrada no banco de dados.")
         return
-
+        
     xbmcplugin.setPluginCategory(HANDLE, show['title'])
     xbmcplugin.setContent(HANDLE, 'seasons')
 
-    for season_data in show.get('seasons_data', []):
-        season_number = season_data.get('number', 0)
+    # --- LÓGICA DE CACHE ---
+    # 2. Tenta buscar temporadas do cache
+    #    (use um setting para definir o tempo de cache, ex: 72 horas)
+    try:
+        cache_hours = int(ADDON.getSetting("cache_age_hours"))
+    except:
+        cache_hours = 72 # Padrão de 3 dias
+        
+    seasons_data_list = db.get_cached_seasons(tvshow_tmdb_id, cache_hours)
+    
+    # 3. Se o cache falhar (miss), busca na API
+    if not seasons_data_list:
+        show_details_tmdb = fetch_show_details(tvshow_tmdb_id)
+        if not show_details_tmdb:
+            return
+            
+        seasons_data_list = show_details_tmdb.get('seasons_data', [])
+        
+        # 4. SALVA O RESULTADO NO CACHE
+        if seasons_data_list:
+            db.save_seasons_cache(tvshow_tmdb_id, seasons_data_list)
+    # --- FIM DA LÓGICA DE CACHE ---
+
+    try:
+        show_specials_enabled = ADDON.getSettingBool('show_specials')
+    except:
+        show_specials_enabled = False
+        
+    # 5. Itera sobre a lista (seja do cache ou da API)
+    for season_data in seasons_data_list:
+        
+        # Se os dados vieram do cache, season_data é um dict
+        # Se vieram da API, também é um dict. 
+        # A estrutura que salvei no cache é parecida com a da API.
+        
+        season_number = season_data.get('season_number', season_data.get('number', 0))
+        
+        if season_number == 0 and not show_specials_enabled:
+            continue
+            
+        tmdb_season_name = season_data.get('name', f"Temporada {season_number}")
+        
+        # Prepara dados para create_video_item
+        # (O cache já salva o poster com a URL completa, se veio do cache)
+        if 'poster' not in season_data and season_data.get('poster_path'):
+             season_data['poster'] = f"https://image.tmdb.org/t/p/w500{season_data['poster_path']}"
+        
+        season_data['title'] = tmdb_season_name
+        season_data['label'] = tmdb_season_name
+        
         li = create_video_item(season_data, 'season', show_data=show)
-        url = get_url(action='list_episodes', tvshow_tmdb_id=tvshow_tmdb_id, season_number=season_number)
+        
+        li.setInfo('video', {
+            'title': tmdb_season_name,
+            'plot': season_data.get('overview', 'Sinopse não disponível.'),
+            'rating': season_data.get('vote_average', 0.0),
+            'season': season_number,
+            'mediatype': 'season'
+        })
+        
+        url = get_url(
+            action='list_episodes', 
+            tvshow_tmdb_id=tvshow_tmdb_id, 
+            season_number=season_number
+        )
         xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=True)
 
     xbmcplugin.endOfDirectory(HANDLE)
 
 
 def list_episodes(tvshow_tmdb_id, season_number):
-    """Lista os episódios de uma temporada."""
-    show = db.get_tvshow_by_id(tvshow_tmdb_id)
-    if not show:
+    """
+    Lista episódios, AGORA COM CACHE.
+    """
+    # 1. Obter dados da SÉRIE (como antes)
+    show_data = db.get_tvshow_by_id(tvshow_tmdb_id)
+    if not show_data or not show_data.get('imdb_id'):
+        # ... (seu tratamento de erro)
         return
 
-    target_season = next((s for s in show.get('seasons_data', []) if int(s.get('number', -99)) == season_number), None)
-    if not target_season:
-        return
-
-    xbmcplugin.setPluginCategory(HANDLE, f"{show['title']} - {target_season.get('title', '')}")
+    xbmcplugin.setPluginCategory(HANDLE, f"{show_data.get('title')} - Temporada {season_number}")
     xbmcplugin.setContent(HANDLE, 'episodes')
 
-    episodes_list = _load_episodes_list(target_season, season_number)
-    if not episodes_list:
-        xbmcgui.Dialog().ok("Aviso", "Nenhum episódio encontrado para esta temporada.")
+    # --- LÓGICA DE CACHE ---
+    # 2. Tenta buscar episódios do cache
+    try:
+        cache_hours = int(ADDON.getSetting("cache_age_hours"))
+    except:
+        cache_hours = 72
+        
+    tmdb_episodes = db.get_cached_episodes(tvshow_tmdb_id, season_number, cache_hours)
+    
+    # 3. Se o cache falhar (miss), busca na API
+    if not tmdb_episodes:
+        tmdb_episodes = _fetch_tmdb_season_details(tvshow_tmdb_id, season_number)
+        
+        # 4. SALVA O RESULTADO NO CACHE
+        if tmdb_episodes:
+            db.save_episodes_cache(tvshow_tmdb_id, season_number, tmdb_episodes)
+    # --- FIM DA LÓGICA DE CACHE ---
+
+    if not tmdb_episodes:
+        xbmcgui.Dialog().ok("Aviso", "Nenhum episódio encontrado.")
         xbmcplugin.endOfDirectory(HANDLE)
         return
 
-    for ep_data in episodes_list:
-        _add_episode_directory_item(ep_data, show, tvshow_tmdb_id, season_number, episodes_list)
+    # 5. Loop para criar os itens (do cache ou da API)
+    for ep_data_tmdb in tmdb_episodes:
+        
+        ep_number = ep_data_tmdb.get('episode_number')
+        ep_title = f"{ep_number}. {ep_data_tmdb.get('name')}"
+        
+        # Constrói a URL do poster do episódio (still_path)
+        # O cache só salva o path, não a URL completa
+        episode_poster_url = show_data.get('backdrop') # Fallback
+        if ep_data_tmdb.get('still_path'):
+            episode_poster_url = f"https://image.tmdb.org/t/p/w500{ep_data_tmdb.get('still_path')}"
+
+        item_data_for_scraper = {
+            'media_type': 'tvshow', 
+            'imdb_id': show_data.get('imdb_id'),
+            'tmdb_id': tvshow_tmdb_id,
+            'title': show_data.get('title'),
+            'original_title': show_data.get('original_title', show_data.get('title')),
+            'year': show_data.get('year'),
+            'backdrop': show_data.get('backdrop'),
+            'poster': show_data.get('poster'),
+
+            # Info específica do episódio (do cache ou API)
+            'episode_title': ep_data_tmdb.get('name'),
+            'plot': ep_data_tmdb.get('overview'),
+            'episode_poster': episode_poster_url,
+            'rating': ep_data_tmdb.get('vote_average'),
+            'season': season_number,
+            'episode': ep_number,
+            'premiered': ep_data_tmdb.get('air_date'),
+            'runtime': ep_data_tmdb.get('runtime', 0)
+        }
+        
+        li = xbmcgui.ListItem(label=ep_title)
+        
+        info = {
+            'title': ep_title,
+            'plot': item_data_for_scraper['plot'],
+            'season': item_data_for_scraper['season'],
+            'episode': item_data_for_scraper['episode'],
+            'rating': item_data_for_scraper['rating'],
+            'aired': item_data_for_scraper['premiered'],
+            'duration': (item_data_for_scraper.get('runtime') or 0) * 60,
+            'tvshowtitle': item_data_for_scraper['title'],
+            'mediatype': 'episode'
+        }
+        li.setInfo('video', info)
+        
+        art = {
+            'thumb': item_data_for_scraper['episode_poster'],
+            'fanart': item_data_for_scraper['backdrop'],
+            'poster': item_data_for_scraper['poster'],
+            'tvshow.poster': show_data.get('poster'),
+            'tvshow.fanart': show_data.get('backdrop'),
+            'tvshow.clearlogo': show_data.get('clearlogo')
+        }
+        li.setArt(art)
+        li.setProperty('IsPlayable', 'true')
+
+        url = get_url(
+            action='find_and_play_episode', 
+            item_data=json.dumps(item_data_for_scraper)
+        )
+        
+        xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=False)
 
     xbmcplugin.endOfDirectory(HANDLE)
 
+def _fetch_tmdb_season_details(tmdb_id, season_number):
+    """Busca os detalhes de uma temporada direto do TMDB."""
+    # (Manter inalterada: Esta função busca a lista de episódios do TMDB, o que é o objetivo)
+    if not TMDB_API_KEY or TMDB_API_KEY == "SUA_CHAVE_API_V3_DO_TMDB_AQUI":
+        xbmc.log("[ERRO] Chave de API do TMDB não configurada.", xbmc.LOGERROR)
+        xbmcgui.Dialog().ok("Erro de Configuração", "A chave de API do TMDB não foi definida no arquivo 'tvshows.py'.")
+        return []
+        
+    url = f"https://api.themoviedb.org/3/tv/{tmdb_id}/season/{season_number}?api_key={TMDB_API_KEY}&language=pt-BR"
+    try:
+        response = requests.get(url, timeout=10)
+        response.raise_for_status()
+        data = response.json()
+        return data.get('episodes', [])
+    except requests.exceptions.RequestException as e:
+        xbmc.log(f"[ERRO TMDB] Falha ao buscar temporada {tmdb_id} S{season_number}: {e}", xbmc.LOGERROR)
+        return []
 
-def _load_episodes_list(season_data, season_number):
-    """Carrega a lista de episódios da temporada."""
-    episodes_list = []
-
-    if season_data.get('episodios_link'):
-        episodes_data = _fetch_json_from_url(season_data['episodios_link'])
-        if episodes_data and 'episodios' in episodes_data:
-            for ep in episodes_data['episodios']:
-                ep['season_number'] = season_number
-            episodes_list = episodes_data['episodios']
-    else:
-        episodes_list = season_data.get('episodios', [])
-
-    return episodes_list
-
-
-def _extract_episode_number(episode_title):
-    """Extrai o número do episódio do título."""
-    match = re.match(r'(\d+)', episode_title)
-    return int(match.group(1)) if match else 0
-
-
-def _extract_correct_episode_number(ep_data, current_ep_number):
-    """Extrai o número do episódio de forma mais robusta."""
-    if current_ep_number > 0:
-        return current_ep_number
-
-    if ep_data.get('episode_number'):
-        return int(ep_data['episode_number'])
-
-    title = ep_data.get('title', '')
-    patterns = [
-        r'E(\d+)',
-        r'Episódio\s+(\d+)',
-        r'Episode\s+(\d+)',
-        r'#(\d+)',
-        r'(\d+)',
-    ]
-
-    for pattern in patterns:
-        match = re.search(pattern, title, re.IGNORECASE)
-        if match:
-            return int(match.group(1))
-
-    episodes_list = ep_data.get('_episodes_list', [])
-    if episodes_list and ep_data in episodes_list:
-        return episodes_list.index(ep_data) + 1
-
-    return current_ep_number
-
-
-def _add_episode_directory_item(ep_data, show_data, tvshow_tmdb_id, season_number, all_episodes=None):
-    """Adiciona um item de episódio ao diretório do Kodi."""
-    li = create_video_item(ep_data, 'episode', show_data=show_data)
-
-    ep_number = _extract_episode_number(ep_data.get('title', ''))
-    if ep_number == 0:
-        if all_episodes:
-            ep_data['_episodes_list'] = all_episodes
-        ep_number = _extract_correct_episode_number(ep_data, ep_number)
-
-    url_list = ep_data.get('url', [])
-    if not url_list:
-        li.setProperty('IsPlayable', 'false')
-        xbmcplugin.addDirectoryItem(handle=HANDLE, url='', listitem=li, isFolder=False)
-        return
-
-    playable_url = url_list[0]
-    final_url = ''
-
-    if 'plugin.video.elementum' in playable_url or playable_url.startswith("magnet:"):
-        match = re.search(r'btih:([a-fA-F0-9]{40})', playable_url, re.IGNORECASE)
-        if match:
-            magnet_hash = match.group(1)
-            clean_magnet_uri = f"magnet:?xt=urn:btih:{magnet_hash}"
-            final_url = get_url(
-                action='play_elementum',
-                uri=clean_magnet_uri,
-                tmdb_id=tvshow_tmdb_id,
-                season=season_number,
-                episode=ep_number
-            )
-        else:
-            playable_url = None
-
-    if not final_url:
-        streams_for_player = [{'url': u, 'quality': 'HD'} for u in url_list]
-        streams_json = json.dumps(streams_for_player)
-        final_url = get_url(
-            action='play',
-            streams=streams_json,
-            tmdb_id=tvshow_tmdb_id,
-            season=season_number,
-            episode=ep_number,
-            show_title=show_data.get('title', ''),
-            episode_title=ep_data.get('title', ''),
-            episode_plot=ep_data.get('plot', ep_data.get('synopsis', '')),
-            episode_tmdb_id=ep_data.get('tmdb_id', '')
-        )
-
-    info_tag = li.getVideoInfoTag()
-    info_tag.setTitle(ep_data.get('title', ''))
-    info_tag.setTvShowTitle(show_data.get('title', ''))
-    info_tag.setSeason(season_number)
-    info_tag.setEpisode(ep_number)
-    info_tag.setMediaType('episode')
-    info_tag.setPlot(ep_data.get('synopsis', ''))
-    runtime_seconds = int(ep_data.get('runtime', 0)) * 60
-    if runtime_seconds > 0:
-        info_tag.setDuration(runtime_seconds)
-    info_tag.setUniqueIDs({'tmdb': str(tvshow_tmdb_id)}, 'tmdb')
-
-    li.setProperty("IsPlayable", "true")
-    li.setPath(final_url)
-    xbmcplugin.addDirectoryItem(handle=HANDLE, url=final_url, listitem=li, isFolder=False)
 
 
 # --- LISTAGENS DE SÉRIES (MENUS) ---

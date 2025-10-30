@@ -17,6 +17,7 @@ class TVShowsDatabase(BaseDatabase):
             
             # --- CORREÇÃO AQUI ---
             # 1. Calcule 'title_norm' ANTES de usar
+            original_title = show.get('original_title') or show.get('title', 'N/A')  # pega original_title se existir
             title_norm = self._normalize_text(original_title) 
 
             # 2. Agora o seu log vai funcionar, pois 'title_norm' existe
@@ -30,8 +31,10 @@ class TVShowsDatabase(BaseDatabase):
             data_to_insert.append((
                 show.get('tmdb_id'),
                 show.get('title'),
+                original_title,
                 title_norm,  # 3. E a inserção também funcionará!
                 show.get('year'),
+                show.get('imdb_id'),
                 show.get('poster'),
                 show.get('backdrop'),
                 show.get('synopsis'),
@@ -46,7 +49,10 @@ class TVShowsDatabase(BaseDatabase):
                 show.get('clearlogo'),
                 show.get('banner'),
                 show.get('landscape'),
-                show.get('playcount', 0)
+                show.get('playcount', 0),
+                show.get('season_count', 0),
+                show.get('episodes_count', 0),
+                show.get('status')
             ))
         
         # O resto da função continua igual...
@@ -54,12 +60,13 @@ class TVShowsDatabase(BaseDatabase):
         cursor = conn.cursor()
         cursor.executemany('''
             INSERT OR REPLACE INTO tvshows (
-                tmdb_id, title, title_normalized, year, poster, backdrop, synopsis,
+                tmdb_id, title, original_title, title_normalized, year, imdb_id, poster, backdrop, synopsis,
                 providers, certification, date_added, popularity,
                 rating, genres, genres_normalized, seasons_data,
-                clearlogo, banner, landscape, playcount
+                clearlogo, banner, landscape, playcount,
+                season_count, episodes_count, status
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ''', data_to_insert)
         conn.commit()
         conn.close()
@@ -80,6 +87,135 @@ class TVShowsDatabase(BaseDatabase):
         show['seasons_data'] = json.loads(show['seasons_data']) if show['seasons_data'] else []
         show['providers'] = json.loads(show['providers']) if show['providers'] else []
         return show    
+        
+    # Em: resources/lib/db/tvshows_db.py
+# (Adicione estas funções dentro da classe TVShowsDatabase)
+
+    def get_cached_seasons(self, tvshow_tmdb_id, max_age_hours=72):
+        """
+        Busca temporadas do cache local.
+        Retorna None se o cache estiver velho ou não existir.
+        """
+        conn = self._get_conn()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        # Calcula o tempo limite do cache
+        # (72 horas = 3 dias)
+        cursor.execute(
+            "SELECT * FROM seasons_cache WHERE tvshow_tmdb_id = ? AND last_updated > datetime('now', ?)",
+            (tvshow_tmdb_id, f'-{max_age_hours} hours')
+        )
+        results = cursor.fetchall()
+        conn.close()
+        
+        if not results:
+            xbmc.log(f"[CACHE-MISS] Temporadas para {tvshow_tmdb_id} não encontradas ou velhas.", xbmc.LOGINFO)
+            return None
+            
+        xbmc.log(f"[CACHE-HIT] Carregando {len(results)} temporadas do DB para {tvshow_tmdb_id}.", xbmc.LOGINFO)
+        # Converte o resultado (lista de Rows) para lista de dicts
+        return [dict(row) for row in results]
+
+    def save_seasons_cache(self, tvshow_tmdb_id, seasons_data_list):
+        """
+        Salva uma lista de temporadas (da API) no cache.
+        """
+        xbmc.log(f"[CACHE-SAVE] Salvando {len(seasons_data_list)} temporadas no DB para {tvshow_tmdb_id}.", xbmc.LOGINFO)
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        # 1. Limpa o cache antigo para esta série
+        cursor.execute("DELETE FROM seasons_cache WHERE tvshow_tmdb_id = ?", (tvshow_tmdb_id,))
+        
+        # 2. Prepara os novos dados
+        data_to_insert = []
+        for season in seasons_data_list:
+            data_to_insert.append((
+                tvshow_tmdb_id,
+                season.get('season_number', season.get('number', 0)),
+                season.get('name'),
+                season.get('overview'),
+                f"https://image.tmdb.org/t/p/w500{season.get('poster_path')}" if season.get('poster_path') else None,
+                season.get('air_date'),
+                season.get('episode_count'),
+                season.get('vote_average', 0.0)
+            ))
+            
+        # 3. Insere os novos dados
+        cursor.executemany('''
+            INSERT INTO seasons_cache (
+                tvshow_tmdb_id, season_number, name, overview, poster, 
+                air_date, episode_count, vote_average
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ''', data_to_insert)
+        
+        conn.commit()
+        conn.close()
+
+    def get_cached_episodes(self, tvshow_tmdb_id, season_number, max_age_hours=72):
+        """
+        Busca episódios do cache local.
+        Retorna None se o cache estiver velho ou não existir.
+        """
+        conn = self._get_conn()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        
+        cursor.execute(
+            "SELECT * FROM episodes_cache WHERE tvshow_tmdb_id = ? AND season_number = ? AND last_updated > datetime('now', ?)",
+            (tvshow_tmdb_id, season_number, f'-{max_age_hours} hours')
+        )
+        results = cursor.fetchall()
+        conn.close()
+        
+        if not results:
+            xbmc.log(f"[CACHE-MISS] Episódios para {tvshow_tmdb_id}-S{season_number} não encontrados ou velhos.", xbmc.LOGINFO)
+            return None
+            
+        xbmc.log(f"[CACHE-HIT] Carregando {len(results)} episódios do DB para {tvshow_tmdb_id}-S{season_number}.", xbmc.LOGINFO)
+        return [dict(row) for row in results]
+
+    def save_episodes_cache(self, tvshow_tmdb_id, season_number, episodes_data_list):
+        """
+        Salva uma lista de episódios (da API) no cache.
+        """
+        xbmc.log(f"[CACHE-SAVE] Salvando {len(episodes_data_list)} episódios no DB para {tvshow_tmdb_id}-S{season_number}.", xbmc.LOGINFO)
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        # 1. Limpa o cache antigo para esta temporada
+        cursor.execute(
+            "DELETE FROM episodes_cache WHERE tvshow_tmdb_id = ? AND season_number = ?", 
+            (tvshow_tmdb_id, season_number)
+        )
+        
+        # 2. Prepara os novos dados
+        data_to_insert = []
+        for ep in episodes_data_list:
+            data_to_insert.append((
+                tvshow_tmdb_id,
+                season_number,
+                ep.get('episode_number'),
+                ep.get('name'),
+                ep.get('overview'),
+                ep.get('still_path'), # Salva só o path, constrói a URL na hora de ler
+                ep.get('air_date'),
+                ep.get('vote_average', 0.0),
+                ep.get('runtime', 0)
+            ))
+            
+        # 3. Insere os novos dados
+        cursor.executemany('''
+            INSERT INTO episodes_cache (
+                tvshow_tmdb_id, season_number, episode_number, name, overview, 
+                still_path, air_date, vote_average, runtime
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ''', data_to_insert)
+        
+        conn.commit()
+        conn.close()    
+        
         
     def get_all_tvshow_ids_set(self):
         """Retorna um SET de todos os TMDB IDs de séries no DB."""

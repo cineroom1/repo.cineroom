@@ -20,6 +20,7 @@ class MoviesDatabase(BaseDatabase):
             data_to_insert.append((
                 movie.get('tmdb_id'),
                 movie.get('title'),
+                movie.get('original_title'),
                 title_norm,
                 movie.get('year'),
                 movie.get('imdb_id'),
@@ -31,29 +32,26 @@ class MoviesDatabase(BaseDatabase):
                 movie.get('runtime', 0),
                 movie.get('popularity', 0.0),
                 movie.get('revenue', 0),
-                
-                # --- CORREÇÃO AQUI ---
-                # Converte o dicionário 'collection' para uma string JSON
                 movie.get('collection'),
-                
                 json.dumps(genres),
                 json.dumps(normalized_genres),
                 json.dumps(movie.get('streams', [])),
-                
                 movie.get('clearlogo'),
                 movie.get('playcount', 0)
+
+
             ))
 
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.executemany('''
             INSERT OR REPLACE INTO movies (
-                tmdb_id, title, title_normalized, year, imdb_id, rating, poster, backdrop, synopsis, 
+                tmdb_id, title, original_title, title_normalized, year, imdb_id, rating, poster, backdrop, synopsis, 
                 date_added, runtime, popularity, revenue, collection, 
                 genres, genres_normalized, streams,
                 clearlogo, playcount
             )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         ''', data_to_insert)
         conn.commit()
         conn.close()
@@ -233,34 +231,42 @@ class MoviesDatabase(BaseDatabase):
         movies = []
         for row in results:
             movie = dict(row)
-            movie['genres'] = json.loads(movie['genres']) if movie['genres'] else []
-            movie['streams'] = json.loads(movie['streams']) if movie['streams'] else []
+            try:
+                movie['genres'] = json.loads(movie['genres']) if movie['genres'] else []
+                movie['streams'] = json.loads(movie['streams']) if movie['streams'] else []
+            except (json.JSONDecodeError, TypeError):
+                movie['genres'] = []
+                movie['streams'] = []
             movies.append(movie)
         return movies
     
     def get_all_unique_genres(self):
         """
         Lê todos os filmes do banco e retorna uma lista única e ordenada de todos os gêneros.
+        Corrigido para evitar falhas com JSON inválido ou campos vazios.
         """
         conn = self._get_conn()
         cursor = conn.cursor()
         cursor.execute("SELECT genres FROM movies")
         results = cursor.fetchall()
         conn.close()
-        
+    
         all_genres = set()
         for row in results:
+            genres_list = []
             try:
-                # O resultado de 'row' é uma tupla, então pegamos o primeiro item
-                genres_list = json.loads(row[0])
-                # Adiciona cada gênero do filme ao nosso set (que automaticamente remove duplicatas)
-                for genre in genres_list:
+                # row é uma tupla, row[0] contém a string JSON
+                genres_list = json.loads(row[0]) if row[0] else []
+            except (json.JSONDecodeError, TypeError, ValueError):
+                genres_list = []
+
+            # adiciona gêneros válidos ao conjunto
+            for genre in genres_list:
+                if isinstance(genre, str):
                     all_genres.add(genre.strip())
-            except (json.JSONDecodeError, TypeError):
-                continue
-        
-        # Converte o set para uma lista e a ordena alfabeticamente
+
         return sorted(list(all_genres))
+
         
     def get_recently_added_movies(self, page, page_size):
         """Busca os filmes mais recentes adicionados ao banco de dados."""

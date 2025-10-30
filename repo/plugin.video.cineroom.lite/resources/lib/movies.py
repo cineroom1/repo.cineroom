@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # Em: resources/lib/movies.py
 
+import xbmc
 import os
 import json
 import sys
@@ -49,7 +50,8 @@ def _add_movie_item_to_list(movie):
         'trailer': movie.get('trailer'),
         'genre': ', '.join(movie.get('genres', [])),
         'streams': movie.get('streams', []),
-        'media_type': 'movie'
+        'media_type': 'movie',
+        'original_title': movie.get('original_title', movie.get('title')),
     }
     item_data_json = json.dumps(data_for_url, ensure_ascii=False)
 
@@ -96,7 +98,10 @@ def list_genres():
     """Cria e exibe a lista de Gêneros de Filmes."""
     xbmcplugin.setPluginCategory(HANDLE, 'Gêneros')
     xbmcplugin.setContent(HANDLE, 'genres')
+    xbmc.log(f"[CINEROOM] Iniciando list_genres()", xbmc.LOGINFO)
     genres_from_db = db.get_all_unique_genres()
+    xbmc.log(f"[CINEROOM] Gêneros encontrados: {genres_from_db}", xbmc.LOGINFO)
+
     
     for genre_name in genres_from_db:
         li = xbmcgui.ListItem(label=genre_name)
