@@ -123,7 +123,7 @@ def list_seasons(tvshow_tmdb_id):
     try:
         cache_hours = int(ADDON.getSetting("cache_age_hours"))
     except:
-        cache_hours = 72 # Padrão de 3 dias
+        cache_hours = 12 # Padrão de 3 dias
         
     seasons_data_list = db.get_cached_seasons(tvshow_tmdb_id, cache_hours)
     

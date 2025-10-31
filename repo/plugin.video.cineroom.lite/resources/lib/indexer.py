@@ -19,7 +19,6 @@ SECRET_KEYS = {
 }
 
 def _get_source_url(item_type):
-    """Decodifica e monta a URL real a partir das nossas chaves secretas."""
     try:
         part_a = SECRET_KEYS.get(f'{item_type}_a')
         part_b = SECRET_KEYS.get(f'{item_type}_b')
@@ -173,7 +172,7 @@ def check_for_updates_silently(addon_object):
     addon_object.setSetting('last_update_check', current_check_dt.isoformat())
 
 
-def run_indexer(batch_size=150):
+def run_indexer(batch_size=100):
     """
     Atualiza o banco de dados com um feedback de progresso e salva o timestamp.
     """

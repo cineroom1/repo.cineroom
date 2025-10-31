@@ -177,40 +177,60 @@ def search(query=None):
     xbmcplugin.endOfDirectory(HANDLE)  
 
 
+# --- Providers com Ordem Prioritária ---
 PROVIDERS = {
-    "Torrentio": {"url": "https://torrentio.strem.fun/providers=comando,bludv,micoleaodublado,yts,nyaasi,1337x%7Clanguage=japanese,portuguese,english", "configurable": False},
-    "Brazuca": {"url": "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club", "configurable": False},
-    "MyCine": {"url": "https://mycine.alwaysdata.net", "configurable": False},
-    "AnimeZey": {"url": "https://1.animezey23112022.workers.dev", "configurable": False},
-    "StarckFilmes": {"url": "https://starckfilmes-v2.com", "configurable": False}
+    "StarckFilmes": {
+        "url": "https://starckfilmes-v2.com", 
+        "configurable": False,
+        "priority": 1  # 🥇 PRIMEIRO - Fontes diretas BR, mais rápidas
+    },
+    "AnimeZey": {
+        "url": "https://1.animezey23112022.workers.dev", 
+        "configurable": False, 
+        "priority": 1  # 🥇 PRIMEIRO - Especializado em animes
+    },
+    "Brazuca": {
+        "url": "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club",
+        "configurable": False,
+        "priority": 2  # 🥈 SEGUNDO - Torrents BR organizados
+    },
+    "MyCine": {
+        "url": "https://mycine.alwaysdata.net",
+        "configurable": False, 
+        "priority": 3  # 🥉 TERCEIRO - Backup BR
+    },
+    "Torrentio": {
+        "url": "https://torrentio.strem.fun/providers=comando,bludv,micoleaodublado,yts,nyaasi,1337x%7Clanguage=portuguese,english,japanese",
+        "configurable": False,
+        "priority": 4  # 🏅 QUARTO - Internacional (fallback)
+    }    
 }
 
 def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
     """
-    (VERSÃO CORRIGIDA v3) Busca fontes, processa resultados do scraper
-    corretamente (pegando a URL fornecida) e chama play_url.
+    (VERSÃO OTIMIZADA COM ORDEM PRIORITÁRIA)
+    Busca fontes na ordem prioritária definida para melhor UX e performance.
     """
     xbmc.log(f"[DEBUG] Dados recebidos em find_and_play_sources: {item_data}", xbmc.LOGINFO)
 
     media_type = item_data.get('media_type')
-    imdb_id = item_data.get('imdb_id') # Necessário para Stremio
+    imdb_id = item_data.get('imdb_id')
 
-    if not media_type: # Validação mínima
-         xbmcgui.Dialog().ok("Erro", "Dados insuficientes (media_type ausente).")
-         return
+    if not media_type:
+        xbmcgui.Dialog().ok("Erro", "Dados insuficientes (media_type ausente).")
+        return
+
     # AnimeZey não precisa de IMDB ID, mas outros provedores sim
     if not imdb_id and not ADDON.getSettingBool("provider.animezey.enabled"):
-         xbmc.log(f"IMDB ID ausente para {media_type} '{item_data.get('title')}' e AnimeZey está desativado.", xbmc.LOGERROR)
-         xbmcgui.Dialog().ok("Erro", "IMDB ID ausente, não é possível buscar em provedores Stremio.")
-         return
+        xbmc.log(f"IMDB ID ausente para {media_type} '{item_data.get('title')}' e AnimeZey está desativado.", xbmc.LOGERROR)
+        xbmcgui.Dialog().ok("Erro", "IMDB ID ausente, não é possível buscar em provedores Stremio.")
+        return
 
-    local_streams = [] # Fontes manuais do JSON (se houver)
-    provider_streams_to_process = [] # Fontes dos scrapers
+    local_streams = []
+    provider_streams_to_process = []
 
     # --- Função Auxiliar Interna: Extrair Idiomas ---
     def extrair_idiomas_do_titulo(titulo, extras=None, provider=None):
-        # (Cole sua função extrair_idiomas_do_titulo aqui como estava)
-        # ... (código completo da função) ...
         titulo_lower = titulo.lower()
         idiomas = set()
         mapa_idiomas = {
@@ -226,13 +246,22 @@ def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
             'russian': 'RU', 'rus': 'RU', 'mvo': 'RU', 'закадры': 'RU',
         }
         for termo, sigla in mapa_idiomas.items():
-            if termo in titulo_lower: idiomas.add(sigla)
-            if extras and any(termo in x.lower() for x in extras): idiomas.add(sigla)
-            if provider and termo in provider.lower(): idiomas.add(sigla)
+            if termo in titulo_lower: 
+                idiomas.add(sigla)
+            if extras and any(termo in str(x).lower() for x in extras): 
+                idiomas.add(sigla)
+            if provider and termo in provider.lower(): 
+                idiomas.add(sigla)
+        
         if 'PT-BR' in idiomas and 'EN' in idiomas:
-            idiomas.discard('PT-BR'); idiomas.discard('EN'); idiomas.add('DUAL')
+            idiomas.discard('PT-BR')
+            idiomas.discard('EN')
+            idiomas.add('DUAL')
+            
         if provider and 'local' in provider.lower():
-            if 'DUAL' in idiomas or ('PT-BR' in idiomas and 'EN' in idiomas): return 'PT-BR / EN'
+            if 'DUAL' in idiomas or ('PT-BR' in idiomas and 'EN' in idiomas):
+                return 'PT-BR / EN'
+                
         return ' / '.join(sorted(idiomas)) or 'N/A'
 
     # --- Bloco Fontes Locais ---
@@ -240,73 +269,93 @@ def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
     if isinstance(fontes_locais_raw, list):
         for stream in fontes_locais_raw:
             if isinstance(stream, dict) and stream.get('url'):
-                # (Lógica para processar fontes locais como estava)
                 is_torrent = "elementum" in stream.get('url', '') or stream.get('server_name', '').upper() == 'TORRENT'
                 stream_type = 'Torrent' if is_torrent else 'Direto'
                 provider = stream.get('server_name', 'Fonte Local')
                 titulo_local = f"{item_data.get('title')} {stream.get('quality', '')} {' '.join(stream.get('extras', []))}"
                 languages = extrair_idiomas_do_titulo(titulo_local, stream.get('extras', []), provider)
                 local_streams.append({
-                    'url': stream.get('url'), 'quality': stream.get('quality', 'N/A'),
-                    'type': stream_type, 'release_title': item_data.get('title', 'N/A'),
-                    'size': stream.get('size', 'N/A'), 'peers': 'N/A', 'seeders': 'N/A', 
-                    'provider': provider, 'languages': languages
+                    'url': stream.get('url'), 
+                    'quality': stream.get('quality', 'N/A'),
+                    'type': stream_type, 
+                    'release_title': item_data.get('title', 'N/A'),
+                    'size': stream.get('size', 'N/A'), 
+                    'peers': 'N/A', 
+                    'seeders': 'N/A', 
+                    'provider': provider, 
+                    'languages': languages
                 })
-    # --- Fim Bloco Fontes Locais ---
 
-    # --- Bloco Busca Paralela nos Provedores ---
+    # --- Bloco Busca Paralela nos Provedores - COM ORDEM PRIORITÁRIA ---
     xbmc.executebuiltin('ActivateWindow(busydialognocancel)')
     threads = []
     lock = threading.Lock()
+    provider_results = {}  # Dicionário para manter ordem
 
-    def fetch_sources(provider_name, provider_data):
+    def fetch_sources(provider_name, provider_data, priority):
         """Função interna da thread para chamar o scraper."""
-        streams_found = scrapers.scrape_provider_sources( # <--- LINHA CORRIGIDA
-            provider_name=provider_name,
-            provider_data=provider_data,
-            item_data=item_data
-        )
-        if streams_found and isinstance(streams_found, list): 
-            with lock:
-                valid_streams = []
-                for stream in streams_found:
-                     if isinstance(stream, dict): 
-                          stream['provider_name'] = provider_name 
-                          valid_streams.append(stream)
-                provider_streams_to_process.extend(valid_streams)
-
-    # Inicia as threads para cada provedor ativo
-    for name, data in PROVIDERS.items():
-        setting_id = f"provider.{name.lower()}.enabled"
         try:
-            if ADDON.getSettingBool(setting_id):
-                # O scraper AnimeZey não precisa de IMDB ID, então pode rodar
-                if name == 'AnimeZey':
-                     pass # Deixa rodar
-                # Outros scrapers precisam de IMDB ID
-                elif not imdb_id:
-                     xbmc.log(f"Pulando provedor {name} (não-AnimeZey) por falta de IMDB ID.", xbmc.LOGWARNING)
-                     continue # Pula para o próximo provedor
-
-                thread = threading.Thread(target=fetch_sources, args=(name, data))
-                threads.append(thread)
-                thread.start()
+            streams_found = scrapers.scrape_provider_sources(
+                provider_name=provider_name,
+                provider_data=provider_data,
+                item_data=item_data
+            )
+            if streams_found and isinstance(streams_found, list): 
+                with lock:
+                    valid_streams = []
+                    for stream in streams_found:
+                        if isinstance(stream, dict): 
+                            stream['provider_name'] = provider_name
+                            stream['provider_priority'] = priority
+                            valid_streams.append(stream)
+                    provider_results[provider_name] = valid_streams
+                    xbmc.log(f"[SCRAPER] {provider_name} encontrou {len(valid_streams)} fontes", xbmc.LOGINFO)
         except Exception as e:
-            xbmc.log(f"Erro ao verificar/iniciar thread para provedor {name}: {e}", xbmc.LOGERROR)
+            xbmc.log(f"[SCRAPER] Erro em {provider_name}: {e}", xbmc.LOGERROR)
 
-    for thread in threads: thread.join()
+    # Ordena providers por prioridade antes de iniciar threads
+    sorted_providers = sorted(
+        [(name, data) for name, data in PROVIDERS.items() 
+         if ADDON.getSettingBool(f"provider.{name.lower()}.enabled")],
+        key=lambda x: x[1].get('priority', 999)
+    )
+
+    xbmc.log(f"[SCRAPER] Providers ativos (ordenados): {[name for name, _ in sorted_providers]}", xbmc.LOGINFO)
+
+    # Inicia as threads para cada provedor (agora ordenados)
+    for name, data in sorted_providers:
+        # Verificação IMDB ID
+        if name != 'AnimeZey' and not imdb_id:
+            xbmc.log(f"Pulando provedor {name} (não-AnimeZey) por falta de IMDB ID.", xbmc.LOGWARNING)
+            continue
+
+        thread = threading.Thread(
+            target=fetch_sources, 
+            args=(name, data, data.get('priority', 999))
+        )
+        threads.append(thread)
+        thread.start()
+
+    # Aguarda todas as threads
+    for thread in threads:
+        thread.join()
+
     xbmc.executebuiltin('Dialog.Close(busydialognocancel)')
-    # --- Fim Bloco Busca Paralela ---
+    
+    # Reconstroi a lista na ORDEM PRIORITÁRIA
+    provider_streams_to_process = []
+    for name, _ in sorted_providers:
+        if name in provider_results:
+            provider_streams_to_process.extend(provider_results[name])
+    
+    xbmc.log(f"[SCRAPER] Total de fontes de providers: {len(provider_streams_to_process)}", xbmc.LOGINFO)
 
-    # --- Bloco Processamento das Fontes (CORRIGIDO) ---
+    # --- Bloco Processamento das Fontes ---
     provider_streams_formatted = []
     if provider_streams_to_process:
         seen_urls = {stream['url'] for stream in local_streams if stream.get('url')}
 
         for stream in provider_streams_to_process:
-            
-            # --- CORREÇÃO PRINCIPAL ---
-            # Pega a URL diretamente do stream retornado pelo scraper
             url_fonte = stream.get('url') or stream.get('infoHash') 
             
             if not url_fonte or url_fonte in seen_urls:
@@ -314,27 +363,26 @@ def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
             seen_urls.add(url_fonte)
 
             # Determina o tipo
-            stream_type = stream.get('type', 'Desconhecido') 
-            if stream_type == 'Desconhecido': # Tenta adivinhar
-                 if re.match(r'^[a-fA-F0-9]{40}$', url_fonte) or url_fonte.startswith('magnet:'):
-                      stream_type = 'Torrent'
-                 elif url_fonte.startswith(('http:', 'https:')):
-                      stream_type = 'Direto'
-            # --- FIM DA CORREÇÃO ---
+            stream_type = stream.get('type', 'Desconhecido')
+            if stream_type == 'Desconhecido':
+                if re.match(r'^[a-fA-F0-9]{40}$', url_fonte) or url_fonte.startswith('magnet:'):
+                    stream_type = 'Torrent'
+                elif url_fonte.startswith(('http:', 'https:')):
+                    stream_type = 'Direto'
 
-            # Extração de informações (usando 'stream' diretamente)
-            full_title = stream.get('title') or stream.get('name') or stream.get('release_title', 'Título desconhecido') 
-            release_title = full_title.split('\n')[0].strip() 
+            # Extração de informações
+            full_title = stream.get('title') or stream.get('name') or stream.get('release_title', 'Título desconhecido')
+            release_title = full_title.split('\n')[0].strip()
 
             size_str = stream.get('size', 'N/A')
-            peers_str = str(stream.get('peers', stream.get('seeders', 0))) 
-            seeders_str = str(stream.get('seeders', stream.get('peers', 0))) 
-            real_provider = stream.get('provider_name', 'N/A') 
+            peers_str = str(stream.get('peers', stream.get('seeders', 0)))
+            seeders_str = str(stream.get('seeders', stream.get('peers', 0)))
+            real_provider = stream.get('provider_name', 'N/A')
             
-            quality = stream.get('quality') 
+            quality = stream.get('quality')
             if not quality:
-                 quality_match = re.search(r'(4K|2160p|1080p|720p)', release_title, re.IGNORECASE)
-                 quality = quality_match.group(1).upper() if quality_match else 'HD'
+                quality_match = re.search(r'(4K|2160p|1080p|720p)', release_title, re.IGNORECASE)
+                quality = quality_match.group(1).upper() if quality_match else 'HD'
 
             # Extração de idiomas
             languages = extrair_idiomas_do_titulo(release_title, stream.get('extras', []), real_provider)
@@ -348,14 +396,25 @@ def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
                     languages = languages_str_api
 
             provider_streams_formatted.append({
-                'url': url_fonte, 'quality': quality, 'type': stream_type,
-                'release_title': release_title, 'size': size_str, 'peers': peers_str,
-                'seeders': seeders_str, 'provider': real_provider, 'languages': languages
+                'url': url_fonte,
+                'quality': quality,
+                'type': stream_type,
+                'release_title': release_title,
+                'size': size_str,
+                'peers': peers_str,
+                'seeders': seeders_str,
+                'provider': real_provider,
+                'languages': languages,
+                'provider_priority': stream.get('provider_priority', 999)  # Mantém prioridade para ordenação
             })
-    # --- Fim Bloco Processamento ---
 
     # --- Ordenação Final e Exibição ---
-    provider_streams_formatted.sort(key=lambda x: int(x['seeders']) if str(x.get('seeders')).isdigit() else 0, reverse=True)
+    # Ordena por prioridade do provider primeiro, depois por seeders
+    provider_streams_formatted.sort(key=lambda x: (
+        x.get('provider_priority', 999),
+        int(x['seeders']) if str(x.get('seeders')).isdigit() else 0
+    ), reverse=False)  # False porque prioridade menor = melhor
+
     final_streams = local_streams + provider_streams_formatted
 
     if not final_streams:
@@ -364,21 +423,23 @@ def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
 
     url_escolhida = None
 
-    # Verifica a configuração do usuário (precisa criar essa setting no settings.xml)
+    # Verifica configuração de autoplay
     try:
         is_autoplay_enabled = ADDON.getSettingBool('playback.autoplay')
     except Exception:
-        is_autoplay_enabled = False # Padrão seguro é False (Seleção de Fonte)
+        is_autoplay_enabled = False
 
     if is_autoplay_enabled and final_streams:
-        # ---- MODO AUTOPLAY ----
-        best_source = final_streams[0] # Pega a primeira fonte (já ordenada)
+        # MODO AUTOPLAY - pega a primeira fonte (já ordenada por prioridade)
+        best_source = final_streams[0]
         url_escolhida = best_source.get('url')
-        xbmc.log(f"[Cineroom] Autoplay: selecionando a melhor fonte: {url_escolhida}", xbmc.LOGINFO)
+        xbmc.log(f"[Cineroom] Autoplay: selecionando fonte prioritária: {best_source['provider']}", xbmc.LOGINFO)
 
     else:
-        # ---- MODO SELEÇÃO DE FONTE (Seu código atual) ----
+        # MODO SELEÇÃO DE FONTE
         try:
+            # Tenta usar diálogo customizado
+            from resources.lib.dialogs import DialogSelecaoFontes  # Ajuste o import conforme necessário
             xml_filename = 'dialog_cineroom_fullscreen.xml'
             addon_path = ADDON.getAddonInfo('path')
             dialog = DialogSelecaoFontes(xml_filename, addon_path, fontes=final_streams, item_data=item_data)
@@ -387,23 +448,24 @@ def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
             del dialog
         except Exception as e:
             xbmc.log(f"Erro ao mostrar dialog fullscreen: {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
-            try: # Fallback para diálogo nativo
-                labels = [f"[{s['type']}] {s['release_title']} ({s['quality']}) - {s['provider']}" for s in final_streams]
+            try:
+                # Fallback para diálogo nativo
+                labels = [f"[{s['provider']}] {s['release_title']} ({s['quality']}) - {s['languages']}" for s in final_streams]
                 urls = [s['url'] for s in final_streams]
                 dialog_native = xbmcgui.Dialog()
-                selected_index = dialog_native.select('Selecione uma fonte:', labels)
-                if selected_index >= 0: url_escolhida = urls[selected_index]
+                selected_index = dialog_native.select('Selecione uma fonte (Ordenadas por Prioridade):', labels)
+                if selected_index >= 0:
+                    url_escolhida = urls[selected_index]
             except Exception as e2:
-                xbmc.log(f"Erro ao mostrar diálogo nativo fallback: {e2}", xbmc.LOGERROR); return
+                xbmc.log(f"Erro ao mostrar diálogo nativo fallback: {e2}", xbmc.LOGERROR)
+                return
 
-    # --- O resto do código continua igual ---
     if url_escolhida:
         xbmc.log(f"[Cineroom] Fonte selecionada: {url_escolhida}", xbmc.LOGINFO)
         time.sleep(0.5)
-        play_url(url_escolhida, item_data) # Passa item_data para metadados
+        play_url(url_escolhida, item_data)
     else:
         xbmc.log("[Cineroom] Nenhuma fonte selecionada ou diálogo cancelado.", xbmc.LOGINFO)
-    # --- Fim Ordenação Final e Exibição ---
 
 def play_url(url, item_info):
     """
@@ -415,7 +477,6 @@ def play_url(url, item_info):
         return
 
     try:
-        # Pega o 'handle' do addon, essencial para resolver a URL
         handle = int(sys.argv[1])
     except (IndexError, ValueError) as e:
         xbmc.log(f"[Cineroom] Erro: Script chamado sem um handle válido: {e}", xbmc.LOGERROR)
@@ -424,40 +485,32 @@ def play_url(url, item_info):
     final_url = url
     is_torrent = False
 
-    # --- 1. Lógica de Torrent (Verifica se é infoHash ou magnet) ---
+    # --- 1. Lógica de Torrent ---
     if url.startswith('magnet:'):
         is_torrent = True
         magnet_uri = url
     elif len(url) == 40 and not url.startswith('http') and ' ' not in url:
-        # É um infoHash
         is_torrent = True
         magnet_uri = f"magnet:?xt=urn:btih:{url}"
     elif 'elementum' in url:
-        # Já é um link do Elementum (de uma fonte local, por exemplo)
         is_torrent = True
         magnet_uri = url
-    # -------------------------------------------------------------
 
     if is_torrent:
-        # Se já for um link do elementum (de fonte local), usa direto
         if magnet_uri.startswith('plugin://'):
             final_url = magnet_uri
             xbmc.log(f"[Cineroom] Resolvendo link Elementum (local): {final_url}", xbmc.LOGINFO)
         else:
-            # É um infoHash ou magnet, precisamos construir o link
             encoded_uri = urllib.parse.quote_plus(magnet_uri)
             media_type = item_info.get('media_type')
             tmdb_id = item_info.get('tmdb_id')
             
-            # Constrói a base da URL
             final_url = f"plugin://plugin.video.elementum/play?uri={encoded_uri}"
             
-            # Adiciona TMDB ID se disponível (bom para filmes e séries)
             if tmdb_id:
                 final_url += f"&tmdb={tmdb_id}"
 
-            # ================== INÍCIO DA SUA NOVA LÓGICA ==================
-            # Se for série, adiciona season e episode para seleção automática
+            # Lógica para séries
             if media_type == 'tvshow':
                 season = item_info.get('season')
                 episode = item_info.get('episode')
@@ -468,18 +521,14 @@ def play_url(url, item_info):
                 else:
                     xbmc.log(f"[Cineroom] Construindo link Elementum (Série): {final_url}", xbmc.LOGINFO)
             else:
-                # É filme
                 xbmc.log(f"[Cineroom] Construindo link Elementum (Filme): {final_url}", xbmc.LOGINFO)
-            # =================== FIM DA SUA NOVA LÓGICA ====================
     else:
-        # Não é torrent (lógica do link direto)
         xbmc.log(f"[Cineroom] Resolvendo link direto: {final_url}", xbmc.LOGINFO)
 
-
-    # --- 2. Cria o ListItem com o path final (seja http ou plugin://) ---
+    # --- 2. Cria o ListItem ---
     play_item = xbmcgui.ListItem(path=final_url)
 
-    # --- 3. Lógica de Metadados (Preenche o player do Kodi) ---
+    # --- 3. Metadados ---
     info_labels = {
         'title': item_info.get('episode_title', item_info.get('title', 'Playback')),
         'originaltitle': item_info.get('original_title'),
@@ -500,35 +549,26 @@ def play_url(url, item_info):
         'poster': item_info.get('poster') or '',
         'fanart': item_info.get('backdrop') or '',
     })
-    # -----------------------------------------------------------------
 
-    # --- 4. Lógica de Headers (Sua lógica do AnimeZey) ---
-    # Só aplica se NÃO for torrent e for o link do AnimeZey
+    # --- 4. Lógica de Headers para AnimeZey ---
     animezey_domains = ['animezey23112022.workers.dev', 'animezey16082023.workers.dev', '1.animezeydl.workers.dev']
     if not is_torrent and any(domain in final_url.lower() for domain in animezey_domains):
         xbmc.log("[Cineroom] Link AnimeZey detectado. Configurando inputstream e headers.", xbmc.LOGDEBUG)
         
-        # --- CORREÇÃO 1: Nome correto da propriedade ---
-        play_item.setProperty('inputstream', 'inputstream.ffmpegdirect') 
-        
-        # Propriedades que podem ajudar o inputstream
-        play_item.setProperty('inputstream.ffmpegdirect.is_realtime_stream', 'true') 
-        play_item.setProperty('inputstream.ffmpegdirect.open_mode', 'ffmpeg') 
+        play_item.setProperty('inputstream', 'inputstream.ffmpegdirect')
+        play_item.setProperty('inputstream.ffmpegdirect.is_realtime_stream', 'true')
+        play_item.setProperty('inputstream.ffmpegdirect.open_mode', 'ffmpeg')
 
-        # --- CORREÇÃO 2: Monta headers com Referer correto ---
-        referer_header = final_url # Usa a URL que será tocada como Referer
+        referer_header = final_url
         headers_str = (
-            f"Referer={referer_header}\r\n" 
-            f"User-Agent={USER_AGENT}\r\n" # Usa a constante USER_AGENT
-            # O header Range=bytes=0- geralmente não é necessário e pode ser omitido
+            f"Referer={referer_header}\r\n"
+            f"User-Agent={USER_AGENT}\r\n"
         )
-        # Define a propriedade correta para passar os headers
         play_item.setProperty('inputstream.ffmpegdirect.headers', headers_str)
-    # --- Fim Bloco Headers ---
 
-    # --- 5. Resolve a URL para o Kodi ---
+    # --- 5. Resolve a URL ---
     play_item.setProperty('IsPlayable', 'true')
-    play_item.setContentLookup(False) 
+    play_item.setContentLookup(False)
 
     xbmcplugin.setResolvedUrl(handle=handle, succeeded=True, listitem=play_item)
 

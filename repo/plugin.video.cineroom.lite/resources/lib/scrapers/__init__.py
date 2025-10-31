@@ -22,7 +22,17 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
     sources = []
 
     try:
-        if provider_name in ["Torrentio", "Brazuca", "MyCine"]:
+        
+        if provider_name == "StarckFilmes":
+            # Chama a função 'scrape' do módulo 'starckfilmes.py'
+            sources = starckfilmes.scrape(
+                provider_url=provider_data.get('url'),
+                item_data=item_data,
+                season=season,
+                episode=episode
+            )
+        
+        elif provider_name in ["Brazuca", "Torrentio", "MyCine"]:
             # Chama a função 'scrape' do módulo 'stremio.py'
             sources = stremio.scrape(
                 provider_url=provider_data.get('url'),
@@ -41,14 +51,6 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 # season/episode estão dentro do item_data
             )
             
-        elif provider_name == "StarckFilmes":
-            # Chama a função 'scrape' do módulo 'starckfilmes.py'
-            sources = starckfilmes.scrape(
-                provider_url=provider_data.get('url'),
-                item_data=item_data,
-                season=season,
-                episode=episode
-            )
             
         else:
             xbmc.log(f"[SCRAPER] Provedor '{provider_name}' não reconhecido.", xbmc.LOGWARNING)

@@ -27,24 +27,13 @@ class BaseDatabase:
     def _get_conn(self):
         conn = sqlite3.connect(self.db_file, timeout=10.0)
     
-        # --- INÍCIO DA OTIMIZAÇÃO PRAGMA ---
-        # Define o modo WAL (Write-Ahead Logging). Permite que leitores e escritores
-        # operem ao mesmo tempo sem bloquear um ao outro. Melhora muito a concorrência.
         conn.execute("PRAGMA journal_mode=WAL")
-    
-        # Ajusta o modo de sincronização. 'NORMAL' é um bom equilíbrio entre segurança
-        # e velocidade. 'OFF' é mais rápido, mas arriscado se houver uma queda de energia.
         conn.execute("PRAGMA synchronous=NORMAL")
-    
-        # Aumenta o tamanho do cache em memória. O padrão é pequeno.
-        # 4096 * 4096 bytes = 16MB. Um bom valor para addons.
-        conn.execute("PRAGMA cache_size = -4096")
-    
-        # Permite que o SQLite use mais memória para operações complexas, como ordenação.
+        conn.execute("PRAGMA cache_size = -8192")  # 16MB
         conn.execute("PRAGMA temp_store = MEMORY")
-        # --- FIM DA OTIMIZAÇÃO PRAGMA ---
   
         return conn
+    _get_conn_internal = _get_conn    
 
     def run_first_time_setup(self):
         conn = self._get_conn()
@@ -90,6 +79,8 @@ class BaseDatabase:
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_collection ON movies(collection)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_year ON movies(year)")
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_rating ON movies(rating)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_genres_normalized ON movies(genres_normalized)")
+        
 
     def _create_tvshows_table(self, cursor):
         """Cria a tabela de Séries."""
