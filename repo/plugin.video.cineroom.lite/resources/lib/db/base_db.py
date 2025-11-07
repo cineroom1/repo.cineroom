@@ -29,7 +29,7 @@ class BaseDatabase:
     
         conn.execute("PRAGMA journal_mode=WAL")
         conn.execute("PRAGMA synchronous=NORMAL")
-        conn.execute("PRAGMA cache_size = -8192")  # 16MB
+        conn.execute("PRAGMA cache_size = -8192")
         conn.execute("PRAGMA temp_store = MEMORY")
   
         return conn
@@ -69,16 +69,19 @@ class BaseDatabase:
                 poster TEXT, backdrop TEXT, synopsis TEXT, date_added TEXT, runtime INTEGER, popularity REAL, revenue REAL,
                 collection TEXT, genres TEXT, genres_normalized TEXT, streams TEXT,
                 clearlogo TEXT,
-                playcount INTEGER DEFAULT 0 
+                playcount INTEGER DEFAULT 0
             )
         ''')
+        # Índices OTIMIZADOS para ORDER BY DESC
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_title_normalized ON movies(title_normalized)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_popularity ON movies(popularity)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_revenue ON movies(revenue)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_date_added ON movies(date_added)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_popularity ON movies(popularity DESC)") # OTIMIZADO
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_revenue ON movies(revenue DESC)")       # OTIMIZADO
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_date_added ON movies(date_added DESC)") # OTIMIZADO
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_year ON movies(year DESC)")             # OTIMIZADO
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_rating ON movies(rating DESC)")         # OTIMIZADO
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_collection ON movies(collection)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_year ON movies(year)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_rating ON movies(rating)")
+        
+        # Este índice é mantido, mas lembre-se: 'LIKE "%...%"' ainda é lento.
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_genres_normalized ON movies(genres_normalized)")
         
 
@@ -87,7 +90,7 @@ class BaseDatabase:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tvshows (
                 tmdb_id INTEGER PRIMARY KEY, title TEXT NOT NULL, original_title TEXT NOT NULL, title_normalized TEXT, year INTEGER, imdb_id TEXT, poster TEXT,
-                backdrop TEXT, synopsis TEXT, providers TEXT, certification TEXT, date_added TEXT, 
+                backdrop TEXT, synopsis TEXT, providers TEXT, certification TEXT, date_added TEXT,
                 popularity REAL, rating REAL, genres TEXT, genres_normalized TEXT, seasons_data TEXT,
                 clearlogo TEXT,
                 banner TEXT,
@@ -98,11 +101,13 @@ class BaseDatabase:
                 status TEXT
             )
         ''')
+        # Índices OTIMIZADOS para Séries
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_title_normalized ON tvshows(title_normalized)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_popularity ON tvshows(popularity)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_date_added ON tvshows(date_added)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_popularity ON tvshows(popularity DESC)") # OTIMIZADO
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_date_added ON tvshows(date_added DESC)")   # OTIMIZADO
         cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_providers ON tvshows(providers)")
-        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_year ON tvshows(year)")
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_year ON tvshows(year DESC)")             # OTIMIZADO
+        cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_rating ON tvshows(rating DESC)")         # NOVO E OTIMIZADO
         
     def _create_seasons_cache_table(self, cursor):
         """Cria a tabela de cache para Temporadas."""

@@ -180,9 +180,9 @@ def search(query=None):
 # --- Providers com Ordem Prioritária ---
 PROVIDERS = {
     "StarckFilmes": {
-        "url": "https://starckfilmes-v2.com", 
+        "url": "https://starckfilmes-v3.com", 
         "configurable": False,
-        "priority": 1  # 🥇 PRIMEIRO - Fontes diretas BR, mais rápidas
+        "priority": 1  # 🥇 PRIMEIRO - Fontes torrent BR, mais rápidas
     },
     "AnimeZey": {
         "url": "https://1.animezey23112022.workers.dev", 
@@ -202,7 +202,7 @@ PROVIDERS = {
     "Torrentio": {
         "url": "https://torrentio.strem.fun/providers=comando,bludv,micoleaodublado,yts,nyaasi,1337x%7Clanguage=portuguese,english,japanese",
         "configurable": False,
-        "priority": 4  # 🏅 QUARTO - Internacional (fallback)
+        "priority": 4  # 🏅 QUARTO - Internacional e BR (fallback)
     }    
 }
 

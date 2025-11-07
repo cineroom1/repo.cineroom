@@ -90,6 +90,7 @@ def create_video_item(item_data, media_type, show_data=None):
         'poster': item_poster_url,
         # Prioridade 2: Fanart (geralmente backdrop) do item atual
         'fanart': item_backdrop_url,
+        'clearlogo': item_data.get('clearlogo'),
         # Prioridade 3: Se o item for Season/Episode, use a arte da série mãe
         'tvshow.poster': show_data and show_data.get('poster'),
         'tvshow.fanart': show_data and show_data.get('backdrop'),
@@ -123,30 +124,22 @@ VIEW_MODE_MAP = {
 
 def set_view_mode(content_type, view_setting_key='view_mode', default='wall'):
     """
-    Define o View Mode do Kodi de forma robusta, aguardando o container estar pronto.
-    
-    :param content_type: O tipo de conteúdo esperado (ex: 'movies', 'tvshows', 'genres').
-    :param view_setting_key: O ID da configuração a ser lida para o view mode.
-    :param default: O view mode padrão caso a configuração falhe.
+    Define o View Mode do Kodi de forma robusta e imediata.
+    (Versão Corrigida para Performance)
     """
     try:
         view_mode_setting = ADDON.getSetting(view_setting_key)
+        
+        # Mapeamento do nome para o ID numérico (seu código está correto)
         view_mode_id = VIEW_MODE_MAP.get(view_mode_setting, VIEW_MODE_MAP.get(default, 500))
 
-        # Dá ao Kodi um momento inicial para começar a processar a lista
-        xbmc.sleep(150)
-        
-        timeout = 0
-        # Loop de espera: Continua até o conteúdo do container ser o que esperamos
-        while xbmc.getInfoLabel('Container.Content') != content_type:
-            xbmc.sleep(20) # Espera 20ms antes de checar de novo
-            timeout += 20
-            if timeout >= 3000: # Desiste após 3 segundos
-                xbmc.log(f"[ViewUtils] Timeout! Container.Content não se tornou '{content_type}'.", xbmc.LOGWARNING)
-                return
+        # Define o tipo de conteúdo do container (necessário para o Kodi)
+        # É importante setar o Content Type ANTES de chamar SetViewMode
+        xbmcplugin.setContent(int(sys.argv[1]), content_type) # Certifique-se de que isso é feito em outro lugar, se possível.
 
-        # Agora que temos certeza de que a lista está na tela, definimos a visualização
+        # Apenas executa o comando de View Mode. O Kodi lida com o resto.
         xbmc.executebuiltin(f'Container.SetViewMode({view_mode_id})')
+        
         xbmc.log(f"[ViewUtils] View Mode '{view_mode_setting}' ({view_mode_id}) definido para o conteúdo '{content_type}'.", xbmc.LOGINFO)
 
     except Exception as e:
@@ -158,23 +151,19 @@ def set_view_mode(content_type, view_setting_key='view_mode', default='wall'):
 def with_view_mode(content, is_menu=False):
     """
     Decorator que define o view_mode DEPOIS que a função termina de popular a lista.
-    
-    :param content: O tipo de conteúdo que a função está listando (ex: 'movies', 'genres').
-    :param is_menu: Se True, força o modo 'list'.
     """
     def decorator(func):
         def wrapper(*args, **kwargs):
             # 1. Executa a função original que adiciona os itens
             func(*args, **kwargs)
             
-            # 2. Chama nossa nova e robusta função set_view_mode
+            # 2. Chama a função set_view_mode
             if is_menu:
-                set_view_mode(content, view_setting_key='view_mode', default='list') # Usa 'list' como padrão para menus
+                set_view_mode(content, view_setting_key='view_mode', default='list')
             else:
-                set_view_mode(content) # Usa as configurações do addon
+                set_view_mode(content) 
         return wrapper
     return decorator
-
 
 
 def build_torrentio_config_string():
