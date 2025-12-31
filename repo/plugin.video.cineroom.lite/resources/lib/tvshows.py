@@ -1,21 +1,17 @@
 # -*- coding: utf-8 -*-
 # Em: resources/lib/tvshows.py
 
-import os
-import re
 import json
-import requests
+import os
 import sys
 import xbmcaddon
 import xbmcgui
 import xbmcplugin
 from urllib.parse import urlencode
 
-# Importações do seu projeto
+# Mantenha apenas o db e utils que são leves e essenciais para as listagens
 from .db import db
-from .utils import create_video_item, with_view_mode
-from .navigation import _fetch_json_from_url
-from .tmdb_api import fetch_show_details # Usada por list_seasons
+from .utils import create_video_item_with_library, with_view_mode
 
 # Configurações e funções comuns
 ADDON = xbmcaddon.Addon()
@@ -26,6 +22,22 @@ TMDB_API_KEY = "f0b9cd2de131c900f5bb03a0a5776342"
 
 ADDON_PATH = ADDON.getAddonInfo('path')
 ICON_PATH = os.path.join(ADDON_PATH, 'resources', 'medias', 'icons')
+
+PROVIDER_LOGOS = {
+    "Amazon Prime Video": "prime_video.png",
+    "Netflix": "netflix.png",
+    "Max": "hbo_max.png",
+    "Disney Plus": "disney_plus.png",
+    "Apple TV+": "apple_tv.png",
+    "Paramount plus": "paramount_plus.png",
+    "Crunchyroll": "crunchyroll.png",
+    "Globoplay": "globoplay.png",
+    "Looke": "looke.png",
+    "Hulu": "hulu.png",
+    "Peacock": "peacock.png",
+    "Discovery+": "discovery_plus.png",
+}
+
 
 
 def get_url(**kwargs):
@@ -51,18 +63,21 @@ def _prepare_details_data(item_data):
         'year': item_data.get('year'),
         'rating': item_data.get('rating'),
         'certification': item_data.get('certification'),
-        'trailer': item_data.get('trailer'),
         'genre': genre_str,
         'media_type': 'tvshow',
         'providers': json.dumps(providers_list)
     }
 
 
-def _add_show_item_to_list(show_data):
-    """Cria o ListItem para uma série e o adiciona ao diretório do Kodi."""
-    li = create_video_item(show_data, 'tvshow')
+def _create_show_tuple(show_data):
+    """
+    Cria a tupla (url, listitem, is_folder) para séries (TV Shows) usando a função completa.
+    """
+    # Removido o IF e a chamada ao 'fast'
+    li = create_video_item_with_library(show_data, 'tvshow')
+    
+    if ADDON.getSettingBool("tvshow.enable_details"):
 
-    if ADDON.getSettingBool('enable_details_dialog'):
         details_data = _prepare_details_data(show_data)
         url = get_url(action='show_details', data=json.dumps(details_data, ensure_ascii=False))
         is_folder = False
@@ -70,16 +85,14 @@ def _add_show_item_to_list(show_data):
         url = get_url(action='list_seasons', tvshow_tmdb_id=show_data.get('tmdb_id'))
         is_folder = True
 
-    xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=is_folder)
+    return (url, li, is_folder)
 
 
 # --- FUNÇÕES DE NAVEGAÇÃO DE SÉRIES ---
 
-@with_view_mode('files', is_menu=True)
 def show_tvshows_menu(menu_structure):
     """Cria e exibe o menu da seção 'Séries'."""
     xbmcplugin.setPluginCategory(HANDLE, 'Séries')
-    xbmcplugin.setContent(HANDLE, 'files')
     for item in menu_structure:
         li = xbmcgui.ListItem(label=item['title'])
         icon = item.get('icon')
@@ -105,6 +118,8 @@ def add_next_page_item(items_on_current_page, current_page, **kwargs):
         xbmcplugin.addDirectoryItem(HANDLE, next_page_url, li_next, isFolder=True)
 
 def list_seasons(tvshow_tmdb_id):
+    from .tmdb_api import fetch_show_details 
+    import json
     """
     Lista temporadas, AGORA COM CACHE.
     """
@@ -167,7 +182,7 @@ def list_seasons(tvshow_tmdb_id):
         season_data['title'] = tmdb_season_name
         season_data['label'] = tmdb_season_name
         
-        li = create_video_item(season_data, 'season', show_data=show)
+        li = create_video_item_with_library(season_data, 'season', show_data=show)
         
         li.setInfo('video', {
             'title': tmdb_season_name,
@@ -267,9 +282,17 @@ def list_episodes(tvshow_tmdb_id, season_number):
             'aired': item_data_for_scraper['premiered'],
             'duration': (item_data_for_scraper.get('runtime') or 0) * 60,
             'tvshowtitle': item_data_for_scraper['title'],
-            'mediatype': 'episode'
+            'mediatype': 'episode',
+            'imdbnumber': show_data.get('imdb_id', '')
         }
         li.setInfo('video', info)
+        
+        li.setUniqueIDs({
+            'imdb': show_data.get('imdb_id', ''),
+            'tmdb': str(tvshow_tmdb_id)
+        })
+        
+        li.setProperty('original_title', show_data.get('original_title', ''))
         
         art = {
             'thumb': item_data_for_scraper['episode_poster'],
@@ -292,6 +315,7 @@ def list_episodes(tvshow_tmdb_id, season_number):
     xbmcplugin.endOfDirectory(HANDLE)
 
 def _fetch_tmdb_season_details(tmdb_id, season_number):
+    import requests
     """Busca os detalhes de uma temporada direto do TMDB."""
     # (Manter inalterada: Esta função busca a lista de episódios do TMDB, o que é o objetivo)
     if not TMDB_API_KEY or TMDB_API_KEY == "SUA_CHAVE_API_V3_DO_TMDB_AQUI":
@@ -329,13 +353,34 @@ def list_tvshows_genres():
 @with_view_mode('files', is_menu=True)
 def list_providers():
     xbmcplugin.setPluginCategory(HANDLE, "Provedores")
-    xbmcplugin.setContent(HANDLE, 'files')
+
     providers = db.get_all_unique_providers()
+
     for provider_name in providers:
         li = xbmcgui.ListItem(label=provider_name)
-        url = get_url(action='list_tvshows_by_provider', provider=provider_name)
-        xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=True)
+
+        logo_file = PROVIDER_LOGOS.get(provider_name)
+        if logo_file:
+            logo_path = os.path.join(
+                ADDON_PATH, 'resources', 'logos', logo_file
+            )
+            li.setArt({
+                'thumb': logo_path,
+                'icon': logo_path,
+                'poster': logo_path
+            })
+
+        url = get_url(
+            action='list_tvshows_by_provider',
+            provider=provider_name
+        )
+
+        xbmcplugin.addDirectoryItem(
+            HANDLE, url, li, isFolder=True
+        )
+
     xbmcplugin.endOfDirectory(HANDLE)
+
 
 
 # --- LISTAGENS DE CONTEÚDO (SÉRIES) ---
@@ -345,8 +390,11 @@ def list_tvshows_by_genre(genre, page=1):
     xbmcplugin.setPluginCategory(HANDLE, genre)
     xbmcplugin.setContent(HANDLE, 'tvshows')
     shows = db.get_tvshows_by_genre(genre, page, DEFAULT_ITEMS_PER_PAGE)
+    items_to_add = []
     for show in shows:
-        _add_show_item_to_list(show)
+        items_to_add.append(_create_show_tuple(show))
+        
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
     add_next_page_item(shows, page, action='list_tvshows_by_genre', genre=genre)
     xbmcplugin.endOfDirectory(HANDLE)
 
@@ -356,8 +404,11 @@ def list_tvshows_by_provider(provider, page=1):
     xbmcplugin.setPluginCategory(HANDLE, provider)
     xbmcplugin.setContent(HANDLE, 'tvshows')
     shows = db.get_tvshows_by_provider(provider, page, DEFAULT_ITEMS_PER_PAGE)
+    items_to_add = []
     for show in shows:
-        _add_show_item_to_list(show)
+        items_to_add.append(_create_show_tuple(show))
+        
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
     add_next_page_item(shows, page, action='list_tvshows_by_provider', provider=provider)
     xbmcplugin.endOfDirectory(HANDLE)
 
@@ -366,10 +417,33 @@ def list_tvshows_by_provider(provider, page=1):
 def list_tvshows_by_popularity(page=1):
     xbmcplugin.setPluginCategory(HANDLE, "Mais Populares")
     xbmcplugin.setContent(HANDLE, 'tvshows')
+    
     shows = db.get_tvshows_by_popularity(page, DEFAULT_ITEMS_PER_PAGE)
+    
+    # BATCH ADD (O SEGREDO DA VELOCIDADE)
+    items_to_add = []
     for show in shows:
-        _add_show_item_to_list(show)
+        items_to_add.append(_create_show_tuple(show))
+    
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
+    
     add_next_page_item(shows, page, action='list_tvshows_by_popularity')
+    xbmcplugin.endOfDirectory(HANDLE)
+
+@with_view_mode('tvshows')
+def list_recently_added_tvshows(page=1):
+    xbmcplugin.setPluginCategory(HANDLE, "Adicionados Recentemente")
+    xbmcplugin.setContent(HANDLE, 'tvshows')
+    
+    shows = db.get_recently_added_tvshows(page, DEFAULT_ITEMS_PER_PAGE)
+    
+    items_to_add = []
+    for show in shows:
+        items_to_add.append(_create_show_tuple(show))
+        
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
+    
+    add_next_page_item(shows, page, action='list_recently_added_tvshows')
     xbmcplugin.endOfDirectory(HANDLE)
 
 
@@ -378,8 +452,11 @@ def list_animes(page=1):
     xbmcplugin.setPluginCategory(HANDLE, "Animes")
     xbmcplugin.setContent(HANDLE, 'tvshows')
     shows = db.get_tvshows_by_genre('anime', page, DEFAULT_ITEMS_PER_PAGE)
+    items_to_add = []
     for show in shows:
-        _add_show_item_to_list(show)
+        items_to_add.append(_create_show_tuple(show))
+        
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
     add_next_page_item(shows, page, action='list_animes')
     xbmcplugin.endOfDirectory(HANDLE)
 
@@ -389,18 +466,39 @@ def list_kids_tvshows(page=1):
     xbmcplugin.setPluginCategory(HANDLE, "Infantil")
     xbmcplugin.setContent(HANDLE, 'tvshows')
     shows = db.get_kids_tvshows(page, DEFAULT_ITEMS_PER_PAGE)
+    items_to_add = []
     for show in shows:
-        _add_show_item_to_list(show)
+        items_to_add.append(_create_show_tuple(show))
+        
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
     add_next_page_item(shows, page, action='list_kids_tvshows')
     xbmcplugin.endOfDirectory(HANDLE)
 
 
 @with_view_mode('tvshows')
-def list_recently_added_tvshows(page=1):
-    xbmcplugin.setPluginCategory(HANDLE, "Adicionados Recentemente")
+def list_trending_tvshows(page=1):
+    """Lista as séries em alta consumindo a API do TMDB."""
+    from .tmdb_api import fetch_trending_tvshows
+    
+    xbmcplugin.setPluginCategory(HANDLE, "Em Alta")
     xbmcplugin.setContent(HANDLE, 'tvshows')
-    shows = db.get_recently_added_tvshows(page, DEFAULT_ITEMS_PER_PAGE)
-    for show in shows:
-        _add_show_item_to_list(show)
-    add_next_page_item(shows, page, action='list_recently_added_tvshows')
+    
+    # Converte page para int caso venha como string do router
+    page = int(page)
+    
+    # Busca os dados na API (já com Threads e Cache do tmdb_api.py)
+    shows = fetch_trending_tvshows(page)
+
+    items_to_add = []
+    for show_data in shows:
+        # ✅ USAMOS A SUA FUNÇÃO EXISTENTE:
+        # Ela já cria o ListItem, define se é pasta e gera a URL correta
+        # (show_details ou list_seasons dependendo da sua configuração)
+        items_to_add.append(_create_show_tuple(show_data))
+
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
+    
+    # Adiciona paginação
+    add_next_page_item(shows, page, action='list_trending_tvshows')
+    
     xbmcplugin.endOfDirectory(HANDLE)

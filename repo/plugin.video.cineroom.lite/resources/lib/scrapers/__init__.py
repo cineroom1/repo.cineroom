@@ -3,7 +3,6 @@ import xbmc
 
 # --- Importa os módulos de scraper ---
 from . import stremio
-from . import starckfilmes
 from . import animezey
 
 # --- Função Roteadora Principal ---
@@ -23,16 +22,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
 
     try:
         
-        if provider_name == "StarckFilmes":
-            # Chama a função 'scrape' do módulo 'starckfilmes.py'
-            sources = starckfilmes.scrape(
-                provider_url=provider_data.get('url'),
-                item_data=item_data,
-                season=season,
-                episode=episode
-            )
         
-        elif provider_name in ["Brazuca", "Torrentio", "MyCine"]:
+        if provider_name in ["Brazuca", "Torrentio", "SkyFlix", "Mico-Leão","CDFlix"]:
             # Chama a função 'scrape' do módulo 'stremio.py'
             sources = stremio.scrape(
                 provider_url=provider_data.get('url'),
@@ -50,6 +41,35 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 item_data=item_data
                 # season/episode estão dentro do item_data
             )
+            
+        elif provider_name in ["Comando.la", "ComandoTop"]:
+            from . import comando
+            # Chama a função 'scrape' do módulo 'comando.py'
+            sources = comando.scrape(
+                provider_url=provider_data.get('url'),
+                item_data=item_data,
+                season=season,
+                episode=episode
+            )  
+            
+        elif provider_name == "ApacheTorrent":
+            from . import apachetorrent
+            sources = apachetorrent.scrape_apache(
+                provider_url=provider_data.get('url'),
+                item_data=item_data,
+                season=season,
+                episode=episode
+           )
+            
+        elif provider_name == "Filmesmaster":  # CORRIGIDO: faltava as aspas de fechamento
+            from . import filmesmaster
+            sources = filmesmaster.scrape_filmesmaster(  # CORRIGIDO: nome da função
+                provider_url=provider_data.get('url'),
+                item_data=item_data,
+                season=season,
+                episode=episode
+           )    
+      
             
             
         else:

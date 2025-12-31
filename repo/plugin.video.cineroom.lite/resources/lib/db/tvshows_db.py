@@ -1,378 +1,400 @@
-# Em: resources/lib/db/tvshows_db.py
-
+# -*- coding: utf-8 -*-
 from .base_db import BaseDatabase
-import xbmc
 import json
-import sqlite3 
-
-
+import sqlite3
+import xbmc
 
 class TVShowsDatabase(BaseDatabase):
     
     def add_tvshows_bulk(self, tvshows_list):
-        """Adiciona séries em massa ao banco de dados."""
-        data_to_insert = []
-        for show in tvshows_list:
-            original_title = show.get('title', 'N/A')
-            
-            # --- CORREÇÃO AQUI ---
-            # 1. Calcule 'title_norm' ANTES de usar
-            original_title = show.get('original_title') or show.get('title', 'N/A')  # pega original_title se existir
-            title_norm = self._normalize_text(original_title) 
-
-            # 2. Agora o seu log vai funcionar, pois 'title_norm' existe
-            log_msg = f"[DEBUG-ADD-SHOW] Título Original: '{original_title}', Título Normalizado: '{title_norm}'"
-            xbmc.log(log_msg, level=xbmc.LOGINFO) # Mantive o seu log para debug
-
-            genres = show.get('genres', [])
-            normalized_genres = [self._normalize_text(g) for g in genres]
-            date_added = show.get('date_added')
-
-            data_to_insert.append((
-                show.get('tmdb_id'),
-                show.get('title'),
-                original_title,
-                title_norm,  # 3. E a inserção também funcionará!
-                show.get('year'),
-                show.get('imdb_id'),
-                show.get('poster'),
-                show.get('backdrop'),
-                show.get('synopsis'),
-                json.dumps(show.get('providers', [])),
-                show.get('certification'),
-                date_added,
-                show.get('popularity', 0.0),
-                show.get('rating', 0.0),
-                json.dumps(genres),
-                json.dumps(normalized_genres),
-                json.dumps(show.get('temporadas', [])),
-                show.get('clearlogo'),
-                show.get('banner'),
-                show.get('landscape'),
-                show.get('playcount', 0),
-                show.get('season_count', 0),
-                show.get('episodes_count', 0),
-                show.get('status')
-            ))
+        """Bulk insert otimizado para séries"""
+        if not tvshows_list:
+            return
         
-        # O resto da função continua igual...
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.executemany('''
-            INSERT OR REPLACE INTO tvshows (
-                tmdb_id, title, original_title, title_normalized, year, imdb_id, poster, backdrop, synopsis,
-                providers, certification, date_added, popularity,
-                rating, genres, genres_normalized, seasons_data,
-                clearlogo, banner, landscape, playcount,
-                season_count, episodes_count, status
-            )
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-        ''', data_to_insert)
-        conn.commit()
-        conn.close()
+        from datetime import datetime
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         
-    def get_tvshow_by_id(self, tmdb_id):
-        """✅ NOVA FUNÇÃO para buscar uma série específica pelo ID."""
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute("SELECT * FROM tvshows WHERE tmdb_id = ?", (int(tmdb_id),))
-        result = cursor.fetchone()
-        conn.close()
-        
-        if not result: return None
-            
-        show = dict(result)
-        show['genres'] = json.loads(show['genres']) if show['genres'] else []
-        show['seasons_data'] = json.loads(show['seasons_data']) if show['seasons_data'] else []
-        show['providers'] = json.loads(show['providers']) if show['providers'] else []
-        return show    
-        
-    # Em: resources/lib/db/tvshows_db.py
-# (Adicione estas funções dentro da classe TVShowsDatabase)
-
-    def get_cached_seasons(self, tvshow_tmdb_id, max_age_hours=72):
-        """
-        Busca temporadas do cache local.
-        Retorna None se o cache estiver velho ou não existir.
-        """
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        # Calcula o tempo limite do cache
-        # (72 horas = 3 dias)
-        cursor.execute(
-            "SELECT * FROM seasons_cache WHERE tvshow_tmdb_id = ? AND last_updated > datetime('now', ?)",
-            (tvshow_tmdb_id, f'-{max_age_hours} hours')
-        )
-        results = cursor.fetchall()
-        conn.close()
-        
-        if not results:
-            xbmc.log(f"[CACHE-MISS] Temporadas para {tvshow_tmdb_id} não encontradas ou velhas.", xbmc.LOGINFO)
-            return None
-            
-        xbmc.log(f"[CACHE-HIT] Carregando {len(results)} temporadas do DB para {tvshow_tmdb_id}.", xbmc.LOGINFO)
-        # Converte o resultado (lista de Rows) para lista de dicts
-        return [dict(row) for row in results]
-
-    def save_seasons_cache(self, tvshow_tmdb_id, seasons_data_list):
-        """
-        Salva uma lista de temporadas (da API) no cache.
-        """
-        xbmc.log(f"[CACHE-SAVE] Salvando {len(seasons_data_list)} temporadas no DB para {tvshow_tmdb_id}.", xbmc.LOGINFO)
         conn = self._get_conn()
         cursor = conn.cursor()
         
-        # 1. Limpa o cache antigo para esta série
-        cursor.execute("DELETE FROM seasons_cache WHERE tvshow_tmdb_id = ?", (tvshow_tmdb_id,))
-        
-        # 2. Prepara os novos dados
-        data_to_insert = []
-        for season in seasons_data_list:
-            data_to_insert.append((
-                tvshow_tmdb_id,
-                season.get('season_number', season.get('number', 0)),
-                season.get('name'),
-                season.get('overview'),
-                f"https://image.tmdb.org/t/p/w500{season.get('poster_path')}" if season.get('poster_path') else None,
-                season.get('air_date'),
-                season.get('episode_count'),
-                season.get('vote_average', 0.0)
-            ))
-            
-        # 3. Insere os novos dados
-        cursor.executemany('''
-            INSERT INTO seasons_cache (
-                tvshow_tmdb_id, season_number, name, overview, poster, 
-                air_date, episode_count, vote_average
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        ''', data_to_insert)
-        
-        conn.commit()
-        conn.close()
-
-    def get_cached_episodes(self, tvshow_tmdb_id, season_number, max_age_hours=72):
-        """
-        Busca episódios do cache local.
-        Retorna None se o cache estiver velho ou não existir.
-        """
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "SELECT * FROM episodes_cache WHERE tvshow_tmdb_id = ? AND season_number = ? AND last_updated > datetime('now', ?)",
-            (tvshow_tmdb_id, season_number, f'-{max_age_hours} hours')
-        )
-        results = cursor.fetchall()
-        conn.close()
-        
-        if not results:
-            xbmc.log(f"[CACHE-MISS] Episódios para {tvshow_tmdb_id}-S{season_number} não encontrados ou velhos.", xbmc.LOGINFO)
-            return None
-            
-        xbmc.log(f"[CACHE-HIT] Carregando {len(results)} episódios do DB para {tvshow_tmdb_id}-S{season_number}.", xbmc.LOGINFO)
-        return [dict(row) for row in results]
-
-    def save_episodes_cache(self, tvshow_tmdb_id, season_number, episodes_data_list):
-        """
-        Salva uma lista de episódios (da API) no cache.
-        """
-        xbmc.log(f"[CACHE-SAVE] Salvando {len(episodes_data_list)} episódios no DB para {tvshow_tmdb_id}-S{season_number}.", xbmc.LOGINFO)
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        
-        # 1. Limpa o cache antigo para esta temporada
-        cursor.execute(
-            "DELETE FROM episodes_cache WHERE tvshow_tmdb_id = ? AND season_number = ?", 
-            (tvshow_tmdb_id, season_number)
-        )
-        
-        # 2. Prepara os novos dados
-        data_to_insert = []
-        for ep in episodes_data_list:
-            data_to_insert.append((
-                tvshow_tmdb_id,
-                season_number,
-                ep.get('episode_number'),
-                ep.get('name'),
-                ep.get('overview'),
-                ep.get('still_path'), # Salva só o path, constrói a URL na hora de ler
-                ep.get('air_date'),
-                ep.get('vote_average', 0.0),
-                ep.get('runtime', 0)
-            ))
-            
-        # 3. Insere os novos dados
-        cursor.executemany('''
-            INSERT INTO episodes_cache (
-                tvshow_tmdb_id, season_number, episode_number, name, overview, 
-                still_path, air_date, vote_average, runtime
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        ''', data_to_insert)
-        
-        conn.commit()
-        conn.close()    
-        
-        
-    def get_all_tvshow_ids_set(self):
-        """Retorna um SET de todos os TMDB IDs de séries no DB."""
-        # Usa a conexão interna, pois esta função é chamada fora de um 'with'
         try:
-            # Assumindo que _get_conn_internal() existe na classe Base
-            with self._get_conn_internal() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT tmdb_id FROM tvshows")
+            data = []
+            for show in tvshows_list:
+                original_title = show.get('original_title') or show.get('title', 'N/A')
+                title_norm = self._normalize_text(original_title)
+                genres = show.get('genres', []) if isinstance(show.get('genres'), list) else []
+                normalized_genres = [self._normalize_text(g) for g in genres]
                 
-                id_set = set()
-                for row in cursor.fetchall():
-                    # Garante que o ID é um número válido antes de adicionar
-                    if row and row[0] is not None:
-                        try:
-                            # Converte para int para garantir consistência
-                            id_set.add(int(row[0]))
-                        except (ValueError, TypeError):
-                            # Ignora se o valor não for um número (ex: string vazia)
-                            continue
-                return id_set
-                
+                data.append((
+                    show.get('tmdb_id'), show.get('title'), original_title, title_norm,
+                    show.get('year'), show.get('imdb_id'), show.get('poster'),
+                    show.get('backdrop'), show.get('synopsis'),
+                    json.dumps(show.get('providers', [])), show.get('certification'),
+                    show.get('date_added'), show.get('popularity', 0.0), show.get('rating', 0.0),
+                    json.dumps(genres), json.dumps(normalized_genres),
+                    json.dumps(show.get('temporadas', [])), show.get('clearlogo'),
+                    show.get('banner'), show.get('landscape'), show.get('playcount', 0),
+                    show.get('season_count', 0), show.get('episodes_count', 0),
+                    show.get('status'), show.get('popularity_updated') or now
+                ))
+            
+            cursor.executemany('''
+                INSERT OR REPLACE INTO tvshows (
+                    tmdb_id, title, original_title, title_normalized, year, imdb_id,
+                    poster, backdrop, synopsis, providers, certification, date_added,
+                    popularity, rating, genres, genres_normalized, seasons_data,
+                    clearlogo, banner, landscape, playcount, season_count,
+                    episodes_count, status, popularity_updated
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ''', data)
+            
+            conn.commit()
+            
+            # Limpa caches relevantes
+            self._cache_delete_prefix("tv_")
+            self._cache_delete_prefix("tvshow:")
+        finally:
+            self._release_conn(conn)
+    
+    def get_tvshow_by_id(self, tmdb_id):
+        """Busca série específica (com cache)"""
+        cache_key = f"tvshow:{tmdb_id}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        sql = "SELECT * FROM tvshows WHERE tmdb_id = ?"
+        show = self._execute_query(sql, (int(tmdb_id),), fetch_one=True)
+        
+        if show:
+            self._cache_set(cache_key, show, ttl=3600)  # 1 hora
+        
+        return show
+    
+    def get_all_tvshow_ids_set(self):
+        """Retorna SET de IDs (ultra-rápido)"""
+        cache_key = "all_tvshow_ids"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT tmdb_id FROM tvshows")
+            ids = {row[0] for row in cursor.fetchall() if row[0]}
+            self._cache_set(cache_key, ids, ttl=600)
+            return ids
         except Exception as e:
             xbmc.log(f"[DB ERROR] Falha ao buscar IDs de séries: {e}", xbmc.LOGERROR)
-            return set() # Retorna um set vazio em caso de erro   
-
+            return set()
+        finally:
+            self._release_conn(conn)
+    
+    def update_tv_popularity_bulk(self, updates):
+        """Atualização em massa de popularidade"""
+        if not updates:
+            return
+        
+        from datetime import datetime
+        now = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            data = [(u['popularity'], now, u['tmdb_id']) for u in updates]
+            cursor.executemany('UPDATE tvshows SET popularity=?, popularity_updated=? WHERE tmdb_id=?', data)
+            conn.commit()
+            self._cache_delete_prefix("tv_pop:")
+        finally:
+            self._release_conn(conn)
+    
+    # === CACHE DE TEMPORADAS E EPISÓDIOS ===
+    
+    def get_cached_seasons(self, tvshow_tmdb_id, max_age_hours=72):
+        """Busca temporadas do cache local (com TTL)"""
+        cache_key = f"seasons:{tvshow_tmdb_id}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        sql = """
+            SELECT * FROM seasons_cache 
+            WHERE tvshow_tmdb_id = ? 
+            AND last_updated > datetime('now', ?)
+        """
+        
+        conn = self._get_conn()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql, (tvshow_tmdb_id, f'-{max_age_hours} hours'))
+            results = [dict(row) for row in cursor.fetchall()]
+            
+            if results:
+                self._cache_set(cache_key, results, ttl=max_age_hours * 3600)
+            
+            return results if results else None
+        finally:
+            self._release_conn(conn)
+    
+    def save_seasons_cache(self, tvshow_tmdb_id, seasons_data_list):
+        """Salva temporadas no cache (batch otimizado)"""
+        if not seasons_data_list:
+            return
+        
+        xbmc.log(f"[CACHE] Salvando {len(seasons_data_list)} temporadas para {tvshow_tmdb_id}", xbmc.LOGINFO)
+        
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        try:
+            # Limpa cache antigo
+            cursor.execute("DELETE FROM seasons_cache WHERE tvshow_tmdb_id = ?", (tvshow_tmdb_id,))
+            
+            # Prepara novos dados
+            data = []
+            for season in seasons_data_list:
+                poster = f"https://image.tmdb.org/t/p/w500{season.get('poster_path')}" if season.get('poster_path') else None
+                data.append((
+                    tvshow_tmdb_id,
+                    season.get('season_number', season.get('number', 0)),
+                    season.get('name'),
+                    season.get('overview'),
+                    poster,
+                    season.get('air_date'),
+                    season.get('episode_count'),
+                    season.get('vote_average', 0.0)
+                ))
+            
+            # Insert em lote
+            cursor.executemany('''
+                INSERT INTO seasons_cache (
+                    tvshow_tmdb_id, season_number, name, overview, poster,
+                    air_date, episode_count, vote_average
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            ''', data)
+            
+            conn.commit()
+            
+            # Limpa cache de memória
+            self._cache_delete_prefix(f"seasons:{tvshow_tmdb_id}")
+        finally:
+            self._release_conn(conn)
+    
+    def get_cached_episodes(self, tvshow_tmdb_id, season_number, max_age_hours=72):
+        """Busca episódios do cache local"""
+        cache_key = f"episodes:{tvshow_tmdb_id}:{season_number}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        sql = """
+            SELECT * FROM episodes_cache
+            WHERE tvshow_tmdb_id = ? AND season_number = ?
+            AND last_updated > datetime('now', ?)
+        """
+        
+        conn = self._get_conn()
+        conn.row_factory = sqlite3.Row
+        cursor = conn.cursor()
+        try:
+            cursor.execute(sql, (tvshow_tmdb_id, season_number, f'-{max_age_hours} hours'))
+            results = [dict(row) for row in cursor.fetchall()]
+            
+            if results:
+                self._cache_set(cache_key, results, ttl=max_age_hours * 3600)
+            
+            return results if results else None
+        finally:
+            self._release_conn(conn)
+    
+    def save_episodes_cache(self, tvshow_tmdb_id, season_number, episodes_data_list):
+        """Salva episódios no cache (batch otimizado)"""
+        if not episodes_data_list:
+            return
+        
+        xbmc.log(f"[CACHE] Salvando {len(episodes_data_list)} episódios para S{season_number}", xbmc.LOGINFO)
+        
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        
+        try:
+            # Limpa cache antigo
+            cursor.execute(
+                "DELETE FROM episodes_cache WHERE tvshow_tmdb_id = ? AND season_number = ?",
+                (tvshow_tmdb_id, season_number)
+            )
+            
+            # Prepara novos dados
+            data = []
+            for ep in episodes_data_list:
+                data.append((
+                    tvshow_tmdb_id,
+                    season_number,
+                    ep.get('episode_number'),
+                    ep.get('name'),
+                    ep.get('overview'),
+                    ep.get('still_path'),
+                    ep.get('air_date'),
+                    ep.get('vote_average', 0.0),
+                    ep.get('runtime', 0)
+                ))
+            
+            # Insert em lote
+            cursor.executemany('''
+                INSERT INTO episodes_cache (
+                    tvshow_tmdb_id, season_number, episode_number, name, overview,
+                    still_path, air_date, vote_average, runtime
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', data)
+            
+            conn.commit()
+            
+            # Limpa cache de memória
+            self._cache_delete_prefix(f"episodes:{tvshow_tmdb_id}:{season_number}")
+        finally:
+            self._release_conn(conn)
+    
+    # === LISTAGENS ===
+    
     def get_all_unique_tvshow_genres(self):
-        """Retorna uma lista única e ordenada de todos os gêneros de SÉRIES."""
+        """Gêneros únicos de séries (cache super longo)"""
+        cache_key = "tv_genres"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
         conn = self._get_conn()
         cursor = conn.cursor()
-        # A consulta agora é na tabela 'tvshows'
-        cursor.execute("SELECT genres FROM tvshows")
-        results = cursor.fetchall()
-        conn.close()
-        
-        all_genres = set()
-        for row in results:
-            try:
-                genres_list = json.loads(row[0])
-                for genre in genres_list:
-                    all_genres.add(genre.strip())
-            except (json.JSONDecodeError, TypeError):
-                continue
-        
-        return sorted(list(all_genres))
-
+        try:
+            cursor.execute("SELECT genres FROM tvshows")
+            all_genres = set()
+            
+            for (genres_json,) in cursor.fetchall():
+                try:
+                    genres = json.loads(genres_json) if genres_json else []
+                    for g in genres:
+                        if isinstance(g, str) and g.strip():
+                            all_genres.add(g.strip())
+                except:
+                    pass
+            
+            result = sorted(all_genres)
+            self._cache_set(cache_key, result, ttl=7200)
+            return result
+        finally:
+            self._release_conn(conn)
+    
     def get_tvshows_by_genre(self, genre, page=1, items_per_page=20):
-        """Busca séries por gênero com paginação."""
-        offset = (page - 1) * items_per_page
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        
+        """Séries por gênero"""
         normalized_genre = self._normalize_text(genre)
+        cache_key = f"tv_genre:{normalized_genre}:{page}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
         
-        # A consulta agora é na tabela 'tvshows' e na coluna correta
-        cursor.execute(
-            "SELECT * FROM tvshows WHERE genres_normalized LIKE ? ORDER BY popularity DESC LIMIT ? OFFSET ?",
-            (f'%"{normalized_genre}"%', items_per_page, offset)
-        )
-        results = cursor.fetchall()
-        conn.close()
-
-        return self._rows_to_dict(results)
-
-    def get_recently_added_tvshows(self, page, page_size):
-        """Busca as séries mais recentes adicionadas ao banco de dados."""
-        offset = (page - 1) * page_size
-        # ✅ CORREÇÃO: Adiciona o gerenciamento de conexão e cursor
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            # ✅ MUDANÇA: Adiciona a condição WHERE para ignorar as datas vazias
-            "SELECT * FROM tvshows WHERE date_added IS NOT NULL ORDER BY date_added DESC LIMIT ? OFFSET ?",
-            (page_size, offset)
-        )
-        results = cursor.fetchall()
-        conn.close()
-        return self._rows_to_dict(results)
-
-    def get_kids_tvshows(self, page, page_size):
-        """Busca por séries com certificação livre ou para crianças."""
-        offset = (page - 1) * page_size
-        # ✅ CORREÇÃO: Adiciona o gerenciamento de conexão e cursor
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            # ✅ CORREÇÃO AQUI: Procurando por 'Kids' em vez de 'Infantil'
-            "SELECT * FROM tvshows WHERE certification IN ('L', '10', '12') OR genres LIKE '%Kids%' ORDER BY popularity DESC LIMIT ? OFFSET ?",
-            (page_size, offset)
-        )
-        results = cursor.fetchall()
-        conn.close()
-        return self._rows_to_dict(results)
-        
-    def get_tvshows_by_popularity(self, page=1, page_size=150):
-        """Busca séries ordenadas por popularidade, do maior para o menor."""
-        offset = (page - 1) * page_size
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row  # Essencial para _rows_to_dict funcionar
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM tvshows ORDER BY popularity DESC LIMIT ? OFFSET ?",
-            (page_size, offset)
-        )
-        results = cursor.fetchall()
-        conn.close()
-        return self._rows_to_dict(results)
-    
-    
-    
-        
-    def get_tvshows_by_provider(self, provider, page=1, items_per_page=20):
-        """Busca séries filtradas por provedor com paginação."""
         offset = (page - 1) * items_per_page
-        conn = self._get_conn()
-        conn.row_factory = sqlite3.Row
-        cursor = conn.cursor()
-        cursor.execute(
-            "SELECT * FROM tvshows WHERE providers LIKE ? ORDER BY popularity DESC LIMIT ? OFFSET ?",
-            (f'%"{provider}"%', items_per_page, offset)
-        )
-        results = cursor.fetchall()
-        conn.close()
-        return self._rows_to_dict(results)
+        sql = """
+            SELECT * FROM tvshows
+            WHERE genres_normalized LIKE ?
+            ORDER BY popularity DESC
+            LIMIT ? OFFSET ?
+        """
+        
+        shows = self._execute_query(sql, (f'%"{normalized_genre}"%', items_per_page, offset))
+        self._cache_set(cache_key, shows, ttl=600)
+        return shows
     
-
+    def get_recently_added_tvshows(self, page, page_size):
+        """Recém-adicionadas"""
+        cache_key = f"tv_recent:{page}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        offset = (int(page) - 1) * page_size
+        sql = "SELECT * FROM tvshows WHERE date_added IS NOT NULL ORDER BY date_added DESC LIMIT ? OFFSET ?"
+        
+        shows = self._execute_query(sql, (page_size, offset))
+        self._cache_set(cache_key, shows, ttl=600)
+        return shows
+    
+    def get_kids_tvshows(self, page, page_size):
+        """Séries infantis"""
+        cache_key = f"tv_kids:{page}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        offset = (page - 1) * page_size
+        sql = """
+            SELECT * FROM tvshows
+            WHERE certification IN ('L', '10', '12') OR genres LIKE '%Kids%'
+            ORDER BY popularity DESC
+            LIMIT ? OFFSET ?
+        """
+        
+        shows = self._execute_query(sql, (page_size, offset))
+        self._cache_set(cache_key, shows, ttl=1200)
+        return shows
+    
+    def get_tvshows_by_popularity(self, page=1, page_size=20):
+        """Top séries por popularidade"""
+        cache_key = f"tv_pop:{page}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        offset = (int(page) - 1) * page_size
+        sql = "SELECT * FROM tvshows ORDER BY popularity DESC LIMIT ? OFFSET ?"
+        
+        shows = self._execute_query(sql, (page_size, offset))
+        self._cache_set(cache_key, shows, ttl=900)
+        return shows
+    
+    def get_tvshows_by_provider(self, provider, page=1, items_per_page=20):
+        """Séries por streaming"""
+        cache_key = f"tv_provider:{provider}:{page}"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        offset = (page - 1) * items_per_page
+        sql = """
+            SELECT * FROM tvshows
+            WHERE providers LIKE ?
+            ORDER BY popularity DESC
+            LIMIT ? OFFSET ?
+        """
+        
+        shows = self._execute_query(sql, (f'%"{provider}"%', items_per_page, offset))
+        self._cache_set(cache_key, shows, ttl=1200)
+        return shows
+    
     def get_all_unique_providers(self):
-        conn = self._get_conn()
-        cursor = conn.cursor()
-        cursor.execute("SELECT providers FROM tvshows")
-        results = cursor.fetchall()
-        conn.close()
-
+        """Provedores únicos (cache longo + normalização)"""
+        cache_key = "tv_providers"
+        cached = self._cache_get(cache_key)
+        if cached:
+            return cached
+        
+        # Mapa de normalização
         provider_map = {
             "netflix": "Netflix",
             "netflix basic with ads": "Netflix",
-
             "amazon": "Amazon Prime Video",
             "prime video": "Amazon Prime Video",
             "amazon prime video": "Amazon Prime Video",
             "amazon with ads": "Amazon Prime Video",
-
             "hbo": "Max",
             "hbo max": "Max",
             "max": "Max",
             "max channel": "Max",
-
             "disney plus": "Disney Plus",
-
-            "paramount plus": "Paramount plus",
-
+            "paramount plus": "Paramount Plus",
             "apple tv+": "Apple TV+",
             "apple tv plus": "Apple TV+",
-
             "crunchyroll": "Crunchyroll",
             "globoplay": "Globoplay",
             "looke": "Looke",
@@ -380,21 +402,25 @@ class TVShowsDatabase(BaseDatabase):
             "hulu": "Hulu",
             "discovery+": "Discovery+",
         }
-
-        all_providers = set()
-        for row in results:
-            try:
-                providers_list = json.loads(row[0])
-                for provider in providers_list:
-                    prov = provider.strip().lower()
-                    if prov in provider_map:
-                        all_providers.add(provider_map[prov])
-            except:
-                continue
-
-        return sorted(list(all_providers))
         
-        
-        conn.close()
-        return results     
- 
+        conn = self._get_conn()
+        cursor = conn.cursor()
+        try:
+            cursor.execute("SELECT providers FROM tvshows")
+            all_providers = set()
+            
+            for (providers_json,) in cursor.fetchall():
+                try:
+                    providers = json.loads(providers_json) if providers_json else []
+                    for provider in providers:
+                        normalized = provider.strip().lower()
+                        if normalized in provider_map:
+                            all_providers.add(provider_map[normalized])
+                except:
+                    pass
+            
+            result = sorted(all_providers)
+            self._cache_set(cache_key, result, ttl=7200)
+            return result
+        finally:
+            self._release_conn(conn)

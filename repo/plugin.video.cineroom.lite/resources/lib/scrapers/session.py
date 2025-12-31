@@ -11,20 +11,13 @@ try:
     # --- FIM DA MUDANÇA ---
     
     SCRAPER_INSTANCE = cloudscraper.create_scraper()
-    xbmc.log("Modulo cloudscraper2 (Venomous) IMPORTADO E INICIADO COM SUCESSO.", xbmc.LOGINFO)
 
 except ImportError as e:  # Captura a exceção
     # Se o cloudscraper2 não estiver instalado OU se uma dependência (como js2py) faltar
     SCRAPER_INSTANCE = requests
-    xbmc.log(f"FALHA DE IMPORTAÇÃO (ImportError): {e}", xbmc.LOGERROR)
-    xbmc.log(f"Traceback da falha de import: {traceback.format_exc()}", xbmc.LOGERROR)
-    xbmc.log("Usando 'requests' como fallback.", xbmc.LOGWARNING)
 
 except Exception as e: # Captura qualquer OUTRO erro
     SCRAPER_INSTANCE = requests
-    xbmc.log(f"FALHA GERAL ao iniciar cloudscraper (NÃO foi ImportError): {e}", xbmc.LOGERROR)
-    xbmc.log(f"Traceback da falha: {traceback.format_exc()}", xbmc.LOGERROR)
-    xbmc.log("Usando 'requests' como fallback.", xbmc.LOGWARNING)
 
 
 # --- Constantes de Rede ---

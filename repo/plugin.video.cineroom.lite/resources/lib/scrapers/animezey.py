@@ -1,4 +1,5 @@
-# Em: resources/lib/scrapers/animezey.py
+# VERSÃO CORRIGIDA - ORIGINAL_TITLE PARA SÉRIES
+
 import re
 import requests
 import json
@@ -7,9 +8,8 @@ import traceback
 import threading
 import unicodedata
 import time
-from functools import lru_cache
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from urllib.parse import urlparse, quote_plus, quote, urljoin, urlencode, parse_qs
+from urllib.parse import urlparse, urlencode, parse_qs
 
 # --- Imports do Pacote ---
 from .session import USER_AGENT
@@ -20,13 +20,9 @@ class AnimeZeyScraperError(Exception):
     """Exceção base para o scraper AnimeZey"""
     pass
 
-class RateLimitError(AnimeZeyScraperError):
-    """Exceção para limite de requisições"""
-    pass
-
 class ScraperConfig:
     """Configurações centralizadas do scraper"""
-    MAX_THREADS = 8  # Reduzido para ser mais conservador
+    MAX_THREADS = 8
     REQUEST_TIMEOUT = 25
     MAX_RETRIES = 3
     RETRY_DELAY = 1
@@ -37,7 +33,7 @@ class ScraperConfig:
         'at', 'for', 'from', 'with', 'by', 'and', 'or', 'but', 'até'
     }
 
-# --- Decorators para Retry e Cache ---
+# --- Decorators para Retry ---
 def with_retry(max_retries=3, delay=1):
     """Decorator para retry automático em falhas de rede"""
     def decorator(func):
@@ -53,13 +49,12 @@ def with_retry(max_retries=3, delay=1):
                     xbmc.log(f"🔄 Tentativa {attempt + 1}/{max_retries} falhou, aguardando {delay}s...", xbmc.LOGWARNING)
                     time.sleep(delay * (attempt + 1))
                 except Exception as e:
-                    # Para outros tipos de erro, não faz retry
                     raise
             return None
         return wrapper
     return decorator
 
-# --- Funções Auxiliares Melhoradas ---
+# --- Funções Auxiliares ---
 @with_retry(max_retries=ScraperConfig.MAX_RETRIES, delay=ScraperConfig.RETRY_DELAY)
 def _post_to_animezey(url, payload):
     """Função melhorada para POST requests com retry"""
@@ -78,7 +73,6 @@ def _post_to_animezey(url, payload):
     }
     
     try:
-        # Limpar cookie se existir
         headers.pop("Cookie", None)
         
         response = requests.post(url, headers=headers, json=payload, 
@@ -113,9 +107,133 @@ def remove_accents(input_str):
     except Exception:
         return input_str
 
+def extract_year_from_filename(filename):
+    """Extrai ano do nome do arquivo (1900-2099)"""
+    if not filename:
+        return None
+    
+    filename_lower = filename.lower()
+    
+    # Padrão 1: Entre pontos, espaços, underscores ou hífens
+    match = re.search(r'[\.\s_\-\(](19\d{2}|20\d{2})[\.\s_\-\)]', filename_lower)
+    if match:
+        return int(match.group(1))
+    
+    # Padrão 2: No início ou fim do nome
+    match = re.search(r'^(19\d{2}|20\d{2})[\.\s_\-]|[\.\s_\-](19\d{2}|20\d{2})$', filename_lower)
+    if match:
+        year = match.group(1) or match.group(2)
+        return int(year)
+    
+    return None
+
+def remove_articles(text):
+    """Remove artigos do início do texto (The, A, An, O, A, Os, As)"""
+    if not text:
+        return text
+    
+    # Remove artigos em inglês e português do INÍCIO
+    text = re.sub(r'^(the|a|an|o|a|os|as)\s+', '', text, flags=re.IGNORECASE)
+    return text.strip()
+
+def calculate_title_similarity(file_name, target_title, original_title=None, media_type='movie'):
+    """
+    Calcula similaridade entre o nome do arquivo e os títulos buscados.
+    Para FILMES: Exige que o título esteja NO INÍCIO do nome do arquivo.
+    Para SÉRIES: Mais flexível, aceita título OU original_title em QUALQUER PARTE do nome.
+    Retorna score de 0 a 100.
+    """
+    file_norm = normalize_for_compare(file_name)
+    target_norm = normalize_for_compare(target_title)
+    
+    # Remove ano dos títulos para comparação justa
+    target_norm_clean = re.sub(r'\d{4}', '', target_norm).strip()
+    
+    # NOVO: Remove artigos para melhor comparação
+    target_norm_no_article = remove_articles(target_norm_clean)
+    
+    # Para filmes: pega só os primeiros 100 caracteres
+    # Para séries: usa o nome completo
+    file_search = file_norm[:100] if media_type == 'movie' else file_norm
+    
+    score = 0
+    matched_title = None
+    
+    # SÉRIES: Busca mais flexível (aceita título em qualquer parte)
+    if media_type == 'tvshow':
+        # Tenta match com target_title (com e sem artigo)
+        if target_norm_clean and target_norm_clean in file_search:
+            score = 100
+            matched_title = target_title
+        elif target_norm_no_article and target_norm_no_article in file_search:
+            score = 100
+            matched_title = target_title
+        
+        # Se não achou, tenta com original_title
+        if original_title and score < 100:
+            original_norm = normalize_for_compare(original_title)
+            original_norm_clean = re.sub(r'\d{4}', '', original_norm).strip()
+            original_norm_no_article = remove_articles(original_norm_clean)
+            
+            if original_norm_clean and original_norm_clean in file_search:
+                score = 100
+                matched_title = original_title
+            elif original_norm_no_article and original_norm_no_article in file_search:
+                score = 100
+                matched_title = original_title
+    
+    # FILMES: Busca restrita (só aceita no início)
+    else:
+        # 1. MATCH NO INÍCIO DO ARQUIVO (100 pontos) - OBRIGATÓRIO
+        if target_norm_clean:
+            pattern = r'^[^\w]{0,5}' + re.escape(target_norm_clean) + r'[^\w]+'
+            if re.search(pattern, file_search):
+                score = 100
+                matched_title = target_title
+            elif file_search.startswith(target_norm_clean):
+                score = 100
+                matched_title = target_title
+        
+        # Tenta sem artigo também
+        if score < 100 and target_norm_no_article:
+            pattern = r'^[^\w]{0,5}' + re.escape(target_norm_no_article) + r'[^\w]+'
+            if re.search(pattern, file_search):
+                score = 100
+                matched_title = target_title
+            elif file_search.startswith(target_norm_no_article):
+                score = 100
+                matched_title = target_title
+        
+        # 2. Testar com título original (também no início)
+        if original_title and score < 100:
+            original_norm = normalize_for_compare(original_title)
+            original_norm_clean = re.sub(r'\d{4}', '', original_norm).strip()
+            original_norm_no_article = remove_articles(original_norm_clean)
+            
+            if original_norm_clean and original_norm_clean != target_norm_clean:
+                pattern = r'^[^\w]{0,5}' + re.escape(original_norm_clean) + r'[^\w]+'
+                if re.search(pattern, file_search):
+                    score = 100
+                    matched_title = original_title
+                elif file_search.startswith(original_norm_clean):
+                    score = 100
+                    matched_title = original_title
+            
+            # Tenta sem artigo
+            if score < 100 and original_norm_no_article:
+                pattern = r'^[^\w]{0,5}' + re.escape(original_norm_no_article) + r'[^\w]+'
+                if re.search(pattern, file_search):
+                    score = 100
+                    matched_title = original_title
+                elif file_search.startswith(original_norm_no_article):
+                    score = 100
+                    matched_title = original_title
+    
+    return score
+
 # --- Classe Principal do Scraper ---
 class AnimeZeyScraper:
-    """Scraper AnimeZey melhorado com todas as otimizações"""
+    """Scraper AnimeZey otimizado com matching rigoroso"""
     
     def __init__(self, provider_url, item_data):
         self.provider_url = provider_url
@@ -145,7 +263,10 @@ class AnimeZeyScraper:
         self.title = self.item_data.get('title', '').strip()
         self.original_title = self.item_data.get('original_title', '').strip()
         self.media_type = self.item_data.get('media_type', '').lower()
-        self.year = self.item_data.get('year')
+        try:
+            self.year = int(self.item_data.get('year'))
+        except (ValueError, TypeError):
+            self.year = None
         
         if not self.title:
             raise AnimeZeyScraperError("Item data sem 'title'")
@@ -159,18 +280,11 @@ class AnimeZeyScraper:
             except (ValueError, TypeError):
                 raise AnimeZeyScraperError("Season/episode inválidos")
     
-    def log_performance(self, start_time, step_name, details=""):
-        """Log de performance para debugging"""
-        elapsed = time.time() - start_time
-        message = f"⏱️ {step_name} levou {elapsed:.2f}s"
-        if details:
-            message += f" | {details}"
-        xbmc.log(f"{self.log_prefix} {message}", xbmc.LOGDEBUG)
-    
     def _get_base_titles(self):
         """Obtém títulos base para busca"""
         titles = []
         
+        # Remover ano do título
         title_no_year = re.sub(r'\s*\(\d{4}\)$', '', self.title).strip()
         if title_no_year:
             titles.append(title_no_year)
@@ -185,88 +299,25 @@ class AnimeZeyScraper:
                 
         return titles
     
-    def _remove_stop_words(self, text):
-        """Remove stop words do texto"""
-        if not text:
-            return ""
-        words = text.split()
-        cleaned = [word for word in words if word.lower() not in ScraperConfig.STOP_WORDS]
-        return " ".join(cleaned)
-    
-    def _process_single_variant(self, variant):
-        """Processa uma única variante do título"""
-        results = set()
-        
-        if not variant:
-            return results
-            
-        # Sem pontuação
-        no_punct = re.sub(r"[:!',?-]", "", variant)
-        no_punct = ' '.join(no_punct.split())
-        if no_punct and no_punct != variant:
-            results.add(no_punct)
-        
-        # Com pontos
-        if no_punct:
-            with_dots = no_punct.replace(" ", ".")
-            if with_dots != no_punct:
-                results.add(with_dots)
-        
-        # Sem stop words
-        no_stop = self._remove_stop_words(no_punct)
-        if no_stop and no_stop != no_punct:
-            results.add(no_stop)
-            
-            # Sem stop words com pontos
-            no_stop_dots = no_stop.replace(" ", ".")
-            if no_stop_dots != no_stop:
-                results.add(no_stop_dots)
-        
-        return results
-    
-    def _generate_title_combinations(self, title):
-        """Gera combinações para um título específico"""
-        variants = set()
-        
-        if not title:
-            return variants
-            
-        # Original
-        variants.add(title)
-        
-        # Sem acentos
-        no_accent = remove_accents(title)
-        if no_accent and no_accent != title:
-            variants.add(no_accent)
-        
-        # Processar cada variante base
-        for base_variant in list(variants):
-            processed = self._process_single_variant(base_variant)
-            variants.update(processed)
-        
-        return variants
-    
     def generate_search_variations(self):
-        """Gera variações de busca de forma eficiente"""
-        start_time = time.time()
-        variations = set()
+        """Gera variações de busca simplificadas (só busca títulos principais)"""
+        variations = []
         
         base_titles = self._get_base_titles()
         
-        for base_title in base_titles:
-            if not base_title:
+        for title in base_titles:
+            if not title:
                 continue
-                
-            title_variants = self._generate_title_combinations(base_title)
-            variations.update(title_variants)
+            
+            # Original
+            variations.append(title)
+            
+            # Sem acentos
+            no_accent = remove_accents(title)
+            if no_accent and no_accent != title:
+                variations.append(no_accent)
         
-        # Remover entradas vazias e duplicatas
-        final_variations = list(filter(None, variations))
-        
-        self.log_performance(start_time, "Geração de variações", 
-                           f"{len(final_variations)} variações")
-        
-        return final_variations
+        return list(set(filter(None, variations)))
     
     def _fetch_page(self, search_query):
         """Busca uma página individual"""
@@ -305,17 +356,15 @@ class AnimeZeyScraper:
             
             for search_name in search_names:
                 for ep_code in ep_codes:
-                    if len(search_name) > 2 and len(search_name) < 50:
-                        queries.add(f"{search_name} {ep_code}")
-                    elif len(ep_code) > 2:
-                        queries.add(ep_code)
+                    queries.add(f"{search_name} {ep_code}")
                         
         else:  # movie
             for search_name in search_names:
-                query = search_name
+                # Busca com ano
                 if self.year:
-                    query += f" {self.year}"
-                queries.add(query)
+                    queries.add(f"{search_name} {self.year}")
+                # Busca sem ano também
+                queries.add(search_name)
         
         return list(queries)
     
@@ -329,8 +378,6 @@ class AnimeZeyScraper:
                 if files:
                     with self.lock:
                         new_files = self._add_new_files(files)
-                        if new_files and xbmc.getCondVisibility('System.LogLevel(2)'):
-                            xbmc.log(f"{self.log_prefix} ✅ {len(new_files)} novos de '{query}'", xbmc.LOGDEBUG)
                 return len(files)
             except Exception as e:
                 xbmc.log(f"{self.log_prefix} ❌ Erro em '{query}': {e}", xbmc.LOGERROR)
@@ -341,75 +388,152 @@ class AnimeZeyScraper:
             future_to_query = {executor.submit(process_query, query): query for query in queries}
             
             for future in as_completed(future_to_query):
-                query = future_to_query[future]
                 try:
                     file_count = future.result()
                     total_files += file_count
                 except Exception as exc:
-                    xbmc.log(f"{self.log_prefix} ❌ Query '{query}' gerou exceção: {exc}", xbmc.LOGERROR)
-        
-        self.log_performance(start_time, "Busca paralela", 
-                           f"{len(queries)} queries, {total_files} arquivos")
+                    xbmc.log(f"{self.log_prefix} ❌ Exceção: {exc}", xbmc.LOGERROR)
         
         return total_files
     
-    def create_filter_patterns(self):
-        """Cria padrões de filtro eficientes"""
-        title_no_year = re.sub(r'\s*\(\d{4}\)$', '', self.title).strip()
-        original_no_year = re.sub(r'\s*\(\d{4}\)$', '', self.original_title).strip()
+    def _check_episode_match(self, file_name, file_norm):
+        """
+        Verifica se o episódio bate (para séries).
+        RIGOROSO: Só aceita o episódio EXATO solicitado.
+        """
+        # A) Bloqueio de Temporada Errada
+        current_s_tag = f"s{str(self.season).zfill(2)}"
+        other_seasons = [f"s{str(i).zfill(2)}" for i in range(1, 50) if i != self.season]
         
-        filters = {
-            'title_strict': normalize_for_compare(title_no_year),
-            'original_strict': normalize_for_compare(original_no_year),
-            'title_no_stop': normalize_for_compare(self._remove_stop_words(title_no_year)),
-            'original_no_stop': normalize_for_compare(self._remove_stop_words(original_no_year)),
-            'episode_patterns': []
-        }
+        for s_tag in other_seasons:
+            if s_tag in file_norm:
+                return False, f"temporada errada: {s_tag}"
         
-        # Remover filtros vazios
-        filters = {k: v for k, v in filters.items() if v}
-        
-        if self.media_type == 'tvshow':
-            filters['episode_patterns'] = [
-                normalize_for_compare(pattern) 
-                for pattern in get_anime_search_codes(self.season, self.episode)
-            ]
-        
-        return filters
-    
-    def matches_filters(self, file_name, filters):
-        """Verifica se o arquivo corresponde aos filtros"""
-        if not file_name:
-            return False
-            
-        file_norm = normalize_for_compare(file_name)
-        file_no_stop = normalize_for_compare(self._remove_stop_words(file_name))
-        
-        # Verificar match de título
-        title_filters = [
-            filters.get('title_strict'),
-            filters.get('original_strict'), 
-            filters.get('title_no_stop'),
-            filters.get('original_no_stop')
+        # B) Procurar padrões de episódio PRECISOS
+        episode_patterns = [
+            # S01E02, s01e02
+            rf's{str(self.season).zfill(2)}e{str(self.episode).zfill(2)}',
+            # S1E2, s1e2 (sem zero à esquerda)
+            rf's{self.season}e{self.episode}\b',
+            # 1x02, 01x02
+            rf'{str(self.season).zfill(2)}x{str(self.episode).zfill(2)}',
+            rf'{self.season}x{str(self.episode).zfill(2)}',
+            # - 02 -, .02., _02_ (episódio isolado, MUITO CUIDADO)
+            rf'[\.\-_\s]0*{self.episode}[\.\-_\s]',
         ]
-        title_filters = [f for f in title_filters if f]
         
-        title_match = any(file_norm.startswith(filt) or filt in file_norm for filt in title_filters)
+        for pattern in episode_patterns:
+            if re.search(pattern, file_norm, re.IGNORECASE):
+                # VALIDAÇÃO EXTRA: Garantir que NÃO é outro episódio
+                # Ex: S01E02 não deve aceitar S01E21 ou S01E12
+                
+                # Procurar todos os padrões de episódio no nome
+                all_ep_matches = re.findall(r's\d+e(\d+)', file_norm, re.IGNORECASE)
+                if all_ep_matches:
+                    # Pegar o primeiro episódio encontrado
+                    first_ep = int(all_ep_matches[0])
+                    if first_ep == self.episode:
+                        return True, f"episódio correto: E{self.episode:02d}"
+                    else:
+                        return False, f"episódio errado: E{first_ep:02d} != E{self.episode:02d}"
+                else:
+                    # Não achou padrão S01E02, mas achou outro padrão
+                    return True, f"pattern match: {pattern}"
         
+        return False, f"episódio {self.episode} não encontrado"
+    
+    def matches_filters(self, file_name):
+        """
+        Função ULTRA RIGOROSA de matching.
+        Para FILMES: Exige título no início + ano EXATO.
+        Para SÉRIES: Aceita título/original_title em qualquer parte + episódio EXATO.
+        """
+        if not file_name:
+            return False, 0
+        
+        file_norm = normalize_for_compare(file_name)
+        
+        # LOG DEBUG: Mostrar o que está sendo comparado
         if self.media_type == 'tvshow':
-            pattern_match = any(pattern in file_norm for pattern in filters['episode_patterns'])
-            return pattern_match and title_match
-        else:  # movie
-            if not title_match:
-                return False
-            if len(filters.get('title_strict', '')) < 4:
-                return False    
+            xbmc.log(
+                f"{self.log_prefix} 🔍 Comparando: '{file_norm[:80]}' com '{self.title}' e '{self.original_title}'",
+                xbmc.LOGDEBUG
+            )
+        
+        # 1. CALCULAR SIMILARIDADE DO TÍTULO
+        similarity = calculate_title_similarity(
+            file_name, 
+            self.title, 
+            self.original_title,
+            self.media_type  # NOVO: passa o tipo de mídia
+        )
+        
+        # Para FILMES: Threshold é 100 (match exato no início obrigatório)
+        if self.media_type == 'movie':
+            if similarity < 100:
+                xbmc.log(
+                    f"{self.log_prefix} ❌ Rejeitado (título não no início): {file_name[:80]}", 
+                    xbmc.LOGDEBUG
+                )
+                return False, similarity
+            
+            # 2. VALIDAÇÃO ULTRA RIGOROSA DE ANO
+            if self.year:
+                file_year = extract_year_from_filename(file_name)
                 
-            if not self.year:
-                return True
+                # Se não achou o ano no arquivo, REJEITA
+                if not file_year:
+                    xbmc.log(
+                        f"{self.log_prefix} ❌ Rejeitado (sem ano no nome): {file_name[:80]}", 
+                        xbmc.LOGDEBUG
+                    )
+                    return False, similarity
                 
-            year_str = str(self.year)
-            return year_str in file_name or year_str in file_norm
+                # MUDANÇA CRÍTICA: Ano deve ser EXATO (sem tolerância de ±1)
+                if file_year != self.year:
+                    xbmc.log(
+                        f"{self.log_prefix} ❌ Rejeitado (ano {file_year} != {self.year}): {file_name[:80]}", 
+                        xbmc.LOGDEBUG
+                    )
+                    return False, similarity
+                
+                # Ano correto: bonus
+                similarity += 10
+            else:
+                # Se não tem ano para validar, aceita mas sem bonus
+                xbmc.log(
+                    f"{self.log_prefix} ⚠️ Aviso: filme sem ano para validar - {file_name[:80]}", 
+                    xbmc.LOGWARNING
+                )
+        
+        elif self.media_type == 'tvshow':
+            # Para séries: threshold 70 (mais flexível com original_title)
+            if similarity < 70:
+                xbmc.log(
+                    f"{self.log_prefix} ❌ Rejeitado por baixa similaridade ({similarity:.0f}%): {file_name[:80]}", 
+                    xbmc.LOGDEBUG
+                )
+                return False, similarity
+            
+            # Verificar episódio
+            ep_match, ep_reason = self._check_episode_match(file_name, file_norm)
+            
+            if not ep_match:
+                xbmc.log(
+                    f"{self.log_prefix} ❌ Rejeitado: {ep_reason} - {file_name[:80]}", 
+                    xbmc.LOGDEBUG
+                )
+                return False, similarity
+            
+            similarity += 20
+        
+        # 3. ACEITO!
+        xbmc.log(
+            f"{self.log_prefix} ✅ Aceito (score {similarity:.0f}%): {file_name[:80]}", 
+            xbmc.LOGINFO
+        )
+        
+        return True, similarity
     
     def build_download_link(self, link_part):
         """Constrói link de download completo"""
@@ -427,8 +551,7 @@ class AnimeZeyScraper:
             query_params = {'file': file_id}
             
             # Adicionar parâmetros opcionais
-            optional_params = ['expiry', 'mac']
-            for param in optional_params:
+            for param in ['expiry', 'mac']:
                 value = params.get(param, [None])[0]
                 if value:
                     query_params[param] = value
@@ -437,26 +560,74 @@ class AnimeZeyScraper:
             return f"https://{self.download_domain}{path_part}?{encoded_query}"
             
         except Exception as e:
-            xbmc.log(f"{self.log_prefix} ⚠️ Erro construindo link {link_part}: {e}", xbmc.LOGWARNING)
+            xbmc.log(f"{self.log_prefix} ⚠️ Erro construindo link: {e}", xbmc.LOGWARNING)
             return None
     
-    def filter_and_process_files(self, filters):
+    def _detect_language_from_filename(self, file_name):
+        """Detecta idioma do arquivo"""
+        if not file_name:
+            return 'PT-BR'
+        
+        fn = file_name.lower()
+        
+        # DUAL (prioridade máxima)
+        if any(w in fn for w in ['dual', 'multi']):
+            return 'DUAL'
+        
+        # Dublado explícito
+        if any(w in fn for w in ['dublado', 'dub ', 'pt-br', 'ptbr']):
+            return 'PT-BR'
+        
+        # Legendado explícito
+        if any(w in fn for w in ['legendado', '[leg]', 'subs', '[eng]', 'subbed', 'english only']):
+            return 'LEG'
+        
+        # Grupos internacionais
+        if any(w in fn for w in ['subsplease', 'erai-raws', 'yify', 'rarbg', 'nyaa', '[judas]']):
+            return 'LEG'
+        
+        # Fallback: AnimeZey é BR por padrão
+        return 'PT-BR'
+    
+    def filter_and_process_files(self):
         """Filtra e processa os arquivos encontrados"""
         matched_results = []
         seen_links = set()
         valid_extensions = ('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.ts')
         
+        xbmc.log(f"{self.log_prefix} 🔍 Iniciando filtro de {len(self.found_files)} arquivos...", xbmc.LOGINFO)
+        
+        # LOG: Mostrar título e episódio buscado
+        if self.media_type == 'tvshow':
+            xbmc.log(
+                f"{self.log_prefix} 🎯 BUSCANDO: '{self.title}' (original: '{self.original_title}') S{self.season:02d}E{self.episode:02d}", 
+                xbmc.LOGINFO
+            )
+        else:
+            xbmc.log(
+                f"{self.log_prefix} 🎯 BUSCANDO: '{self.title}' ({self.year})", 
+                xbmc.LOGINFO
+            )
+        
         for file_data in self.found_files:
             file_name = file_data.get('name', '').strip()
             
-            # Pular se não for arquivo de vídeo válido
+            # LOG DEBUG: Mostrar TODOS os arquivos encontrados (para séries)
+            if self.media_type == 'tvshow':
+                xbmc.log(
+                    f"{self.log_prefix} 📄 Testando: {file_name[:100]}", 
+                    xbmc.LOGDEBUG
+                )
+            
+            # Pular se não for vídeo válido
             if (not file_name or 
                 file_data.get('mimeType') == 'application/vnd.google-apps.folder' or
                 not any(file_name.lower().endswith(ext) for ext in valid_extensions)):
                 continue
             
-            # Aplicar filtros
-            if not self.matches_filters(file_name, filters):
+            # Aplicar filtros COM SCORE
+            matches, score = self.matches_filters(file_name)
+            if not matches:
                 continue
             
             # Construir link de download
@@ -466,31 +637,31 @@ class AnimeZeyScraper:
             if download_link and download_link not in seen_links:
                 seen_links.add(download_link)
                 
-                # Preparar metadados do resultado
-                quality = guess_quality_from_name(file_name) or "HD"
+                # Detectar idioma
+                detected_language = self._detect_language_from_filename(file_name)
                 
-                if self.media_type == 'tvshow':
-                    label = self.item_data.get('episode_title') or file_name
-                else:
-                    label = file_name
+                # Preparar metadados
+                quality = guess_quality_from_name(file_name) or "HD"
                 
                 matched_results.append({
                     'url': download_link,
                     'quality': quality,
                     'type': 'Direto',
+                    'title': file_name,  # Nome completo para detecção de idioma
                     'release_title': file_name,
-                    'label': f"{label} [{quality}]",
+                    'label': f"{file_name} [{quality}]",
                     'size': format_size(file_data.get('size', 0)),
                     'peers': 'N/A',
                     'seeders': 'N/A', 
-                    'provider': 'Animes Totais',
-                    'languages': 'PT-BR'
+                    'provider': 'AnimeZey',
+                    'languages': detected_language,
+                    '_score': score  # Score interno para ordenação
                 })
-                
-                if xbmc.getCondVisibility('System.LogLevel(2)'):
-                    xbmc.log(f"{self.log_prefix} ➡️ Match: {file_name[:60]}...", xbmc.LOGDEBUG)
         
+        xbmc.log(f"{self.log_prefix} 📊 Filtro concluído: {len(matched_results)} arquivos aceitos", xbmc.LOGINFO)
         return matched_results
+
+    
     
     def scrape(self):
         """Método principal do scraper"""
@@ -500,42 +671,40 @@ class AnimeZeyScraper:
             # 1. Gerar variações de busca
             search_names = self.generate_search_variations()
             
-            # Log informativo
             search_suffix = f" S{self.season:02d}E{self.episode:02d}" if self.media_type == 'tvshow' else f" ({self.year})" if self.year else ""
-            xbmc.log(f"{self.log_prefix} 🔍 Buscando '{self.title}'{search_suffix} - {len(search_names)} variações", xbmc.LOGINFO)
-            
-            if xbmc.getCondVisibility('System.LogLevel(1)'):
-                xbmc.log(f"{self.log_prefix} Variações: {search_names}", xbmc.LOGDEBUG)
+            xbmc.log(f"{self.log_prefix} 🔎 Buscando '{self.title}'{search_suffix} - {len(search_names)} variações", xbmc.LOGINFO)
             
             # 2. Gerar queries de busca
             queries = self.generate_search_queries(search_names)
             xbmc.log(f"{self.log_prefix} 📊 {len(queries)} queries únicas geradas", xbmc.LOGINFO)
             
             # 3. Busca paralela
-            total_files = self.parallel_search(queries)
+            self.parallel_search(queries)
             
             if not self.found_files:
                 xbmc.log(f"{self.log_prefix} ⚠️ Nenhum arquivo encontrado", xbmc.LOGINFO)
                 return []
             
-            xbmc.log(f"{self.log_prefix} 📁 {len(self.found_files)} arquivos únicos encontrados", xbmc.LOGINFO)
+            xbmc.log(f"{self.log_prefix} 🔍 {len(self.found_files)} arquivos únicos encontrados", xbmc.LOGINFO)
             
-            # 4. Filtragem
-            filters = self.create_filter_patterns()
-            matched_results = self.filter_and_process_files(filters)
+            # 4. Filtragem RIGOROSA
+            matched_results = self.filter_and_process_files()
             
-            # 5. Ordenar resultados por qualidade
+            # 5. Ordenar por score + qualidade
             if matched_results:
                 quality_order = {'4K': 0, '1080p': 1, '720p': 2, 'HD': 3, 'SD': 4}
-                matched_results.sort(key=lambda x: quality_order.get(x['quality'], 99))
+                matched_results.sort(
+                    key=lambda x: (-x.get('_score', 0), quality_order.get(x['quality'], 99))
+                )
+                
+                # Remover campo interno de score
+                for result in matched_results:
+                    result.pop('_score', None)
                 
                 result_suffix = f" S{self.season:02d}E{self.episode:02d}" if self.media_type == 'tvshow' else ""
                 xbmc.log(f"{self.log_prefix} ✅ {len(matched_results)} links válidos para '{self.title}'{result_suffix}", xbmc.LOGINFO)
             else:
                 xbmc.log(f"{self.log_prefix} ❌ Nenhum arquivo correspondeu aos filtros", xbmc.LOGINFO)
-            
-            self.log_performance(start_time, "Scraping completo", 
-                               f"{len(matched_results)} resultados")
             
             return matched_results
             
@@ -546,15 +715,12 @@ class AnimeZeyScraper:
             xbmc.log(f"{self.log_prefix} ❌ Erro Geral: {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
             return []
 
-# --- Função de Interface Mantida para Compatibilidade ---
+# --- Função de Interface ---
 def scrape(provider_url, item_data):
-    """
-    Função de interface para compatibilidade com o sistema existente.
-    (VERSÃO MELHORADA) Scraper AnimeZey com todas as otimizações.
-    """
+    """Interface para compatibilidade"""
     try:
         scraper = AnimeZeyScraper(provider_url, item_data)
         return scraper.scrape()
     except Exception as e:
-        xbmc.log(f"[animezey.scrape] ❌ Erro inicializando scraper: {e}", xbmc.LOGERROR)
+        xbmc.log(f"[animezey.scrape] ❌ Erro: {e}", xbmc.LOGERROR)
         return []
