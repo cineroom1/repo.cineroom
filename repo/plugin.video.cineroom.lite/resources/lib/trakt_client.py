@@ -1,17 +1,14 @@
 # resources/lib/trakt_client.py
 # -*- coding: utf-8 -*-
 """
-Cliente Trakt organizado - Baseado na estrutura do Jacktook
-✅ Listas públicas funcionais
+Cliente Trakt Otimizado
+✅ Listas públicas e personalizadas
 ✅ Paginação correta
-✅ Estrutura limpa
+✅ Código limpo e reutilizável
 """
 
 import xbmc
-import xbmcgui
 import xbmcaddon
-import json
-import time
 from urllib.parse import quote_plus
 
 ADDON = xbmcaddon.Addon()
@@ -78,76 +75,89 @@ class TraktAPI:
         """Obtém lista pública (não requer auth)"""
         params = params or {}
         params['extended'] = 'full'
-        
         return self.request('GET', endpoint, params, auth_required=False)
+    
+    def get_auth_list(self, endpoint, params=None):
+        """Obtém lista que requer autenticação"""
+        params = params or {}
+        params['extended'] = 'full'
+        return self.request('GET', endpoint, params, auth_required=True)
+
 
 class TraktLists:
-    """Gerencia listas do Trakt"""
+    """Gerencia todas as listas do Trakt"""
     
     def __init__(self):
         self.api = TraktAPI()
     
+    # === LISTAS PÚBLICAS (SEM AUTENTICAÇÃO) ===
+    
     def get_trending(self, media_type='movies', page=1, limit=30):
-        """Lista trending (pública)"""
+        """Em alta"""
         endpoint = f'/{media_type}/trending'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_popular(self, media_type='movies', page=1, limit=30):
-        """Lista popular (pública)"""
+        """Populares"""
         endpoint = f'/{media_type}/popular'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_watched(self, media_type='movies', period='weekly', page=1, limit=30):
-        """Mais assistidos (pública)"""
+        """Mais assistidos"""
         endpoint = f'/{media_type}/watched/{period}'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_collected(self, media_type='movies', period='weekly', page=1, limit=30):
-        """Mais coletados (pública)"""
+        """Mais coletados"""
         endpoint = f'/{media_type}/collected/{period}'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_anticipated(self, media_type='movies', page=1, limit=30):
-        """Mais aguardados (pública)"""
+        """Mais aguardados"""
         endpoint = f'/{media_type}/anticipated'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_box_office(self, page=1, limit=30):
-        """Bilheteria (pública) - apenas filmes"""
+        """Bilheteria (apenas filmes)"""
         endpoint = '/movies/boxoffice'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
-    
-    def get_recommended(self, media_type='movies', page=1, limit=30):
-        """Recomendados (requer auth)"""
-        endpoint = f'/recommendations/{media_type}'
-        params = {'page': page, 'limit': limit}
-        return self.api.request('GET', endpoint, params, auth_required=True)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_top_rated(self, media_type='movies', page=1, limit=30):
-        """Melhor avaliados (pública)"""
+        """Melhor avaliados"""
         endpoint = f'/{media_type}/rated'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_played(self, media_type='movies', period='weekly', page=1, limit=30):
-        """Mais reproduzidos (pública)"""
+        """Mais reproduzidos"""
         endpoint = f'/{media_type}/played/{period}'
-        params = {'page': page, 'limit': limit}
-        return self.api.get_public_list(endpoint, params)
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
+    
+    def get_recommended(self, media_type='movies', page=1, limit=30):
+        """Recomendações públicas gerais (sem autenticação)"""
+        endpoint = f'/{media_type}/recommended'
+        return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
+    
+    # === LISTAS PERSONALIZADAS (COM AUTENTICAÇÃO) ===
+    
+    def get_personal_recommendations(self, media_type='movies', page=1, limit=30):
+        """
+        ✅ Recomendações PERSONALIZADAS baseadas no histórico do usuário
+        Requer autenticação OAuth
+        """
+        endpoint = f'/recommendations/{media_type}'
+        return self.api.get_auth_list(endpoint, {'page': page, 'limit': limit})
+
 
 class TraktPresentation:
-    """Apresentação dos resultados Trakt"""
+    """Formatação e apresentação dos resultados Trakt"""
     
     @staticmethod
     def normalize_item(item):
-        """Normaliza item do Trakt para formato padrão"""
-        # Detecta se é filme ou série
+        """
+        Normaliza item do Trakt para formato padrão
+        Suporta múltiplos formatos de resposta da API
+        """
+        # Detecta tipo e extrai objeto principal
         if 'movie' in item:
             media_type = 'movie'
             obj = item['movie']
@@ -157,7 +167,7 @@ class TraktPresentation:
             obj = item['show']
             extra = item
         else:
-            # Pode ser um item direto
+            # Item direto (sem wrapper)
             obj = item
             extra = {}
             media_type = 'movie' if 'title' in obj else 'tvshow'
@@ -177,32 +187,33 @@ class TraktPresentation:
             'votes': obj.get('votes', 0),
             'genres': obj.get('genres', []),
             'runtime': obj.get('runtime', 0),
+            # Estatísticas extras
             'watchers': extra.get('watchers', 0),
             'play_count': extra.get('play_count', 0),
             'collector_count': extra.get('collector_count', 0),
             'list_count': extra.get('list_count', 0),
             'revenue': extra.get('revenue', 0),
-            # Adicionado para suportar artes
-            'poster': item.get('poster', ''),
-            'backdrop': item.get('backdrop', ''),
-            'clearlogo': item.get('clearlogo', '')
+            # Placeholders para artes (preenchidos depois via TMDB)
+            'poster': '',
+            'backdrop': '',
+            'clearlogo': ''
         }
     
     @staticmethod
     def build_url(item):
-        """Constrói URL para o item"""
+        """
+        Constrói URL do plugin para o item
+        Séries → list_seasons
+        Filmes → find_sources
+        """
         media_type = item.get('media_type')
         
-        # Para séries
+        # SÉRIES
         if media_type == 'tvshow':
             url = f"plugin://plugin.video.cineroom.lite/?action=list_seasons&tvshow_tmdb_id={item['tmdb_id']}"
-            # Adiciona artes na URL de séries
-            if item.get('poster'): url += f"&poster={quote_plus(item['poster'])}"
-            if item.get('backdrop'): url += f"&backdrop={quote_plus(item['backdrop'])}"
-            if item.get('clearlogo'): url += f"&clearlogo={quote_plus(item['clearlogo'])}"
             return url
         
-        # Para filmes
+        # FILMES
         title = str(item.get('title', ''))
         url_params = [
             f"action=find_sources",
@@ -211,12 +222,108 @@ class TraktPresentation:
             f"title={quote_plus(title)}"
         ]
         
+        # Metadados opcionais
         if item.get('year'):
             url_params.append(f"year={item['year']}")
         if item.get('imdb_id'):
             url_params.append(f"imdb_id={item['imdb_id']}")
-            
-        # Adiciona artes na URL de filmes
+        if item.get('original_title'):
+            url_params.append(f"original_title={quote_plus(item['original_title'])}")
+        
+        # Artes (se disponíveis)
+        if item.get('poster'):
+            url_params.append(f"poster={quote_plus(item['poster'])}")
+        if item.get('backdrop'):
+            url_params.append(f"backdrop={quote_plus(item['backdrop'])}")
+        if item.get('clearlogo'):
+            url_params.append(f"clearlogo={quote_plus(item['clearlogo'])}")
+        
+        return f"plugin://plugin.video.cineroom.lite/?{'&'.join(url_params)}"
+
+
+class TraktPresentation:
+    """Formatação e apresentação dos resultados Trakt"""
+    
+    @staticmethod
+    def normalize_item(item):
+        """
+        Normaliza item do Trakt para formato padrão
+        Suporta múltiplos formatos de resposta da API
+        """
+        # Detecta tipo e extrai objeto principal
+        if 'movie' in item:
+            media_type = 'movie'
+            obj = item['movie']
+            extra = item
+        elif 'show' in item:
+            media_type = 'tvshow'
+            obj = item['show']
+            extra = item
+        else:
+            # Item direto (sem wrapper)
+            obj = item
+            extra = {}
+            media_type = 'movie' if 'title' in obj else 'tvshow'
+        
+        ids = obj.get('ids', {})
+        
+        return {
+            'title': obj.get('title') or obj.get('name', ''),
+            'original_title': obj.get('title') or obj.get('name', ''),
+            'tmdb_id': ids.get('tmdb'),
+            'imdb_id': ids.get('imdb', ''),
+            'media_type': media_type,
+            'year': obj.get('year'),
+            'slug': ids.get('slug', ''),
+            'synopsis': obj.get('overview', ''),
+            'rating': obj.get('rating', 0),
+            'votes': obj.get('votes', 0),
+            'genres': obj.get('genres', []),
+            'runtime': obj.get('runtime', 0),
+            # Estatísticas extras
+            'watchers': extra.get('watchers', 0),
+            'play_count': extra.get('play_count', 0),
+            'collector_count': extra.get('collector_count', 0),
+            'list_count': extra.get('list_count', 0),
+            'revenue': extra.get('revenue', 0),
+            # Placeholders para artes (preenchidos depois via TMDB)
+            'poster': '',
+            'backdrop': '',
+            'clearlogo': ''
+        }
+    
+    @staticmethod
+    def build_url(item):
+        """
+        Constrói URL do plugin para o item
+        Séries → list_seasons
+        Filmes → find_sources
+        """
+        media_type = item.get('media_type')
+        
+        # SÉRIES
+        if media_type == 'tvshow':
+            url = f"plugin://plugin.video.cineroom.lite/?action=list_seasons&tvshow_tmdb_id={item['tmdb_id']}"
+            return url
+        
+        # FILMES
+        title = str(item.get('title', ''))
+        url_params = [
+            f"action=find_sources",
+            f"tmdb_id={item['tmdb_id']}",
+            f"media_type=movie",
+            f"title={quote_plus(title)}"
+        ]
+        
+        # Metadados opcionais
+        if item.get('year'):
+            url_params.append(f"year={item['year']}")
+        if item.get('imdb_id'):
+            url_params.append(f"imdb_id={item['imdb_id']}")
+        if item.get('original_title'):
+            url_params.append(f"original_title={quote_plus(item['original_title'])}")
+        
+        # Artes (se disponíveis)
         if item.get('poster'):
             url_params.append(f"poster={quote_plus(item['poster'])}")
         if item.get('backdrop'):

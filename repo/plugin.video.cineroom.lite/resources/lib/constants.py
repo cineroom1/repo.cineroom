@@ -34,23 +34,11 @@ MAIN_MENU = [
         'plot': 'Seus favoritos e itens salvos localmente.'
     },
     {
-        'title': 'Biblioteca',
-        'action': 'library_menu',
-        'icon': os.path.join(ICON_PATH, 'premium.png'),
-        'plot': 'Conteúdo salvo e organizado localmente.'
-    },
-    {
         'title': 'Trakt',
         'action': 'trakt_main_menu',
         'icon': os.path.join(ICON_PATH, 'trakt.png'),
         'plot': 'Watchlist, coleção, assistidos e sincronização com sua conta Trakt.'
-    },
-    {
-        'title': 'Atualizar Banco de Dados',
-        'action': 'run_indexer',
-        'icon': os.path.join(ICON_PATH, 'github.png'),
-        'plot': 'Atualiza e reorganiza o banco de dados local.'
-    },
+    },   
     {
         'title': '[COLOR orange]Ferramentas[/COLOR]',
         'action': 'tools_menu',
@@ -63,10 +51,13 @@ MAIN_MENU = [
 TOOLS_MENU = [
     {'title': 'Configurações', 'action': 'open_settings', 'icon': os.path.join(ICON_PATH, 'settings.png')},
     {'title': 'Changelog', 'action': 'show_changelog', 'icon': os.path.join(ICON_PATH, 'lists.png')},
-    {'title': 'Doação', 'action': 'show_donation', 'icon': os.path.join(ICON_PATH, 'lists.png')}
+    {'title': 'Biblioteca','action': 'library_menu','icon': os.path.join(ICON_PATH, 'premium.png'),'plot': 'Conteúdo salvo e organizado localmente.'},
+    {'title': 'Doação', 'action': 'show_donation', 'icon': os.path.join(ICON_PATH, 'lists.png')},
+    {'title': 'Atualizar Banco de Dados', 'action': 'run_indexer', 'icon': os.path.join(ICON_PATH, 'github.png'), 'plot': 'Atualiza e reorganiza o banco de dados local.'}
 ]
 
 MOVIES_MENU = [
+    {'title': 'Recomendações', 'action': 'trakt_movies_personal_recommended', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Recentes', 'action': 'list_recently_added_movies', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
     {'title': 'Em Alta', 'action': 'list_trending_movies', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
     {'title': 'Populares', 'action': 'list_movies_by_popularity', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
@@ -75,6 +66,40 @@ MOVIES_MENU = [
     {'title': 'Maiores bilheterias', 'action': 'list_movies_by_revenue', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
     {'title': 'Por Ano', 'action': 'list_years', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
     {'title': 'Coleções', 'action': 'list_collections', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+]
+
+TVSHOWS_MENU = [
+    {'title': 'Recomendações', 'action': 'trakt_tv_personal_recommended', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Recentes', 'action': 'list_recently_added_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Em Alta', 'action': 'list_trending_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Populares', 'action': 'list_tvshows_by_popularity', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Gêneros', 'action': 'list_tvshows_genres', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Provedores', 'action': 'list_providers', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Animes', 'action': 'list_animes', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Infantil', 'action': 'list_kids_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+]
+# === MENU TRAKT PRINCIPAL ===
+TRAKT_MENU = [
+    {'title': 'Status / Autenticar', 'action': 'trakt_auth', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Watchlist', 'action': 'trakt_watchlist_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Coleção', 'action': 'trakt_collection_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Assistidos', 'action': 'trakt_watched_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Minhas Listas', 'action': 'trakt_lists_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Filmes', 'action': 'trakt_movies_submenu', 'icon': os.path.join(ICON_PATH, 'trakt.png')},
+    {'title': 'Séries', 'action': 'trakt_tv_submenu', 'icon': os.path.join(ICON_PATH, 'trakt.png')},
+    {'title': 'Sincronizar', 'action': 'trakt_sync_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+]
+
+TRAKT_SYNC_MENU = [
+    {'title': 'Sincronização Completa', 'action': 'trakt_full_sync', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Enviar → Trakt', 'action': 'trakt_sync_to_trakt', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Importar ← Trakt', 'action': 'trakt_sync_from_trakt', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Limpar Cache', 'action': 'trakt_clear_cache', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+]
+
+# === SUBMENU FILMES TRAKT ===
+TRAKT_MOVIES_MENU = [
+    {'title': 'Recomendações', 'action': 'trakt_movies_personal_recommended', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Em Alta', 'action': 'trakt_movies_trending', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Populares', 'action': 'trakt_movies_popular', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Mais Assistidos', 'action': 'trakt_movies_most_watched', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
@@ -84,37 +109,13 @@ MOVIES_MENU = [
     {'title': 'Melhor Avaliados', 'action': 'trakt_movies_top_rated', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
 ]
 
-TVSHOWS_MENU = [
-    {'title': 'Recentes', 'action': 'list_recently_added_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
-    {'title': 'Em Alta', 'action': 'list_trending_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
-    {'title': 'Populares', 'action': 'list_tvshows_by_popularity', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
-    {'title': 'Gêneros', 'action': 'list_tvshows_genres', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
-    {'title': 'Provedores', 'action': 'list_providers', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
-    {'title': 'Animes', 'action': 'list_animes', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
-    {'title': 'Infantil', 'action': 'list_kids_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
-    {'title': 'Em Alta ', 'action': 'trakt_tv_trending', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+# === SUBMENU SÉRIES TRAKT ===
+TRAKT_TV_MENU = [
+    {'title': 'Recomendações', 'action': 'trakt_tv_personal_recommended', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+    {'title': 'Em Alta', 'action': 'trakt_tv_trending', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Populares', 'action': 'trakt_tv_popular', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Mais Assistidas', 'action': 'trakt_tv_most_watched', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Mais Coletadas', 'action': 'trakt_tv_most_collected', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Mais Aguardadas', 'action': 'trakt_tv_most_anticipated', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
     {'title': 'Melhor Avaliadas', 'action': 'trakt_tv_top_rated', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Recomendadas', 'action': 'trakt_tv_recommended', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-]
-
-# === ✅ MENU TRAKT CORRIGIDO ===
-TRAKT_MENU = [
-    {'title': 'Status / Autenticar', 'action': 'trakt_auth', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Watchlist', 'action': 'trakt_watchlist_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Coleção', 'action': 'trakt_collection_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Assistidos', 'action': 'trakt_watched_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Minhas Listas', 'action': 'trakt_lists_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Sincronizar', 'action': 'trakt_sync_menu', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-]
-
-# === ✅ SUBMENU SINCRONIZAÇÃO ===
-TRAKT_SYNC_MENU = [
-    {'title': 'Sincronização Completa', 'action': 'trakt_full_sync', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Enviar → Trakt', 'action': 'trakt_sync_to_trakt', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Importar ← Trakt', 'action': 'trakt_sync_from_trakt', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
-    {'title': 'Limpar Cache', 'action': 'trakt_clear_cache', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
 ]

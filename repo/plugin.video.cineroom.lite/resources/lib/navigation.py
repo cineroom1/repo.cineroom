@@ -242,22 +242,22 @@ PROVIDERS = {
     "Brazuca": {
         "url": "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club",
         "configurable": False,
-        "priority": 1  # 🥇 PRIMEIRO - Brazuca
+        "priority": 2  # 🥇 PRIMEIRO - Brazuca
     },
     "AnimeZey": {
         "url": "https://1.animezey23112022.workers.dev", 
         "configurable": False, 
-        "priority": 3  # 🥇 PRIMEIRO - AnimeZey
+        "priority": 1  # 🥇 PRIMEIRO - AnimeZey
     },
     "CDFlix": {
         "url": "https://cdflix.cdteam.xyz/%7B%22language%22%3A%22pt_br%22%7D",
         "configurable": False,
-        "priority": 1  # 🥈 SEGUNDO - CDFlix
+        "priority": 2  # 🥈 SEGUNDO - CDFlix
     },
     "SkyFlix": {
         "url": "https://da5f663b4690-skyflixfork16.baby-beamup.club",
         "configurable": False, 
-        "priority": 1  # 🥈 SEGUNDO - SkyFlix
+        "priority": 3  # 🥈 SEGUNDO - SkyFlix
     },
     "Torrentio": {
         "url": "https://torrentio.strem.fun/providers=comando,bludv,micoleaodublado,yts,nyaasi,1337x%7Clanguage=portuguese,english,japanese",
