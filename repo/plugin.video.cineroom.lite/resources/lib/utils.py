@@ -244,7 +244,7 @@ def create_video_item(item_data, media_type, show_data=None):
         'originaltitle': item_data.get('original_title', ''),
         'plot': item_data.get('synopsis', ''),
         'aired': aired,
-        'year': year,  # ✅ COMO INT (alguns addons esperam int)
+        'year': year,
         'duration': duration_sec,
         'studio': studio_str,
         'mpaa': mpaa,
@@ -457,24 +457,24 @@ VIEW_MODE_MAP = {
 }
 
 def set_view_mode(content_type, view_setting_key='view_mode', default='wall'):
+    """View mode otimizado para boxes fracos"""
     try:
         view_mode_setting = _SETTINGS.get(view_setting_key, default)
         view_mode_id = VIEW_MODE_MAP.get(view_mode_setting, VIEW_MODE_MAP.get(default, 500))
         
-        xbmc.sleep(100)
+        # ✅ ESTRATÉGIA 1: Delay fixo pequeno (mais rápido que loop)
+        xbmc.sleep(200)  # 200ms geralmente suficiente
         
-        timeout = 0
-        max_timeout = 1000
+        # ✅ ESTRATÉGIA 2: Verificação única (não loop)
+        current_content = xbmc.getInfoLabel('Container.Content')
         
-        while xbmc.getInfoLabel('Container.Content') != content_type:
-            xbmc.sleep(50)
-            timeout += 50
-            
-            if timeout >= max_timeout:
-                xbmc.log(f"[ViewMode] Timeout para '{content_type}'", xbmc.LOGWARNING)
-                return
-        
-        xbmc.executebuiltin(f'Container.SetViewMode({view_mode_id})')
+        if current_content == content_type:
+            # Container já está pronto
+            xbmc.executebuiltin(f'Container.SetViewMode({view_mode_id})')
+        else:
+            # ✅ ESTRATÉGIA 3: Aplica via RunScript (assíncrono)
+            xbmc.executebuiltin(f'SetProperty(ViewMode,{view_mode_id},Home)')
+            xbmc.executebuiltin(f'AlarmClock(SetView,Container.SetViewMode({view_mode_id}),00:00:30,silent)')
         
     except Exception as e:
         xbmc.log(f"[ViewMode] Erro: {e}", xbmc.LOGERROR)

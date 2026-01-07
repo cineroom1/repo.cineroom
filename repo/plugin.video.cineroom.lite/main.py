@@ -18,7 +18,7 @@ _SCROBBLER = None
 
 # Inicializa imediatamente
 try:
-    from resources.lib.trakt_sync import init_trakt_scrobbler
+    from resources.lib.trakt.trakt_sync import init_trakt_scrobbler
     _SCROBBLER = init_trakt_scrobbler()
 except:
     pass
@@ -40,7 +40,7 @@ def _init_scrobbler():
             return _SCROBBLER
         
         # Tenta importar e criar
-        from resources.lib.trakt_sync import TraktScrobbler
+        from resources.lib.trakt.trakt_sync import TraktScrobbler
         _SCROBBLER = TraktScrobbler()
         xbmc.log("[Cineroom] Scrobbler Trakt iniciado", xbmc.LOGINFO)
         return _SCROBBLER
@@ -69,7 +69,7 @@ def _get_module(name):
         elif name == 'navigation':
             from resources.lib import navigation as mod
         elif name == 'extras_dialog':
-            from resources.lib import extras_dialog as mod
+            from resources.lib.dialog import extras_dialog as mod
         elif name == 'indexer':
             from resources.lib import indexer as mod
         elif name == 'favorites':
@@ -81,9 +81,9 @@ def _get_module(name):
         elif name == 'xbmcplugin':
             import xbmcplugin as mod
         elif name == 'donation_window':
-            from resources.lib.donation_window import DonationDialog as mod
+            from resources.lib.dialog.donation_window import DonationDialog as mod
         elif name == 'trakt_sync':
-            from resources.lib import trakt_sync as mod
+            from resources.lib.trakt import trakt_sync as mod
         elif name == 'library':
             from resources.lib import library as mod
         else:
@@ -157,6 +157,7 @@ _ACTIONS = {
     # === FILMES ===
     'list_genres': ('movies', 'list_genres', False, None),
     'list_years': ('movies', 'list_years', False, None),
+    'list_movie_themes': ('movies', 'list_movie_themes', False, None),
     'list_movies_by_genre': ('movies', 'list_movies_by_genre', True, ['genre']),
     'list_movies_by_year': ('movies', 'list_movies_by_year', True, ['year']),
     'list_movies_by_rating': ('movies', 'list_movies_by_rating', True, None),
@@ -168,9 +169,11 @@ _ACTIONS = {
     'list_movies_by_revenue': ('movies', 'list_movies_by_revenue', True, None),
     'list_movies_by_provider': ('movies', 'list_movies_by_provider', True, ['provider']),
     'list_trending_movies': ('movies', 'list_trending_movies', True, None),
+    'list_movies_by_theme': ('movies', 'list_movies_by_theme', True, ['theme']),
     
     # === SÉRIES ===
     'list_tvshows_genres': ('tvshows', 'list_tvshows_genres', False, None),
+    'list_tvshow_themes': ('tvshows', 'list_tvshow_themes', False, None),
     'list_providers': ('tvshows', 'list_providers', False, None),
     'list_trending_tvshows': ('tvshows', 'list_trending_tvshows', True, None),
     'list_tvshows_by_genre': ('tvshows', 'list_tvshows_by_genre', True, ['genre']),
@@ -179,6 +182,7 @@ _ACTIONS = {
     'list_tvshows_by_provider': ('tvshows', 'list_tvshows_by_provider', True, ['provider']),
     'list_animes': ('tvshows', 'list_animes', True, None),
     'list_kids_tvshows': ('tvshows', 'list_kids_tvshows', True, None),
+    'list_tvshows_by_theme': ('tvshows', 'list_tvshows_by_theme', True, ['theme']),
 }
 
 def _get_action_handler(action):
@@ -491,22 +495,25 @@ def _handle_trakt(action, params):
     
 
 def _handle_navigation(action, params):
-    """Handler otimizado para navegação"""
-    nav = _get_module('navigation')
-    if not nav:
-        return False
+    """Handler otimizado para navegação (REFATORADO)"""
     
+    # === SEARCH - USA MÓDULO DEDICADO ===
     if action == 'search':
-        nav.search(params.get('query'), params.get('page', '1'))
+        from resources.lib.search.search import search
+        search(params.get('query'), params.get('page', '1'))
         return True
     
+    # === PLAYBACK - USA MÓDULO DEDICADO ===
     if action == 'find_sources':
+        from resources.lib.playback import find_and_play_sources
+        
         item_data = {
             'tmdb_id': params.get('tmdb_id', ''),
             'imdb_id': params.get('imdb_id', ''),
             'media_type': params.get('media_type', ''),
             'title': params.get('title', ''),
             'original_title': params.get('original_title', ''),
+            'romaji_title': params.get('romaji_title', ''),
             'year': params.get('year', ''),
             'clearlogo': params.get('clearlogo', ''),
             'fanart': params.get('fanart', ''),
@@ -515,7 +522,7 @@ def _handle_navigation(action, params):
             'season': params.get('season'),
             'episode': params.get('episode')
         }
-        nav.find_and_play_sources(
+        find_and_play_sources(
             item_data,
             season=params.get('season'),
             episode=params.get('episode')
@@ -523,15 +530,19 @@ def _handle_navigation(action, params):
         return True
     
     if action == 'play_item_direct':
+        from resources.lib.playback import find_and_play_sources
+        
         item_data = _parse_json(params.get('data', ''))
         if item_data:
-            nav.find_and_play_sources(item_data, autoplay=False)
+            find_and_play_sources(item_data, autoplay=False)
         return True
     
     if action == 'find_and_play_episode':
+        from resources.lib.playback import find_and_play_sources
+        
         item_data = _parse_json(params.get('item_data', ''))
         if item_data:
-            nav.find_and_play_sources(
+            find_and_play_sources(
                 item_data,
                 autoplay=False,
                 season=params.get('season'),

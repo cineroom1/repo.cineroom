@@ -1,10 +1,11 @@
-# resources/lib/trakt_client.py
+# resources/lib/trakt/trakt_client.py
 # -*- coding: utf-8 -*-
 """
 Cliente Trakt Otimizado
 ✅ Listas públicas e personalizadas
 ✅ Paginação correta
 ✅ Código limpo e reutilizável
+🔧 CORRIGIDO: Detecção correta de séries vs filmes
 """
 
 import xbmc
@@ -94,26 +95,31 @@ class TraktLists:
     
     def get_trending(self, media_type='movies', page=1, limit=30):
         """Em alta"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/trending'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_popular(self, media_type='movies', page=1, limit=30):
         """Populares"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/popular'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_watched(self, media_type='movies', period='weekly', page=1, limit=30):
         """Mais assistidos"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/watched/{period}'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_collected(self, media_type='movies', period='weekly', page=1, limit=30):
         """Mais coletados"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/collected/{period}'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_anticipated(self, media_type='movies', page=1, limit=30):
         """Mais aguardados"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/anticipated'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
@@ -124,16 +130,19 @@ class TraktLists:
     
     def get_top_rated(self, media_type='movies', page=1, limit=30):
         """Melhor avaliados"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/rated'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_most_played(self, media_type='movies', period='weekly', page=1, limit=30):
         """Mais reproduzidos"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/played/{period}'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
     def get_recommended(self, media_type='movies', page=1, limit=30):
         """Recomendações públicas gerais (sem autenticação)"""
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/{media_type}/recommended'
         return self.api.get_public_list(endpoint, {'page': page, 'limit': limit})
     
@@ -144,8 +153,21 @@ class TraktLists:
         ✅ Recomendações PERSONALIZADAS baseadas no histórico do usuário
         Requer autenticação OAuth
         """
+        media_type = self._normalize_media_type(media_type)
         endpoint = f'/recommendations/{media_type}'
         return self.api.get_auth_list(endpoint, {'page': page, 'limit': limit})
+    
+    def _normalize_media_type(self, media_type):
+        """
+        🔧 NORMALIZA O TIPO DE MÍDIA
+        tvshow/tvshows/show → shows
+        movie → movies
+        """
+        if media_type in ['tvshow', 'tvshows', 'show']:
+            return 'shows'
+        elif media_type == 'movie':
+            return 'movies'
+        return media_type
 
 
 class TraktPresentation:
@@ -157,7 +179,6 @@ class TraktPresentation:
         Normaliza item do Trakt para formato padrão
         Suporta múltiplos formatos de resposta da API
         """
-        # Detecta tipo e extrai objeto principal
         if 'movie' in item:
             media_type = 'movie'
             obj = item['movie']
@@ -167,10 +188,23 @@ class TraktPresentation:
             obj = item['show']
             extra = item
         else:
-            # Item direto (sem wrapper)
             obj = item
             extra = {}
-            media_type = 'movie' if 'title' in obj else 'tvshow'
+            
+            has_serie_fields = any([
+                'first_aired' in obj,
+                'network' in obj,
+                'aired_episodes' in obj,
+                'status' in obj and obj.get('status') in ['returning series', 'continuing', 'ended', 'canceled'],
+                'airs' in obj  # Campo exclusivo de séries
+            ])
+            
+            # Se tem campos de série, É série!
+            if has_serie_fields:
+                media_type = 'tvshow'
+            else:
+                # Fallback: verifica se tem 'title' (filme) ou não
+                media_type = 'movie' if 'title' in obj else 'tvshow'
         
         ids = obj.get('ids', {})
         
@@ -187,106 +221,11 @@ class TraktPresentation:
             'votes': obj.get('votes', 0),
             'genres': obj.get('genres', []),
             'runtime': obj.get('runtime', 0),
-            # Estatísticas extras
             'watchers': extra.get('watchers', 0),
             'play_count': extra.get('play_count', 0),
             'collector_count': extra.get('collector_count', 0),
             'list_count': extra.get('list_count', 0),
             'revenue': extra.get('revenue', 0),
-            # Placeholders para artes (preenchidos depois via TMDB)
-            'poster': '',
-            'backdrop': '',
-            'clearlogo': ''
-        }
-    
-    @staticmethod
-    def build_url(item):
-        """
-        Constrói URL do plugin para o item
-        Séries → list_seasons
-        Filmes → find_sources
-        """
-        media_type = item.get('media_type')
-        
-        # SÉRIES
-        if media_type == 'tvshow':
-            url = f"plugin://plugin.video.cineroom.lite/?action=list_seasons&tvshow_tmdb_id={item['tmdb_id']}"
-            return url
-        
-        # FILMES
-        title = str(item.get('title', ''))
-        url_params = [
-            f"action=find_sources",
-            f"tmdb_id={item['tmdb_id']}",
-            f"media_type=movie",
-            f"title={quote_plus(title)}"
-        ]
-        
-        # Metadados opcionais
-        if item.get('year'):
-            url_params.append(f"year={item['year']}")
-        if item.get('imdb_id'):
-            url_params.append(f"imdb_id={item['imdb_id']}")
-        if item.get('original_title'):
-            url_params.append(f"original_title={quote_plus(item['original_title'])}")
-        
-        # Artes (se disponíveis)
-        if item.get('poster'):
-            url_params.append(f"poster={quote_plus(item['poster'])}")
-        if item.get('backdrop'):
-            url_params.append(f"backdrop={quote_plus(item['backdrop'])}")
-        if item.get('clearlogo'):
-            url_params.append(f"clearlogo={quote_plus(item['clearlogo'])}")
-        
-        return f"plugin://plugin.video.cineroom.lite/?{'&'.join(url_params)}"
-
-
-class TraktPresentation:
-    """Formatação e apresentação dos resultados Trakt"""
-    
-    @staticmethod
-    def normalize_item(item):
-        """
-        Normaliza item do Trakt para formato padrão
-        Suporta múltiplos formatos de resposta da API
-        """
-        # Detecta tipo e extrai objeto principal
-        if 'movie' in item:
-            media_type = 'movie'
-            obj = item['movie']
-            extra = item
-        elif 'show' in item:
-            media_type = 'tvshow'
-            obj = item['show']
-            extra = item
-        else:
-            # Item direto (sem wrapper)
-            obj = item
-            extra = {}
-            media_type = 'movie' if 'title' in obj else 'tvshow'
-        
-        ids = obj.get('ids', {})
-        
-        return {
-            'title': obj.get('title') or obj.get('name', ''),
-            'original_title': obj.get('title') or obj.get('name', ''),
-            'tmdb_id': ids.get('tmdb'),
-            'imdb_id': ids.get('imdb', ''),
-            'media_type': media_type,
-            'year': obj.get('year'),
-            'slug': ids.get('slug', ''),
-            'synopsis': obj.get('overview', ''),
-            'rating': obj.get('rating', 0),
-            'votes': obj.get('votes', 0),
-            'genres': obj.get('genres', []),
-            'runtime': obj.get('runtime', 0),
-            # Estatísticas extras
-            'watchers': extra.get('watchers', 0),
-            'play_count': extra.get('play_count', 0),
-            'collector_count': extra.get('collector_count', 0),
-            'list_count': extra.get('list_count', 0),
-            'revenue': extra.get('revenue', 0),
-            # Placeholders para artes (preenchidos depois via TMDB)
             'poster': '',
             'backdrop': '',
             'clearlogo': ''

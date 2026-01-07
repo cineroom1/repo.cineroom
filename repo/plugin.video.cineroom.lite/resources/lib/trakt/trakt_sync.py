@@ -20,7 +20,7 @@ import threading
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from urllib.parse import quote_plus
-from resources.lib.trakt_client import TraktLists, TraktPresentation
+from resources.lib.trakt.trakt_client import TraktLists, TraktPresentation
 
 ADDON = xbmcaddon.Addon()
 
@@ -107,21 +107,30 @@ def sync_trakt_to_local(progress_dialog=None):
     """
     Importa dados Trakt para local
     ✅ Marca filmes/séries como assistidos
-    ❌ NÃO importa watchlist (mantém separado)
+    ✅ Importa lista "CineRoom Favoritos" para favoritos locais
     """
     from resources.lib.db import db
+    from resources.lib.favorites import add_item_to_favorites
     
     if progress_dialog:
         progress_dialog.update(0, "Buscando dados do Trakt...")
     
     try:
+        settings = get_trakt_settings()
+        username = settings.get('username')
+        
+        if not username:
+            xbmcgui.Dialog().ok("Erro", "Username do Trakt não encontrado. Re-autentique.")
+            return False
+        
+        # === 1. IMPORTAR ASSISTIDOS (FILMES) ===
         watched_movies_response = trakt_request('GET', '/sync/watched/movies?extended=full')
         
         if watched_movies_response and watched_movies_response.get('data'):
             watched_movies = watched_movies_response['data']
             
             if progress_dialog:
-                progress_dialog.update(33, f"Importando {len(watched_movies)} filmes assistidos...")
+                progress_dialog.update(15, f"Importando {len(watched_movies)} filmes assistidos...")
             
             for item in watched_movies:
                 movie = item.get('movie', {})
@@ -134,13 +143,14 @@ def sync_trakt_to_local(progress_dialog=None):
                     if local_movie:
                         db.update_movie_playcount(tmdb_id, plays, last_watched)
         
+        # === 2. IMPORTAR ASSISTIDOS (SÉRIES) ===
         watched_shows_response = trakt_request('GET', '/sync/watched/shows?extended=full')
         
         if watched_shows_response and watched_shows_response.get('data'):
             watched_shows = watched_shows_response['data']
             
             if progress_dialog:
-                progress_dialog.update(66, f"Importando {len(watched_shows)} séries assistidas...")
+                progress_dialog.update(30, f"Importando {len(watched_shows)} séries assistidas...")
             
             for item in watched_shows:
                 show = item.get('show', {})
@@ -152,12 +162,73 @@ def sync_trakt_to_local(progress_dialog=None):
                     if local_show:
                         db.update_tvshow_playcount(tmdb_id, last_watched)
         
+        # === 3. IMPORTAR LISTA PERSONALIZADA "CINEROOM FAVORITOS" ===
+        if progress_dialog:
+            progress_dialog.update(50, "Buscando lista de favoritos no Trakt...")
+        
+        list_slug = "cineroom-favoritos"
+        
+        # Busca a lista no Trakt
+        lists_response = trakt_request('GET', f'/users/{username}/lists')
+        favorites_list = None
+        
+        if lists_response and lists_response.get('data'):
+            for lst in lists_response['data']:
+                if lst['ids'].get('slug') == list_slug:
+                    favorites_list = lst
+                    break
+        
+        if favorites_list:
+            list_id = favorites_list['ids'].get('slug') or favorites_list['ids'].get('trakt')
+            
+            if progress_dialog:
+                progress_dialog.update(60, "Importando favoritos da lista...")
+            
+            # Busca itens da lista
+            list_items_response = trakt_request('GET', f'/users/{username}/lists/{list_id}/items?extended=full')
+            
+            if list_items_response and list_items_response.get('data'):
+                list_items = list_items_response['data']
+                imported_count = 0
+                
+                for item in list_items:
+                    try:
+                        # Detecta tipo
+                        if 'movie' in item:
+                            media_type = 'movie'
+                            obj = item['movie']
+                        elif 'show' in item:
+                            media_type = 'tvshow'
+                            obj = item['show']
+                        else:
+                            continue
+                        
+                        tmdb_id = obj['ids'].get('tmdb')
+                        
+                        if not tmdb_id:
+                            continue
+                        
+                        # Verifica se já é favorito
+                        if not db.is_favorite(tmdb_id, media_type):
+                            # Adiciona aos favoritos locais
+                            add_item_to_favorites(tmdb_id, media_type)
+                            imported_count += 1
+                            
+                    except Exception as e:
+                        xbmc.log(f"[Trakt Import] Erro importando favorito: {e}", xbmc.LOGERROR)
+                        continue
+                
+                if progress_dialog:
+                    progress_dialog.update(80, f"{imported_count} favoritos importados...")
+        else:
+            xbmc.log("[Trakt Import] Lista 'CineRoom Favoritos' não encontrada", xbmc.LOGWARNING)
+        
         if progress_dialog:
             progress_dialog.update(100, "Importação concluída!")
         
         xbmcgui.Dialog().notification(
             "Trakt Sync",
-            "✅ Histórico importado com sucesso",
+            "✅ Histórico e favoritos importados!",
             xbmcgui.NOTIFICATION_INFO,
             3000
         )
@@ -558,6 +629,229 @@ def init_trakt_scrobbler():
     except Exception as e:
         xbmc.log(f"[Trakt] Erro ao inicializar scrobbler: {e}", xbmc.LOGERROR)
     return None
+
+# === AÇÕES INDIVIDUAIS DO CONTEXT MENU ===
+
+def trakt_add_to_collection(tmdb_id, media_type):
+    """Adiciona item à coleção do Trakt"""
+    settings = get_trakt_settings()
+    if not settings.get('access_token'):
+        xbmcgui.Dialog().ok("Trakt", "Você precisa estar autenticado no Trakt.")
+        return False
+    
+    try:
+        if media_type == 'movie':
+            payload = {
+                'movies': [{'ids': {'tmdb': int(tmdb_id)}}]
+            }
+        else:
+            payload = {
+                'shows': [{'ids': {'tmdb': int(tmdb_id)}}]
+            }
+        
+        response = trakt_request('POST', '/sync/collection', payload)
+        
+        if response:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "✅ Adicionado à coleção!",
+                xbmcgui.NOTIFICATION_INFO,
+                2000
+            )
+            return True
+        else:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "❌ Erro ao adicionar",
+                xbmcgui.NOTIFICATION_ERROR,
+                2000
+            )
+            return False
+            
+    except Exception as e:
+        xbmc.log(f"[Trakt] Erro add collection: {e}", xbmc.LOGERROR)
+        return False
+
+
+def trakt_remove_from_collection(tmdb_id, media_type):
+    """Remove item da coleção do Trakt"""
+    settings = get_trakt_settings()
+    if not settings.get('access_token'):
+        xbmcgui.Dialog().ok("Trakt", "Você precisa estar autenticado no Trakt.")
+        return False
+    
+    try:
+        if media_type == 'movie':
+            payload = {
+                'movies': [{'ids': {'tmdb': int(tmdb_id)}}]
+            }
+        else:
+            payload = {
+                'shows': [{'ids': {'tmdb': int(tmdb_id)}}]
+            }
+        
+        response = trakt_request('POST', '/sync/collection/remove', payload)
+        
+        if response:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "✅ Removido da coleção!",
+                xbmcgui.NOTIFICATION_INFO,
+                2000
+            )
+            return True
+        else:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "❌ Erro ao remover",
+                xbmcgui.NOTIFICATION_ERROR,
+                2000
+            )
+            return False
+            
+    except Exception as e:
+        xbmc.log(f"[Trakt] Erro remove collection: {e}", xbmc.LOGERROR)
+        return False
+
+
+def trakt_mark_as_watched(tmdb_id, media_type):
+    """Marca item como assistido no Trakt"""
+    settings = get_trakt_settings()
+    if not settings.get('access_token'):
+        xbmcgui.Dialog().ok("Trakt", "Você precisa estar autenticado no Trakt.")
+        return False
+    
+    try:
+        watched_at = datetime.now().isoformat()
+        
+        if media_type == 'movie':
+            payload = {
+                'movies': [{'ids': {'tmdb': int(tmdb_id)}, 'watched_at': watched_at}]
+            }
+        else:
+            payload = {
+                'shows': [{'ids': {'tmdb': int(tmdb_id)}, 'watched_at': watched_at}]
+            }
+        
+        response = trakt_request('POST', '/sync/history', payload)
+        
+        if response:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "✅ Marcado como assistido!",
+                xbmcgui.NOTIFICATION_INFO,
+                2000
+            )
+            return True
+        else:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "❌ Erro ao marcar",
+                xbmcgui.NOTIFICATION_ERROR,
+                2000
+            )
+            return False
+            
+    except Exception as e:
+        xbmc.log(f"[Trakt] Erro mark watched: {e}", xbmc.LOGERROR)
+        return False
+
+
+def trakt_remove_watched(tmdb_id, media_type):
+    """Remove item dos assistidos no Trakt"""
+    settings = get_trakt_settings()
+    if not settings.get('access_token'):
+        xbmcgui.Dialog().ok("Trakt", "Você precisa estar autenticado no Trakt.")
+        return False
+    
+    try:
+        if media_type == 'movie':
+            payload = {
+                'movies': [{'ids': {'tmdb': int(tmdb_id)}}]
+            }
+        else:
+            payload = {
+                'shows': [{'ids': {'tmdb': int(tmdb_id)}}]
+            }
+        
+        response = trakt_request('POST', '/sync/history/remove', payload)
+        
+        if response:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "✅ Removido dos assistidos!",
+                xbmcgui.NOTIFICATION_INFO,
+                2000
+            )
+            return True
+        else:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "❌ Erro ao remover",
+                xbmcgui.NOTIFICATION_ERROR,
+                2000
+            )
+            return False
+            
+    except Exception as e:
+        xbmc.log(f"[Trakt] Erro remove watched: {e}", xbmc.LOGERROR)
+        return False
+
+
+def trakt_rate_item(tmdb_id, media_type):
+    """Avalia item no Trakt (1-10)"""
+    settings = get_trakt_settings()
+    if not settings.get('access_token'):
+        xbmcgui.Dialog().ok("Trakt", "Você precisa estar autenticado no Trakt.")
+        return False
+    
+    try:
+        # Diálogo para escolher nota
+        rating = xbmcgui.Dialog().numeric(0, "Avaliar (1-10)", "0")
+        
+        if not rating or rating == "0":
+            return False
+        
+        rating_value = int(rating)
+        if rating_value < 1 or rating_value > 10:
+            xbmcgui.Dialog().ok("Erro", "Nota deve ser entre 1 e 10")
+            return False
+        
+        rated_at = datetime.now().isoformat()
+        
+        if media_type == 'movie':
+            payload = {
+                'movies': [{'ids': {'tmdb': int(tmdb_id)}, 'rating': rating_value, 'rated_at': rated_at}]
+            }
+        else:
+            payload = {
+                'shows': [{'ids': {'tmdb': int(tmdb_id)}, 'rating': rating_value, 'rated_at': rated_at}]
+            }
+        
+        response = trakt_request('POST', '/sync/ratings', payload)
+        
+        if response:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                f"✅ Avaliado com nota {rating_value}!",
+                xbmcgui.NOTIFICATION_INFO,
+                2000
+            )
+            return True
+        else:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "❌ Erro ao avaliar",
+                xbmcgui.NOTIFICATION_ERROR,
+                2000
+            )
+            return False
+            
+    except Exception as e:
+        xbmc.log(f"[Trakt] Erro rating: {e}", xbmc.LOGERROR)
+        return False
+
+
 
 
 # === INICIALIZAÇÃO ===
@@ -1123,9 +1417,6 @@ def _fetch_trakt_paginated(endpoint_base, category, page=1, limit=20, params=Non
     
     return items
 
-# ============================================================
-# ✅ FUNÇÃO GENÉRICA PARA EXIBIR LISTAS TRAKT (NOVA)
-# ============================================================
 
 def _show_trakt_category(category, media_type, page=1):
     """
@@ -1136,20 +1427,24 @@ def _show_trakt_category(category, media_type, page=1):
     trakt_lists = TraktLists()
     
     # === MAPEAMENTO DE CATEGORIAS ===
+    # Recomendações personalizadas = 50 itens fixos (SEM paginação)
+    # Outras categorias = 20 itens com paginação
+    limit = 50 if category == 'personal_recommendations' else 20
+    
     category_map = {
-        'personal_recommendations': lambda: trakt_lists.get_personal_recommendations(media_type, page, 20),
-        'trending': lambda: trakt_lists.get_trending(media_type, page, 20),
-        'popular': lambda: trakt_lists.get_popular(media_type, page, 20),
-        'most_watched': lambda: trakt_lists.get_most_watched(media_type, 'weekly', page, 20),
-        'most_collected': lambda: trakt_lists.get_most_collected(media_type, 'weekly', page, 20),
-        'most_anticipated': lambda: trakt_lists.get_most_anticipated(media_type, page, 20),
-        'box_office': lambda: trakt_lists.get_box_office(page, 20) if media_type == 'movies' else [],
-        'top_rated': lambda: trakt_lists.get_top_rated(media_type, page, 20),
+        'personal_recommendations': lambda: trakt_lists.get_personal_recommendations(media_type, 1, limit),
+        'trending': lambda: trakt_lists.get_trending(media_type, page, limit),
+        'popular': lambda: trakt_lists.get_popular(media_type, page, limit),
+        'most_watched': lambda: trakt_lists.get_most_watched(media_type, 'weekly', page, limit),
+        'most_collected': lambda: trakt_lists.get_most_collected(media_type, 'weekly', page, limit),
+        'most_anticipated': lambda: trakt_lists.get_most_anticipated(media_type, page, limit),
+        'box_office': lambda: trakt_lists.get_box_office(page, limit) if media_type == 'movies' else [],
+        'top_rated': lambda: trakt_lists.get_top_rated(media_type, page, limit),
     }
     
     # === TÍTULOS AMIGÁVEIS ===
     titles = {
-        'personal_recommendations': '🎯 Recomendado para Você',
+        'personal_recommendations': 'Recomendado para Você',
         'trending': 'Em Alta',
         'popular': 'Populares',
         'most_watched': 'Mais Assistidos',
@@ -1232,7 +1527,9 @@ def _show_trakt_category(category, media_type, page=1):
         xbmcplugin.addDirectoryItem(handle, url, li, isFolder=is_folder)
     
     # === PRÓXIMA PÁGINA ===
-    if len(items) >= 20:
+    # Recomendações personalizadas: NUNCA mostra próxima página (50 itens fixos)
+    # Outras categorias: mostra se atingir o limite (20 itens)
+    if category != 'personal_recommendations' and len(items) >= limit:
         li_next = xbmcgui.ListItem(label="[B]→ Próxima Página[/B]")
         url_next = f"plugin://plugin.video.cineroom.lite/?action={action_map[category]}&page={page+1}"
         xbmcplugin.addDirectoryItem(handle, url_next, li_next, isFolder=True)

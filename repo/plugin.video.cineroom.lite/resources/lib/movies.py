@@ -232,6 +232,17 @@ def list_collections(page=1):
             'fanart': scale_tmdb(fanart, res['backdrop'])
         })
         
+        # ✅ ESSENCIAL: Define o tipo como 'set' e adiciona informações da coleção
+        li.setInfo('video', {
+            'mediatype': 'set',  # Define como coleção/set
+            'title': name,
+            'sorttitle': name,
+            'plot': f'Coleção {name}'  # Descrição opcional
+        })
+        
+        # ✅ ESSENCIAL: Propriedades para o Kodi identificar como set
+        li.setProperty('IsPlayable', 'false')
+        
         url = get_url(action='list_movies_by_collection', collection=name)
         return (url, li, True)
 
@@ -437,4 +448,86 @@ def list_trending_movies(page=1):
 
     xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
     add_next_page_item(movies, page, action='list_trending_movies')
+    xbmcplugin.endOfDirectory(HANDLE)
+    
+# Adicione estas funções no movies.py
+
+@with_view_mode('genres', is_menu=True)
+def list_movie_themes():
+    """Menu de categorias temáticas de filmes"""
+    from .keywords import get_all_theme_categories
+    
+    xbmcplugin.setPluginCategory(HANDLE, 'Temas')
+    xbmcplugin.setContent(HANDLE, 'genres')
+    
+    categories = get_all_theme_categories()
+    
+    for cat in categories:
+        li = xbmcgui.ListItem(label=cat['name'])
+        li.setInfo('video', {'plot': cat['description']})
+        
+        url = get_url(
+            action='list_movies_by_theme',
+            theme=cat['slug']
+        )
+        
+        xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=True)
+    
+    xbmcplugin.endOfDirectory(HANDLE)
+
+@with_view_mode('movies')
+def list_movies_by_theme(theme, page=1):
+    """Lista filmes de uma categoria temática"""
+    from .keywords import get_theme_config, get_theme_keyword_ids
+    from .tmdb_api import fetch_movies_by_keywords
+    
+    config = get_theme_config(theme)
+    
+    if not config:
+        xbmcgui.Dialog().ok("Erro", "Categoria não encontrada")
+        return
+    
+    xbmcplugin.setPluginCategory(HANDLE, config['name'])
+    xbmcplugin.setContent(HANDLE, 'movies')
+    
+    keyword_ids = get_theme_keyword_ids(theme)
+    
+    if not keyword_ids:
+        xbmcgui.Dialog().ok("Erro", f"Não foi possível resolver keywords para '{config['name']}'")
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+    
+    movies = fetch_movies_by_keywords(
+        keyword_ids=keyword_ids,
+        genres=config['genres'],
+        page=int(page)
+    )
+    
+    if not movies:
+        xbmcgui.Dialog().ok("Aviso", f"Nenhum filme encontrado em '{config['name']}'")
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+    
+    items_to_add = []
+    for movie in movies:
+        items_to_add.append(_create_movie_item_tuple(movie))
+    
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
+    
+    # ✅ VERIFICA SE TEM PRÓXIMA PÁGINA
+    has_next = movies[0].get('_has_next_page', False) if movies else False
+    
+    if has_next:
+        next_icon = os.path.join(ICON_PATH, 'nextpage.png')
+        li_next = xbmcgui.ListItem(label="Próxima Página")
+        li_next.setArt({'thumb': next_icon, 'icon': next_icon})
+        
+        next_url = get_url(
+            action='list_movies_by_theme',
+            theme=theme,
+            page=int(page) + 1
+        )
+        
+        xbmcplugin.addDirectoryItem(HANDLE, next_url, li_next, isFolder=True)
+    
     xbmcplugin.endOfDirectory(HANDLE)
