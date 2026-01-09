@@ -1,9 +1,0 @@
-Versão – [B][COLOR yellow]1.3.3[/COLOR][/B]
-
-────────────────────────────────────
-
-[B][COLOR blue]Ajustes Estéticos[/COLOR][/B]
-• Melhoria no carregamento de arte.
-• Resolver de Reprodução ajustado.
-• Extras mais leves e precisos.
-
