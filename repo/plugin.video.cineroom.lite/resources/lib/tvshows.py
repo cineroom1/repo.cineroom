@@ -4,6 +4,7 @@
 import json
 import os
 import sys
+import xbmc
 import xbmcaddon
 import xbmcgui
 import xbmcplugin
@@ -55,7 +56,8 @@ def _prepare_details_data(item_data):
         'tmdb_id': item_data.get('tmdb_id'),
         'imdb_id': item_data.get('imdb_id'),
         'title': item_data.get('title'),
-        'original_title': item_data.get('original_title', item_data.get('title')),  # ✅ adicione aqui
+        'original_title': item_data.get('original_title', item_data.get('title')),
+        'romaji_title': item_data.get('romaji_title', ''),
         'clearlogo': item_data.get('clearlogo'),
         'synopsis': item_data.get('synopsis'),
         'poster': item_data.get('poster'),
@@ -122,51 +124,84 @@ def list_seasons(tvshow_tmdb_id):
     import json
     """
     Lista temporadas, AGORA COM CACHE.
+    🔧 CORRIGIDO: Busca automaticamente do TMDB se não existir localmente
     """
     
-    # 1. Busca dados da SÉRIE no DB local (como antes)
+    # 1. Busca dados da SÉRIE no DB local
     show = db.get_tvshow_by_id(tvshow_tmdb_id)
+    
+    # 🔧 FALLBACK AUTOMÁTICO: Se não encontrou localmente, busca do TMDB
     if not show:
-        return
+        xbmc.log(f"[CineRoom] Série {tvshow_tmdb_id} não encontrada no banco, buscando no TMDB...", xbmc.LOGINFO)
+        
+        try:
+            show_details_tmdb = fetch_show_details(tvshow_tmdb_id)
+            
+            if not show_details_tmdb:
+                xbmcgui.Dialog().ok("Erro", f"Não foi possível buscar informações desta série.\n\nTMDB ID: {tvshow_tmdb_id}")
+                xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
+                return
+            
+            seasons_data_list = show_details_tmdb.get('seasons_data', [])
+            
+            if seasons_data_list:
+                db.save_seasons_cache(tvshow_tmdb_id, seasons_data_list)
+                xbmc.log(f"[CineRoom] Série {tvshow_tmdb_id} salva no cache com {len(seasons_data_list)} temporadas", xbmc.LOGINFO)
+            
+            # Recria o objeto 'show' para continuar a execução normal
+            show = {
+                'tmdb_id': show_details_tmdb.get('tmdb_id'),
+                'imdb_id': show_details_tmdb.get('imdb_id', ''),  # ← IMPORTANTE para episódios!
+                'title': show_details_tmdb.get('title'),
+                'original_title': show_details_tmdb.get('original_title', ''),
+                'poster': show_details_tmdb.get('poster'),
+                'backdrop': show_details_tmdb.get('backdrop'),
+                'clearlogo': show_details_tmdb.get('clearlogo', ''),
+                'year': show_details_tmdb.get('year', ''),
+                'romaji_title': ''  # Animes do Trakt não têm esse campo
+            }
+            
+        except Exception as e:
+            xbmc.log(f"[CineRoom] Erro ao buscar série do TMDB: {e}", xbmc.LOGERROR)
+            xbmcgui.Dialog().ok("Erro", f"Falha ao buscar série do TMDB:\n{str(e)}")
+            xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
+            return
         
     xbmcplugin.setPluginCategory(HANDLE, show['title'])
     xbmcplugin.setContent(HANDLE, 'seasons')
 
     # --- LÓGICA DE CACHE ---
-    # 2. Tenta buscar temporadas do cache
-    #    (use um setting para definir o tempo de cache, ex: 72 horas)
     try:
         cache_hours = int(ADDON.getSetting("cache_age_hours"))
     except:
-        cache_hours = 12 # Padrão de 3 dias
+        cache_hours = 12
         
     seasons_data_list = db.get_cached_seasons(tvshow_tmdb_id, cache_hours)
     
-    # 3. Se o cache falhar (miss), busca na API
     if not seasons_data_list:
+        xbmc.log(f"[CineRoom] Cache miss para temporadas de {tvshow_tmdb_id}, buscando no TMDB...", xbmc.LOGDEBUG)
+        
         show_details_tmdb = fetch_show_details(tvshow_tmdb_id)
         if not show_details_tmdb:
+            xbmcgui.Dialog().ok("Aviso", f"Não foi possível buscar temporadas de '{show.get('title', 'Unknown')}'.")
+            xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
             return
             
         seasons_data_list = show_details_tmdb.get('seasons_data', [])
         
-        # 4. SALVA O RESULTADO NO CACHE
         if seasons_data_list:
             db.save_seasons_cache(tvshow_tmdb_id, seasons_data_list)
-    # --- FIM DA LÓGICA DE CACHE ---
+        else:
+            xbmcgui.Dialog().ok("Aviso", f"Série '{show.get('title', 'Unknown')}' não possui temporadas disponíveis.")
+            xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
+            return
 
     try:
         show_specials_enabled = ADDON.getSettingBool('show_specials')
     except:
         show_specials_enabled = False
         
-    # 5. Itera sobre a lista (seja do cache ou da API)
     for season_data in seasons_data_list:
-        
-        # Se os dados vieram do cache, season_data é um dict
-        # Se vieram da API, também é um dict. 
-        # A estrutura que salvei no cache é parecida com a da API.
-        
         season_number = season_data.get('season_number', season_data.get('number', 0))
         
         if season_number == 0 and not show_specials_enabled:
@@ -174,8 +209,6 @@ def list_seasons(tvshow_tmdb_id):
             
         tmdb_season_name = season_data.get('name', f"Temporada {season_number}")
         
-        # Prepara dados para create_video_item
-        # (O cache já salva o poster com a URL completa, se veio do cache)
         if 'poster' not in season_data and season_data.get('poster_path'):
              season_data['poster'] = f"https://image.tmdb.org/t/p/w500{season_data['poster_path']}"
         
@@ -202,21 +235,66 @@ def list_seasons(tvshow_tmdb_id):
     xbmcplugin.endOfDirectory(HANDLE)
 
 
+# ============================================================
+# 2️⃣ SUBSTITUA list_episodes() EM tvshows.py
+# ============================================================
+
 def list_episodes(tvshow_tmdb_id, season_number):
+    from .tmdb_api import fetch_show_details
     """
     Lista episódios, AGORA COM CACHE.
+    🔧 CORRIGIDO: Busca série do TMDB se não existir localmente
     """
-    # 1. Obter dados da SÉRIE (como antes)
+    # 1. Obter dados da SÉRIE
     show_data = db.get_tvshow_by_id(tvshow_tmdb_id)
-    if not show_data or not show_data.get('imdb_id'):
-        # ... (seu tratamento de erro)
-        return
+    
+    # 🔧 FALLBACK: Se não encontrou, busca do TMDB
+    if not show_data:
+        xbmc.log(f"[CineRoom] Série {tvshow_tmdb_id} não encontrada para episódios, buscando no TMDB...", xbmc.LOGINFO)
+        
+        try:
+            show_details_tmdb = fetch_show_details(tvshow_tmdb_id)
+            
+            if not show_details_tmdb:
+                xbmcgui.Dialog().ok("Erro", "Não foi possível buscar informações desta série.")
+                xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
+                return
+            
+            # Cria objeto show_data temporário
+            show_data = {
+                'tmdb_id': show_details_tmdb.get('tmdb_id'),
+                'imdb_id': show_details_tmdb.get('imdb_id', ''),
+                'title': show_details_tmdb.get('title'),
+                'original_title': show_details_tmdb.get('original_title', ''),
+                'poster': show_details_tmdb.get('poster'),
+                'backdrop': show_details_tmdb.get('backdrop'),
+                'clearlogo': show_details_tmdb.get('clearlogo', ''),
+                'year': show_details_tmdb.get('year', ''),
+                'romaji_title': ''
+            }
+            
+        except Exception as e:
+            xbmc.log(f"[CineRoom] Erro buscando série: {e}", xbmc.LOGERROR)
+            xbmcgui.Dialog().ok("Erro", f"Falha ao buscar série:\n{str(e)}")
+            xbmcplugin.endOfDirectory(HANDLE, succeeded=False)
+            return
+    
+    # Validação do IMDB ID (necessário para scrapers)
+    if not show_data.get('imdb_id'):
+        xbmc.log(f"[CineRoom] AVISO: Série {tvshow_tmdb_id} sem IMDB ID, buscando novamente...", xbmc.LOGWARNING)
+        
+        try:
+            show_details_tmdb = fetch_show_details(tvshow_tmdb_id)
+            if show_details_tmdb and show_details_tmdb.get('imdb_id'):
+                show_data['imdb_id'] = show_details_tmdb['imdb_id']
+                xbmc.log(f"[CineRoom] IMDB ID obtido: {show_data['imdb_id']}", xbmc.LOGINFO)
+        except:
+            pass
 
     xbmcplugin.setPluginCategory(HANDLE, f"{show_data.get('title')} - Temporada {season_number}")
     xbmcplugin.setContent(HANDLE, 'episodes')
 
     # --- LÓGICA DE CACHE ---
-    # 2. Tenta buscar episódios do cache
     try:
         cache_hours = int(ADDON.getSetting("cache_age_hours"))
     except:
@@ -224,43 +302,39 @@ def list_episodes(tvshow_tmdb_id, season_number):
         
     tmdb_episodes = db.get_cached_episodes(tvshow_tmdb_id, season_number, cache_hours)
     
-    # 3. Se o cache falhar (miss), busca na API
+    # Se cache falhar, busca na API
     if not tmdb_episodes:
+        xbmc.log(f"[CineRoom] Cache miss para episódios S{season_number}, buscando no TMDB...", xbmc.LOGDEBUG)
         tmdb_episodes = _fetch_tmdb_season_details(tvshow_tmdb_id, season_number)
         
-        # 4. SALVA O RESULTADO NO CACHE
         if tmdb_episodes:
             db.save_episodes_cache(tvshow_tmdb_id, season_number, tmdb_episodes)
-    # --- FIM DA LÓGICA DE CACHE ---
+            xbmc.log(f"[CineRoom] {len(tmdb_episodes)} episódios salvos no cache", xbmc.LOGDEBUG)
 
     if not tmdb_episodes:
         xbmcgui.Dialog().ok("Aviso", "Nenhum episódio encontrado.")
         xbmcplugin.endOfDirectory(HANDLE)
         return
 
-    # 5. Loop para criar os itens (do cache ou da API)
+    # Loop para criar os itens
     for ep_data_tmdb in tmdb_episodes:
-        
         ep_number = ep_data_tmdb.get('episode_number')
         ep_title = f"{ep_number}. {ep_data_tmdb.get('name')}"
         
-        # Constrói a URL do poster do episódio (still_path)
-        # O cache só salva o path, não a URL completa
-        episode_poster_url = show_data.get('backdrop') # Fallback
+        episode_poster_url = show_data.get('backdrop')
         if ep_data_tmdb.get('still_path'):
             episode_poster_url = f"https://image.tmdb.org/t/p/w500{ep_data_tmdb.get('still_path')}"
 
         item_data_for_scraper = {
             'media_type': 'tvshow', 
-            'imdb_id': show_data.get('imdb_id'),
+            'imdb_id': show_data.get('imdb_id', ''),
             'tmdb_id': tvshow_tmdb_id,
             'title': show_data.get('title'),
             'original_title': show_data.get('original_title', show_data.get('title')),
+            'romaji_title': show_data.get('romaji_title', ''),
             'year': show_data.get('year'),
             'backdrop': show_data.get('backdrop'),
             'poster': show_data.get('poster'),
-
-            # Info específica do episódio (do cache ou API)
             'episode_title': ep_data_tmdb.get('name'),
             'plot': ep_data_tmdb.get('overview'),
             'episode_poster': episode_poster_url,
@@ -293,6 +367,8 @@ def list_episodes(tvshow_tmdb_id, season_number):
         })
         
         li.setProperty('original_title', show_data.get('original_title', ''))
+        if show_data.get('romaji_title'):
+            li.setProperty('romaji_title', show_data.get('romaji_title', ''))
         
         art = {
             'thumb': item_data_for_scraper['episode_poster'],
@@ -500,5 +576,88 @@ def list_trending_tvshows(page=1):
     
     # Adiciona paginação
     add_next_page_item(shows, page, action='list_trending_tvshows')
+    
+    xbmcplugin.endOfDirectory(HANDLE)
+    
+    
+# Adicione estas funções no tvshows.py
+
+@with_view_mode('genres', is_menu=True)
+def list_tvshow_themes():
+    """Menu de categorias temáticas de séries"""
+    from .keywords import get_all_theme_categories
+    
+    xbmcplugin.setPluginCategory(HANDLE, 'Temas')
+    xbmcplugin.setContent(HANDLE, 'genres')
+    
+    categories = get_all_theme_categories()
+    
+    for cat in categories:
+        li = xbmcgui.ListItem(label=cat['name'])
+        li.setInfo('video', {'plot': cat['description']})
+        
+        url = get_url(
+            action='list_tvshows_by_theme',
+            theme=cat['slug']
+        )
+        
+        xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=True)
+    
+    xbmcplugin.endOfDirectory(HANDLE)
+
+@with_view_mode('tvshows')
+def list_tvshows_by_theme(theme, page=1):
+    """Lista séries de uma categoria temática"""
+    from .keywords import get_theme_config, get_theme_keyword_ids
+    from .tmdb_api import fetch_tvshows_by_keywords
+    
+    config = get_theme_config(theme)
+    
+    if not config:
+        xbmcgui.Dialog().ok("Erro", "Categoria não encontrada")
+        return
+    
+    xbmcplugin.setPluginCategory(HANDLE, config['name'])
+    xbmcplugin.setContent(HANDLE, 'tvshows')
+    
+    keyword_ids = get_theme_keyword_ids(theme)
+    
+    if not keyword_ids:
+        xbmcgui.Dialog().ok("Erro", f"Não foi possível resolver keywords para '{config['name']}'")
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+    
+    shows = fetch_tvshows_by_keywords(
+        keyword_ids=keyword_ids,
+        genres=config['genres'],
+        page=int(page)
+    )
+    
+    if not shows:
+        xbmcgui.Dialog().ok("Aviso", f"Nenhuma série encontrada em '{config['name']}'")
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+    
+    items_to_add = []
+    for show in shows:
+        items_to_add.append(_create_show_tuple(show))
+    
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
+    
+    # ✅ VERIFICA SE TEM PRÓXIMA PÁGINA
+    has_next = shows[0].get('_has_next_page', False) if shows else False
+    
+    if has_next:
+        next_icon = os.path.join(ICON_PATH, 'nextpage.png')
+        li_next = xbmcgui.ListItem(label="Próxima Página")
+        li_next.setArt({'thumb': next_icon, 'icon': next_icon})
+        
+        next_url = get_url(
+            action='list_tvshows_by_theme',
+            theme=theme,
+            page=int(page) + 1
+        )
+        
+        xbmcplugin.addDirectoryItem(HANDLE, next_url, li_next, isFolder=True)
     
     xbmcplugin.endOfDirectory(HANDLE)
