@@ -1,353 +1,529 @@
-# Em: resources/lib/scrapers/starckfilmes.py
+# -*- coding: utf-8 -*-
+"""
+Scraper para Starck Filmes
+Extrai magnet links de filmes e séries
+"""
 import re
-import requests
 import xbmc
-import urllib.parse
-from urllib.parse import urljoin
-import traceback
+import requests
+from bs4 import BeautifulSoup
 
-# --- Imports do Pacote ---
-# (Assumindo que você tem session.py e utils.py na mesma pasta)
-try:
-    from .session import SCRAPER_INSTANCE, HTML_HEADERS
-    from .utils import normalize_for_compare, guess_quality_from_name, get_anime_search_codes
-except ImportError:
-    # Fallback se a estrutura de importação mudar
-    from session import SCRAPER_INSTANCE, HTML_HEADERS
-    from utils import normalize_for_compare, guess_quality_from_name, get_anime_search_codes
 
-try:
-    from bs4 import BeautifulSoup
-except ImportError:
-    xbmc.log("Modulo BeautifulSoup4 não encontrado! Instale script.module.beautifulsoup4.", xbmc.LOGERROR)
-    BeautifulSoup = None
-
-# ####################################################################
-# --- SCRAPER STARCKFILMES (VERSÃO BEAUTIFULSOUP FINAL) ---
-# ####################################################################
-def scrape(provider_url, item_data, season, episode):
+def unshuffle_string(shuffled):
     """
-    Scraper HTML para o StarckFilmes (VERSÃO TORRENT).
-    Usa BeautifulSoup para parsing estruturado, com fallback para Regex.
-    Inclui lógica refinada para qualidade e filtro de episódios/season packs.
+    Decodifica a string ofuscada do data-u
+    Algoritmo reverso do JavaScript do site
     """
-    log_prefix = "[starckfilmes.scrape-CS]" if 'cloudscraper' in str(type(SCRAPER_INSTANCE)) else "[starckfilmes.scrape-REQ]"
-
-    if not BeautifulSoup:
-        xbmc.log(f"{log_prefix} BeautifulSoup não está disponível. Scraper StarckFilmes desativado.", xbmc.LOGERROR)
-        return []
-
-    xbmc.log(f"{log_prefix} Iniciando scraper TORRENT (BS4) para {provider_url}", xbmc.LOGINFO)
-
     try:
-        title = item_data.get('title', '').strip()
-        original_title = item_data.get('original_title', '').strip()
-        year = item_data.get('year')
-        media_type = item_data.get('media_type') # 'movie' ou 'tvshow'
-
-        title_no_year = re.sub(r'\s*\(\d{4}\)$', '', title).strip()
-        original_title_no_year = re.sub(r'\s*\(\d{4}\)$', '', original_title).strip()
-        search_queries = []
-        if title_no_year: search_queries.append(title_no_year)
-        if original_title_no_year and original_title_no_year.lower() != title_no_year.lower():
-            search_queries.append(original_title_no_year)
-        if not search_queries:
-            xbmc.log(f"{log_prefix} Nenhum título válido para buscar.", xbmc.LOGERROR)
-            return []
-
-        content_url = None
-        best_partial_match_url = None # Armazena o melhor match parcial de TODAS as buscas
-
-        # --- BUSCA PELO LINK DO CATÁLOGO ---
-        for query in search_queries:
-            if content_url: break # Se já achou um match exato, para
-            
-            search_query_encoded = urllib.parse.quote_plus(query)
-            search_url = f"{provider_url}/?s={search_query_encoded}"
-            xbmc.log(f"{log_prefix} Buscando por '{query}' em: {search_url}", xbmc.LOGDEBUG)
-
-            try:
-                response_search = SCRAPER_INSTANCE.get(search_url, headers=HTML_HEADERS, timeout=15)
-                response_search.raise_for_status()
-                html_search = response_search.content.decode('utf-8', 'ignore')
-            except requests.exceptions.RequestException as e:
-                xbmc.log(f"{log_prefix} Falha ao BUSCAR '{query}': {e}", xbmc.LOGERROR)
-                continue
-
-            matches = re.findall(r'<a\s+href="([^"]+)"\s+title="([^"]+)">', html_search, re.IGNORECASE)
-            if not matches: continue
-
-            title_norm = normalize_for_compare(query)
-            
-            # --- ✅ LÓGICA DE MATCH EXATO/PARCIAL ATUALIZADA ✅ ---
-            
-            # Prepara os padrões de temporada para procurar
-            season_str_long = ""
-            season_str_norm = ""
-            if media_type == 'tvshow' and season:
-                season_str_long = f"{season}ª temporada" # "2ª temporada"
-                season_str_norm = normalize_for_compare(season_str_long) # "2temporada"
-
-            for url, title_found in matches:
-                if '/catalog/' not in url: continue
-                
-                title_found_norm = normalize_for_compare(title_found)
-                url_norm = normalize_for_compare(url)
-
-                # Condição 1: O título base bate (ex: "strangerthings" in "strangerthings1temporada")
-                title_match = title_norm in title_found_norm
-                if not title_match: 
-                    continue # Se nem o nome bate, pula
-
-                # Condição 2: Verifica o tipo (Filme vs Série)
-                if media_type == 'movie':
-                    year_match = (not year or str(year) in title_found_norm or str(year) in url_norm)
-                    if year_match: 
-                        # Para filmes, o primeiro match parcial com ano é bom o suficiente
-                        content_url = urljoin(provider_url, url)
-                        xbmc.log(f"{log_prefix} ✅ Match de FILME encontrado: {content_url}", xbmc.LOGINFO)
-                        break 
-                
-                elif media_type == 'tvshow':
-                    # Procura por "2temporada" no título encontrado
-                    season_match = season_str_norm in title_found_norm
-                    
-                    if season_match: # É uma série E a temporada bate
-                        content_url = urljoin(provider_url, url)
-                        xbmc.log(f"{log_prefix} ✅ Match de SÉRIE (com temporada {season}) encontrado: {content_url}", xbmc.LOGINFO)
-                        break # Achou a temporada certa, para
-                    
-                    # Se não é a temporada certa, mas é o primeiro match parcial, salva como fallback
-                    elif not best_partial_match_url: 
-                        best_partial_match_url = urljoin(provider_url, url)
-                        xbmc.log(f"{log_prefix} Match PARCIAL de série encontrado (temporada não bateu, S{season} esperado). Salvando como fallback: {best_partial_match_url}", xbmc.LOGDEBUG)
-
-            if content_url:
-                break # Sai do loop 'for query' (achou um match com temporada)
-            # --- FIM DA LÓGICA DE MATCH ---
+        length = len(shuffled)
+        original = [''] * length
+        used = [False] * length
         
-        # Se NENHUM match com temporada foi encontrado, usa o primeiro match parcial (ex: S1)
-        if not content_url and best_partial_match_url:
-            content_url = best_partial_match_url
-            xbmc.log(f"{log_prefix} ⚠️ Match de temporada não encontrado. Usando primeiro match PARCIAL: {content_url}", xbmc.LOGWARNING)
-
-        if not content_url:
-            xbmc.log(f"{log_prefix} Títulos {search_queries} não encontrados nos resultados da busca.", xbmc.LOGINFO)
-            return []
-
-        # --- ACESSA A PÁGINA DE CONTEÚDO ---
-        xbmc.log(f"{log_prefix} Acessando página de conteúdo: {content_url}", xbmc.LOGDEBUG)
-        try:
-            response_content = SCRAPER_INSTANCE.get(content_url, headers=HTML_HEADERS, timeout=15)
-            response_content.raise_for_status()
-            html_content = response_content.content.decode('utf-8', 'ignore')
-        except requests.exceptions.RequestException as e:
-            xbmc.log(f"{log_prefix} Falha ao ACESSAR CONTEÚDO: {e}", xbmc.LOGERROR)
-            return []
-
-        # --- PARSEANDO COM BEAUTIFULSOUP ---
-        soup = BeautifulSoup(html_content, 'html.parser')
-        all_magnets = []
-
-        ep_patterns_to_check = []
-        if media_type == 'tvshow' and season is not None and episode is not None:
-            ep_patterns_to_check = get_anime_search_codes(season, episode)
-            ep_patterns_to_check = [normalize_for_compare(pat) for pat in ep_patterns_to_check]
-            xbmc.log(f"{log_prefix} Filtrando por padrões de episódio: {ep_patterns_to_check}", xbmc.LOGDEBUG)
-
-        # Tenta encontrar a estrutura de TV ('epsodios')
-        download_sections = soup.find_all('div', class_='epsodios')
+        step = 3  # Valor do algoritmo original
+        index = 0
         
-        # Se não achou 'epsodios', tenta a estrutura de Filmes/Packs ('post-buttons')
-        if not download_sections:
-            xbmc.log(f"{log_prefix} Nenhuma seção 'div.epsodios' encontrada. Procurando estrutura 'post-buttons'.", xbmc.LOGDEBUG)
-            movie_section = soup.find('div', class_='post-buttons')
+        for i in range(length):
+            # Encontra o próximo índice não usado
+            while used[index]:
+                index = (index + 1) % length
             
-            # --- ✅ CORREÇÃO PARA O HTML DE STRANGER THINGS S2 ✅ ---
-            # O HTML que você mandou tem 'post-buttons', mas os links estão em 'buttons-content'
-            if movie_section:
-                 download_sections = movie_section.find_all('div', class_='buttons-content')
-                 if not download_sections:
-                     download_sections = [movie_section] # Usa o 'post-buttons' como seção
-            # --- FIM DA CORREÇÃO ---
-            else:
-                xbmc.log(f"{log_prefix} Nenhuma seção 'div.post-buttons' encontrada.", xbmc.LOGWARNING)
-                # Fallback FINAL para Regex
-                magnet_matches_fallback = re.findall(r'<a[^>]+href="(magnet:[^"]+)"[^>]*>(.*?)</a>', html_content, re.IGNORECASE)
-                if not magnet_matches_fallback:
-                    xbmc.log(f"{log_prefix} Fallback Regex também não encontrou links.", xbmc.LOGERROR)
-                    return []
-                xbmc.log(f"{log_prefix} Usando Regex fallback como último recurso...", xbmc.LOGDEBUG)
-                download_sections = [{'html': html_content, 'fallback': True}]
-
-        # Itera sobre as seções encontradas
-        for section in download_sections:
-            section_languages = 'PT-BR'
-            section_subs = None
-            is_fallback = section.get('fallback', False) if isinstance(section, dict) else False
-
-            magnet_links = [] # Lista para guardar os links encontrados
-
-            if not is_fallback:
-                # --- Lógica BeautifulSoup ---
-                heading = section.find(['h3', 'strong'])
-                # O HTML de S2 não tem <h3>, então pegamos o texto de 'span.text'
-                if not heading:
-                    span_text = section.find_all('span', class_='text')
-                    if span_text:
-                        # Concatena os textos para adivinhar a língua (ex: "Dual Áudio Download 720p")
-                        heading_text = " ".join([s.get_text(strip=True) for s in span_text]).upper()
-                else:
-                    heading_text = heading.get_text(strip=True).upper()
-
-                if heading_text:
-                    if 'LEGENDADO' in heading_text:
-                        section_languages = 'EN'
-                        section_subs = 'PT-BR'
-                    elif 'DUAL ÁUDIO' in heading_text or 'DUAL' in heading_text:
-                        section_languages = 'PT-BR, EN'
-                    elif 'NACIONAL' in heading_text:
-                        section_languages = 'PT-BR'
-
-                magnet_links_bs = section.find_all('a', href=lambda href: href and href.startswith('magnet:'))
-                if not magnet_links_bs: continue
-
-                for link_tag in magnet_links_bs:
-                    parent_p = link_tag.find_parent('p')
-                    ep_text_node = parent_p.find('strong') if parent_p else None
-                    ep_text = ep_text_node.get_text(strip=True) if ep_text_node else ""
-                    
-                    # Pega o texto de qualidade da nova estrutura
-                    quality_text_node = link_tag.find_parent().find('span', class_='text')
-                    quality_text = quality_text_node.get_text(" ", strip=True) if quality_text_node else link_tag.get_text(strip=True)
-                    
-                    magnet_links.append( (link_tag, ep_text, quality_text) ) # (tag, ep_text, quality_text)
-            else:
-                # --- Lógica Fallback (Regex) ---
-                magnet_links_regex = re.findall(r'<a[^>]+href="(magnet:[^"]+)"[^>]*>(.*?)</a>', section['html'], re.IGNORECASE)
-                # (tag=None, ep_text=Regex Group 2, quality_text=Regex Group 2)
-                magnet_links = [ (None, match[1].strip() if len(match)>1 else "", match[1].strip() if len(match)>1 else "", match[0]) for match in magnet_links_regex ]
-
-            
-            # --- Processa cada link encontrado ---
-            for magnet_data in magnet_links:
-                magnet_url = ""
-                quality_text = ""
-                episode_text_from_html = ""
-                
-                try:
-                    if not is_fallback: # Modo BeautifulSoup
-                        link_tag = magnet_data[0]
-                        episode_text_from_html = magnet_data[1]
-                        quality_text = magnet_data[2] # Texto de qualidade (ex: "Dual Áudio Download 720p")
-                        magnet_url = link_tag['href']
-                    else: # Modo Fallback (Regex)
-                        magnet_url = magnet_data[3]
-                        episode_text_from_html = magnet_data[1] # regex group 2
-                        quality_text = magnet_data[1] # regex group 2
-                except (AttributeError, KeyError, IndexError, TypeError) as e:
-                    xbmc.log(f"{log_prefix} Erro ao extrair dados do link: {e} | Data: {magnet_data}", xbmc.LOGWARNING)
-                    continue
-
-                if not magnet_url.startswith('magnet:'): continue
-
-                current_ep_numbers = []
-                if episode_text_from_html: # Se for estrutura de TV (epsodios)
-                    numbers = re.findall(r'\d+', episode_text_from_html)
-                    try:
-                        if len(numbers) == 1: current_ep_numbers.append(int(numbers[0]))
-                        elif len(numbers) >= 2:
-                            current_ep_numbers = list(range(int(numbers[0]), int(numbers[-1]) + 1))
-                    except ValueError: pass
-
-                # --- 3. Monta o release_title ---
-                episode_part = ""
-                if media_type == 'tvshow' and season is not None and episode is not None and current_ep_numbers:
-                    if len(current_ep_numbers) > 1:
-                        episode_part = f" S{season:02d}E{current_ep_numbers[0]:02d}-E{current_ep_numbers[-1]:02d}"
-                    elif len(current_ep_numbers) == 1:
-                        episode_part = f" S{season:02d}E{current_ep_numbers[0]:02d}"
-
-                dn_match = re.search(r'&dn=([^&]+)', magnet_url)
-                dn_title = ""
-                if dn_match:
-                    dn_title = urllib.parse.unquote_plus(dn_match.group(1)).replace('.', ' ')
-
-                if dn_title:
-                    base_title = dn_title
-                elif episode_part or quality_text:
-                    lang_part = section_languages.split(',')[0].strip() if section_languages else ""
-                    # Usa o 'quality_text' (que tem mais info) em vez do título do ano
-                    base_title = f"{title_no_year}{episode_part} {quality_text} {lang_part}"
-                else:
-                    base_title = f"{title_no_year}{episode_part} Torrent"
-
-                release_title = " ".join(base_title.split())
-
-                # --- 4. Adivinha a Qualidade ---
-                # Usa o 'release_title' primeiro (pois o DN= ou o 'span.text' são mais ricos)
-                quality = guess_quality_from_name(release_title)
-                if not quality or quality == 'HD':
-                    # Tenta o 'quality_text' (que pode ser só "1080p")
-                    quality = guess_quality_from_name(" ".join(quality_text.split())) or 'HD'
-
-                xbmc.log(f"{log_prefix} Qualidade final: '{quality}' | Texto Link: '{quality_text}' | Título Base: '{base_title}'", xbmc.LOGDEBUG)
-
-                # --- 5. VERIFICAÇÃO DO EPISÓDIO ---
-                release_title_norm = normalize_for_compare(release_title)
-                episode_match = False
-                if media_type == 'movie':
-                    episode_match = True
-                elif ep_patterns_to_check: # Se estamos procurando um ep específico
-                    for pat in ep_patterns_to_check:
-                        if pat in release_title_norm:
-                            episode_match = True
-                            break
-                    if not episode_match:
-                        # Se o título não contém S02E01, etc., verifica se é um pack
-                        if not re.search(r'(s\d+e\d+|e(?!dgein)\d+|ep\d+|\d+x\d+)', release_title_norm):
-                            pack_indicators = [' ao ', 'temporada completa', ' pack ', 'completa'] # Adiciona 'completa'
-                            
-                            # Verifica o texto do <strong> (para 'epsodios') ou o release_title (para 'post-buttons')
-                            text_to_check = episode_text_from_html.lower() if episode_text_from_html else release_title.lower()
-                            
-                            if any(indicator in text_to_check for indicator in pack_indicators):
-                                xbmc.log(f"{log_prefix} Link parece ser Season Pack. Aceitando: {release_title}", xbmc.LOGDEBUG)
-                                episode_match = True
-                else: 
-                    episode_match = True
-
-                # --- 6. Adiciona o magnet_info se der match ---
-                if episode_match:
-                    label = f"{release_title.strip()} [{quality}]"
-                    if section_subs:
-                        label += f" +{section_subs}"
-
-                    magnet_info = {
-                        'url': magnet_url,
-                        'quality': quality,
-                        'type': 'Torrent',
-                        'release_title': release_title.strip(),
-                        'label': label,
-                        'size': 'N/A',
-                        'peers': 'N/A',
-                        'seeders': 'N/A',
-                        'provider': 'StarckFilmes',
-                        'languages': section_languages,
-                        **({'subtitles': section_subs} if section_subs else {})
-                    }
-                    all_magnets.append(magnet_info)
-                    xbmc.log(f"{log_prefix} ✅ Link adicionado: {label}", xbmc.LOGDEBUG)
-                else:
-                    if ep_patterns_to_check:
-                        xbmc.log(f"{log_prefix} Ignorando link (não bate o ep {episode}): {release_title}", xbmc.LOGDEBUG)
-
-        xbmc.log(f"{log_prefix} Encontrados {len(all_magnets)} links magnet (filtrados).", xbmc.LOGINFO)
-        return all_magnets
-
+            used[index] = True
+            original[i] = shuffled[index]
+            index = (index + step) % length
+        
+        return ''.join(original)
     except Exception as e:
-        if 'log_prefix' not in locals():
-            log_prefix = "[starckfilmes.scrape-ERR]"
+        xbmc.log(f"[Starck] Erro ao desembaralhar: {e}", xbmc.LOGERROR)
+        return None
+
+
+def extrair_magnet_links(soup):
+    """
+    Extrai TODOS os magnet links da página (pode haver múltiplas qualidades)
+    Retorna lista de dicts com {magnet, quality, size}
+    """
+    links_encontrados = []
+    
+    try:
+        # Encontrar TODOS os botões de download
+        btns = soup.find_all('span', class_='btn-down')
         
-        xbmc.log(f"{log_prefix} ❌ ERRO GERAL (BS4): {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
+        if not btns:
+            xbmc.log("[Starck] Nenhum botão de download encontrado", xbmc.LOGWARNING)
+            return links_encontrados
+        
+        xbmc.log(f"[Starck] Encontrados {len(btns)} botões de download", xbmc.LOGINFO)
+        
+        for btn in btns:
+            try:
+                link = btn.find('a')
+                if not link:
+                    continue
+                
+                # Extrair o data-u
+                data_u = link.get('data-u')
+                if not data_u:
+                    continue
+                
+                # Decodificar usando unshuffle
+                decoded = unshuffle_string(data_u)
+                if not decoded or ('magnet:' not in decoded and not decoded.startswith('http')):
+                    continue
+                
+                # Extrair qualidade e tamanho do texto do botão
+                text_span = btn.find('span', class_='text')
+                quality = 'HD'
+                size = 'N/A'
+                
+                if text_span:
+                    texto_completo = text_span.get_text()
+                    
+                    # Extrair qualidade (1080p, 720p, 2160p, etc)
+                    quality_match = re.search(r'(4K|2160p|1080p|720p|480p)', texto_completo, re.IGNORECASE)
+                    if quality_match:
+                        quality = quality_match.group(1).upper()
+                    
+                    # Extrair tamanho (3.70 GB, 11.84 GB, etc)
+                    size_match = re.search(r'\(([^)]+(?:GB|MB))\)', texto_completo, re.IGNORECASE)
+                    if size_match:
+                        size = size_match.group(1)
+                
+                links_encontrados.append({
+                    'magnet': decoded,
+                    'quality': quality,
+                    'size': size
+                })
+                
+                xbmc.log(f"[Starck] Link extraído: {quality} - {size}", xbmc.LOGINFO)
+                
+            except Exception as e:
+                xbmc.log(f"[Starck] Erro ao processar botão: {e}", xbmc.LOGERROR)
+                continue
+        
+        return links_encontrados
+        
+    except Exception as e:
+        xbmc.log(f"[Starck] Erro ao extrair magnets: {e}", xbmc.LOGERROR)
+        return links_encontrados
+
+
+def extrair_informacoes_basicas(soup):
+    """
+    Extrai informações básicas do filme/série
+    """
+    info = {}
+    
+    try:
+        # Título
+        titulo = soup.find('h1')
+        if titulo:
+            info['title'] = titulo.text.strip()
+        
+        # IMDB
+        imdb = soup.find('span', class_='sl-imdb')
+        if imdb:
+            info['rating'] = imdb.text.strip()
+        
+        # Metadados (tamanho, qualidade, etc)
+        desc_div = soup.find('div', class_='post-description')
+        if desc_div:
+            paragrafos = desc_div.find_all('p')
+            for p in paragrafos:
+                spans = p.find_all('span')
+                if len(spans) >= 2:
+                    chave = spans[0].text.strip(':').strip().lower()
+                    valor = spans[1].text.strip()
+                    
+                    if 'tamanho' in chave:
+                        info['size'] = valor
+                    elif 'qualidade' in chave and 'video' in chave:
+                        info['quality'] = valor
+        
+        # Qualidade da tag meta
+        meta = soup.find('span', class_='sl-quality')
+        if meta:
+            q = meta.text.strip()
+            if q == 'FHD':
+                info['quality_label'] = '1080p'
+            elif q == 'HD':
+                info['quality_label'] = '720p'
+            elif q == 'UHD':
+                info['quality_label'] = '4K'
+            else:
+                info['quality_label'] = q
+    
+    except Exception as e:
+        xbmc.log(f"[Starck] Erro ao extrair informações: {e}", xbmc.LOGERROR)
+    
+    return info
+
+
+def detectar_idioma_filme(soup):
+    """
+    Detecta o idioma do filme baseado no botão de download
+    """
+    try:
+        btn = soup.find('span', class_='btn-down')
+        if not btn:
+            return ''
+        
+        text_span = btn.find('span', class_='text')
+        if not text_span:
+            return ''
+        
+        texto = text_span.get_text().lower()
+        
+        if 'dual' in texto or 'dual áudio' in texto:
+            return ' DUAL'
+        elif 'dublado' in texto:
+            return ' DUBLADO'
+        elif 'legendado' in texto:
+            return ' LEGENDADO'
+        
+        return ''
+        
+    except Exception as e:
+        xbmc.log(f"[Starck] Erro ao detectar idioma: {e}", xbmc.LOGERROR)
+        return ''
+
+
+def buscar_filme(item_data):
+    """
+    Busca um filme no Starck Filmes
+    """
+    titulo = item_data.get('title', '')
+    titulo_original = item_data.get('original_title', '')
+    ano = item_data.get('year', '')
+    
+    if not titulo:
         return []
+    
+    # Tentar buscar com título principal E título original (se diferente)
+    titulos_para_buscar = [titulo]
+    if titulo_original and titulo_original.lower() != titulo.lower():
+        titulos_para_buscar.append(titulo_original)
+    
+    xbmc.log(f"[Starck] Títulos para busca: {titulos_para_buscar}", xbmc.LOGINFO)
+    
+    sources = []
+    
+    for titulo_busca in titulos_para_buscar:
+        try:
+            # Normalizar título para busca
+            search_query = titulo_busca.lower()
+            search_query = re.sub(r'[^\w\s]', '', search_query)
+            search_query = search_query.replace(' ', '+')
+            
+            # URL de busca
+            base_url = "https://www.starckfilmes-v8.com"
+            search_url = f"{base_url}/?s={search_query}"
+            
+            xbmc.log(f"[Starck] Buscando: {search_url}", xbmc.LOGINFO)
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(search_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Procurar resultados
+            resultados = soup.find_all('div', class_='item')
+            
+            for resultado in resultados[:3]:  # Limitar a 3 resultados
+                try:
+                    # Link do filme
+                    link_tag = resultado.find('a', class_='title')
+                    if not link_tag:
+                        continue
+                    
+                    filme_url = link_tag.get('href')
+                    filme_titulo = link_tag.text.strip()
+                    
+                    # Verificar se o ano bate (se disponível)
+                    year_span = resultado.find('span', class_='footer-year')
+                    filme_ano = year_span.text.strip() if year_span else ''
+                    
+                    # Se temos ano, verificar compatibilidade
+                    if ano and filme_ano:
+                        try:
+                            if abs(int(filme_ano) - int(ano)) > 1:
+                                continue
+                        except:
+                            pass
+                    
+                    xbmc.log(f"[Starck] Processando: {filme_titulo} ({filme_url})", xbmc.LOGINFO)
+                    
+                    # Acessar página do filme
+                    filme_response = requests.get(filme_url, headers=headers, timeout=10)
+                    filme_soup = BeautifulSoup(filme_response.text, 'html.parser')
+                    
+                    # Extrair TODOS os magnets (pode haver múltiplas qualidades)
+                    magnets = extrair_magnet_links(filme_soup)
+                    if not magnets:
+                        continue
+                    
+                    # Extrair informações básicas
+                    info = extrair_informacoes_basicas(filme_soup)
+                    
+                    # Detectar idioma do botão de download (usa o primeiro botão como referência)
+                    sufixo_idioma = detectar_idioma_filme(filme_soup)
+                    
+                    # Criar um stream para cada qualidade disponível
+                    for idx, mag_data in enumerate(magnets):
+                        titulo_final = filme_titulo + sufixo_idioma
+                        
+                        # Se há múltiplas versões, adicionar identificador
+                        if len(magnets) > 1:
+                            titulo_final += f" [{mag_data['quality']} - {mag_data['size']}]"
+                        
+                        stream = {
+                            'url': mag_data['magnet'],
+                            'title': titulo_final,
+                            'quality': mag_data['quality'],
+                            'size': mag_data['size'],
+                            'type': 'Torrent',
+                            'seeders': 0,
+                            'extras': []
+                        }
+                        
+                        sources.append(stream)
+                        xbmc.log(f"[Starck] Stream adicionado: {titulo_final}", xbmc.LOGINFO)
+                    
+                except Exception as e:
+                    xbmc.log(f"[Starck] Erro ao processar resultado: {e}", xbmc.LOGERROR)
+                    continue
+            
+            # Se encontrou resultados com este título, não precisa tentar os outros
+            if sources:
+                break
+                
+        except Exception as e:
+            xbmc.log(f"[Starck] Erro na busca com '{titulo_busca}': {e}", xbmc.LOGERROR)
+            continue
+    
+    if not sources:
+        xbmc.log(f"[Starck] Nenhum resultado encontrado para nenhum dos títulos", xbmc.LOGWARNING)
+    
+    return sources
+
+
+def buscar_serie(item_data, season, episode):
+    """
+    Busca um episódio de série no Starck Filmes
+    """
+    titulo = item_data.get('title', '')
+    titulo_original = item_data.get('original_title', '')
+    
+    if not titulo or season is None or episode is None:
+        return []
+    
+    # Tentar buscar com título principal E título original (se diferente)
+    titulos_para_buscar = [titulo]
+    if titulo_original and titulo_original.lower() != titulo.lower():
+        titulos_para_buscar.append(titulo_original)
+    
+    xbmc.log(f"[Starck] Títulos para busca de série: {titulos_para_buscar}", xbmc.LOGINFO)
+    
+    sources = []
+    
+    for titulo_busca in titulos_para_buscar:
+        try:
+            # Normalizar título - APENAS O NOME DA SÉRIE
+            search_query = titulo_busca.lower()
+            search_query = re.sub(r'[^\w\s]', '', search_query)
+            search_query = search_query.replace(' ', '+')
+            
+            # Formatação do episódio para filtro
+            s_num = int(season)
+            e_num = int(episode)
+            s = str(s_num).zfill(2)
+            e = str(e_num).zfill(2)
+            ep_pattern = f"s{s}e{e}"
+            
+            base_url = "https://www.starckfilmes-v8.com"
+            search_url = f"{base_url}/?s={search_query}"
+            
+            xbmc.log(f"[Starck] Buscando série: {search_url}", xbmc.LOGINFO)
+            xbmc.log(f"[Starck] Procurando por: {ep_pattern}", xbmc.LOGINFO)
+            
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
+            
+            response = requests.get(search_url, headers=headers, timeout=10)
+            response.raise_for_status()
+            
+            soup = BeautifulSoup(response.text, 'html.parser')
+            
+            # Procurar resultados - pode ser página da temporada completa
+            resultados = soup.find_all('div', class_='item')
+            
+            for resultado in resultados[:5]:  # Aumentar limite
+                try:
+                    link_tag = resultado.find('a', class_='title')
+                    if not link_tag:
+                        continue
+                    
+                    page_url = link_tag.get('href')
+                    page_titulo = link_tag.text.strip()
+                    
+                    xbmc.log(f"[Starck] Verificando página: {page_titulo}", xbmc.LOGINFO)
+                    
+                    # Acessar página
+                    page_response = requests.get(page_url, headers=headers, timeout=10)
+                    page_soup = BeautifulSoup(page_response.text, 'html.parser')
+                    
+                    # Procurar pela div de episódios
+                    epsodios_div = page_soup.find('div', class_='epsodios')
+                    
+                    if epsodios_div:
+                        # É uma página de temporada com vários episódios
+                        xbmc.log("[Starck] Página de temporada encontrada", xbmc.LOGINFO)
+                        
+                        # Procurar pelo episódio específico
+                        paragrafos = epsodios_div.find_all('p')
+                        
+                        for p in paragrafos:
+                            strong = p.find('strong')
+                            if not strong:
+                                continue
+                            
+                            ep_text = strong.text.lower()
+                            
+                            # Padrões para encontrar o episódio
+                            # "EPISÓDIO 01:", "EPISÓDIOS 01 E 02:", "EPISÓDIO 08 ao 09:", etc
+                            episodio_encontrado = False
+                            
+                            # Método 1: Buscar por "episódio XX" (com zero à esquerda ou sem)
+                            if re.search(rf'episódios?\s+0?{e_num}\b', ep_text):
+                                episodio_encontrado = True
+                            
+                            # Método 2: Buscar por range "01 e 02", "08 ao 09"
+                            if not episodio_encontrado:
+                                # Procurar por "episódio X e Y" ou "episódio X ao Y"
+                                match = re.search(r'episódios?\s+0?(\d+)\s+(?:e|ao)\s+0?(\d+)', ep_text)
+                                if match:
+                                    inicio = int(match.group(1))
+                                    fim = int(match.group(2))
+                                    if inicio <= e_num <= fim:
+                                        episodio_encontrado = True
+                            
+                            if not episodio_encontrado:
+                                continue
+                            
+                            xbmc.log(f"[Starck] Episódio {e_num} encontrado em: {ep_text}", xbmc.LOGINFO)
+                            
+                            # Extrair link do episódio
+                            link = p.find('a')
+                            if not link:
+                                xbmc.log("[Starck] Link não encontrado no parágrafo", xbmc.LOGWARNING)
+                                continue
+                            
+                            data_u = link.get('data-u')
+                            if not data_u:
+                                xbmc.log("[Starck] data-u não encontrado", xbmc.LOGWARNING)
+                                continue
+                            
+                            # Decodificar magnet
+                            magnet = unshuffle_string(data_u)
+                            if not magnet or 'magnet:' not in magnet:
+                                xbmc.log("[Starck] Magnet inválido após decodificação", xbmc.LOGWARNING)
+                                continue
+                            
+                            # Extrair informações básicas da página
+                            info = extrair_informacoes_basicas(page_soup)
+                            
+                            # Detectar idioma do H3 na div epsodios
+                            sufixo_idioma = ''
+                            h3 = epsodios_div.find('h3')
+                            if h3:
+                                h3_text = h3.get_text().lower()
+                                if 'dual' in h3_text:
+                                    sufixo_idioma = ' DUAL'
+                                elif 'dublado' in h3_text:
+                                    sufixo_idioma = ' DUBLADO'
+                                elif 'legendado' in h3_text:
+                                    sufixo_idioma = ' LEGENDADO'
+                            
+                            # Montar título (usar o título original da busca, não o do site)
+                            ep_titulo = f"{titulo} S{s}E{e}{sufixo_idioma}"
+                            
+                            stream = {
+                                'url': magnet,
+                                'title': ep_titulo,
+                                'quality': info.get('quality_label', 'HD'),
+                                'size': info.get('size', 'N/A'),
+                                'type': 'Torrent',
+                                'seeders': 0,
+                                'extras': []
+                            }
+                            
+                            sources.append(stream)
+                            xbmc.log(f"[Starck] Stream adicionado: {ep_titulo}", xbmc.LOGINFO)
+                            break  # Encontrou o episódio, não precisa continuar
+                    
+                    else:
+                        # Página individual de episódio
+                        if ep_pattern in page_titulo.lower():
+                            xbmc.log(f"[Starck] Processando episódio individual: {page_titulo}", xbmc.LOGINFO)
+                            
+                            magnets = extrair_magnet_links(page_soup)
+                            if not magnets:
+                                continue
+                            
+                            info = extrair_informacoes_basicas(page_soup)
+                            sufixo_idioma = detectar_idioma_filme(page_soup)
+                            
+                            # Criar stream para cada qualidade (episódios raramente têm múltiplas, mas suportar)
+                            for mag_data in magnets:
+                                ep_titulo = page_titulo + sufixo_idioma
+                                if len(magnets) > 1:
+                                    ep_titulo += f" [{mag_data['quality']} - {mag_data['size']}]"
+                                
+                                stream = {
+                                    'url': mag_data['magnet'],
+                                    'title': ep_titulo,
+                                    'quality': mag_data['quality'],
+                                    'size': mag_data['size'],
+                                    'type': 'Torrent',
+                                    'seeders': 0,
+                                    'extras': []
+                                }
+                                
+                                sources.append(stream)
+                    
+                except Exception as e:
+                    xbmc.log(f"[Starck] Erro ao processar página: {e}", xbmc.LOGERROR)
+                    continue
+            
+            # Se encontrou resultados com este título, não precisa tentar os outros
+            if sources:
+                break
+                
+        except Exception as e:
+            xbmc.log(f"[Starck] Erro na busca de série com '{titulo_busca}': {e}", xbmc.LOGERROR)
+            continue
+    
+    if not sources:
+        xbmc.log(f"[Starck] Nenhum episódio {ep_pattern} encontrado para nenhum dos títulos", xbmc.LOGWARNING)
+    
+    return sources
+
+
+def scrape(provider_url, item_data, season=None, episode=None):
+    """
+    Função principal do scraper
+    """
+    xbmc.log("[Starck] Iniciando scraper...", xbmc.LOGINFO)
+    
+    media_type = item_data.get('media_type')
+    
+    if media_type == 'movie':
+        return buscar_filme(item_data)
+    elif media_type == 'tvshow':
+        return buscar_serie(item_data, season, episode)
+    
+    return []

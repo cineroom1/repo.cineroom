@@ -120,6 +120,7 @@
     <setting id="trakt_sync_collection" type="bool" label="Sincronizar coleção" default="true" />
     <setting id="trakt_sync_playback" type="bool" label="Sincronizar progresso" default="true" />
     <setting label="Autenticação" type="lsep"/> 
+    <setting id="trakt_show_notifications" type="bool" label="Mostrar notificações Trakt" default="true"/>
     <setting type="action" label="Autenticar com Trakt" action="RunAddon(plugin.video.cineroom.lite,action=trakt_auth)" />
     <setting type="action" label="Sincronização Manual" action="RunAddon(plugin.video.cineroom.lite,action=trakt_sync)" />
     <setting type="action" label="Abrir Menu Trakt" action="RunAddon(plugin.video.cineroom.lite,action=trakt_menu)" />
@@ -130,11 +131,12 @@
     
     <category label="Provedores">
         <setting label="Torrent" type="lsep"/>  
-        <setting id="provider.filmesmaster.enabled" type="bool" label="Filmesmaster (Torrent)" default="false" />
+        <setting id="provider.starckfilmes.enabled" type="bool" label="StarckFilmes (Torrent)" default="true" />
+        <setting id="provider.filmesmaster.enabled" type="bool" label="FilmesMaster (Torrent)" default="false" />
         <setting id="provider.apachetorrent.enabled" type="bool" label="Apache (Torrent)" default="false" />
         <setting id="provider.comandotop.enabled" type="bool" label="ComandoFilmes (Torrent)" default="false" />
-        <setting id="provider.mico-leão.enabled" type="bool" label="Mico-Leão (Torrent)" default="true" /> 
-        <setting id="provider.torrentio.enabled" type="bool" label="Torrentio (Torrent)" default="true" /> 
+        <setting id="provider.mico-leão.enabled" type="bool" label="Mico-Leão (Torrent)" default="false" /> 
+        <setting id="provider.torrentio.enabled" type="bool" label="Torrentio (Torrent)" default="false" /> 
         <setting id="provider.brazuca.enabled" type="bool" label="Brazuca (Torrent)" default="true" /> 
 
         <setting label="Link Direto" type="lsep"/>  

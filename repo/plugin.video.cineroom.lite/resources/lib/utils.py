@@ -244,7 +244,7 @@ def create_video_item(item_data, media_type, show_data=None):
         'originaltitle': item_data.get('original_title', ''),
         'plot': item_data.get('synopsis', ''),
         'aired': aired,
-        'year': year,  # ✅ COMO INT (alguns addons esperam int)
+        'year': year,
         'duration': duration_sec,
         'studio': studio_str,
         'mpaa': mpaa,
@@ -457,23 +457,13 @@ VIEW_MODE_MAP = {
 }
 
 def set_view_mode(content_type, view_setting_key='view_mode', default='wall'):
+    """View mode otimizado - define e deixa o Kodi aplicar"""
     try:
         view_mode_setting = _SETTINGS.get(view_setting_key, default)
         view_mode_id = VIEW_MODE_MAP.get(view_mode_setting, VIEW_MODE_MAP.get(default, 500))
         
-        xbmc.sleep(100)
-        
-        timeout = 0
-        max_timeout = 1000
-        
-        while xbmc.getInfoLabel('Container.Content') != content_type:
-            xbmc.sleep(50)
-            timeout += 50
-            
-            if timeout >= max_timeout:
-                xbmc.log(f"[ViewMode] Timeout para '{content_type}'", xbmc.LOGWARNING)
-                return
-        
+        # ✅ SOLUÇÃO SIMPLES: Apenas define a property
+        # O Kodi aplica automaticamente quando o container carrega
         xbmc.executebuiltin(f'Container.SetViewMode({view_mode_id})')
         
     except Exception as e:

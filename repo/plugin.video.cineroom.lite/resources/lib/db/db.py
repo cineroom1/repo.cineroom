@@ -116,6 +116,7 @@ class db(BaseDatabase):
             tmdb_id = tvshow_data.get('tmdb_id')
             title = tvshow_data.get('title', '')
             original_title = tvshow_data.get('original_title', title)
+            romaji_title = tvshow_data.get('romaji_title', '')
             year = tvshow_data.get('year', 0)
             imdb_id = tvshow_data.get('imdb_id', '')
             poster = tvshow_data.get('poster', '')
@@ -140,16 +141,16 @@ class db(BaseDatabase):
             
             sql = """
                 INSERT OR REPLACE INTO tvshows (
-                    tmdb_id, title, original_title, title_normalized,
+                    tmdb_id, title, original_title, romaji_title, title_normalized,
                     year, imdb_id, poster, backdrop, synopsis, certification,
                     popularity, rating, genres, genres_normalized, providers,
                     seasons_data, clearlogo, banner, landscape, season_count,
                     episodes_count, status, date_added
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                ) VALUES (?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
             """
             
             params = (
-                tmdb_id, title, original_title, title_normalized,
+                tmdb_id, title, original_title, romaji_title, title_normalized,
                 year, imdb_id, poster, backdrop, synopsis, certification,
                 popularity, rating, genres, genres_normalized, providers,
                 seasons_data, clearlogo, banner, landscape, season_count,
