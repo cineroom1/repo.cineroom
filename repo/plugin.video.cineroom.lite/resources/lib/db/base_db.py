@@ -112,6 +112,54 @@ class BaseDatabase:
         
         if not os.path.exists(self.db_file):
             self.run_first_time_setup()
+        else:
+            self._upgrade_schema_for_romaji()
+            
+    def _upgrade_schema_for_romaji(self):
+        """Adiciona coluna romaji_title se não existir"""
+        conn = self._get_conn()
+        cursor = conn.cursor()
+    
+        try:
+            # Verifica se coluna já existe
+            cursor.execute("PRAGMA table_info(movies)")
+            columns = [col[1] for col in cursor.fetchall()]
+        
+            if 'romaji_title' not in columns:
+                xbmc.log("[DB] Adicionando suporte a Romaji...", xbmc.LOGINFO)
+            
+                # Adiciona colunas
+                cursor.execute("ALTER TABLE movies ADD COLUMN romaji_title TEXT")
+                cursor.execute("ALTER TABLE tvshows ADD COLUMN romaji_title TEXT")
+            
+                # Cria índices
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_movies_romaji ON movies(romaji_title)")
+                cursor.execute("CREATE INDEX IF NOT EXISTS idx_tvshows_romaji ON tvshows(romaji_title)")
+            
+                # Recria FTS com novo campo
+                cursor.execute("DROP TABLE IF EXISTS movies_fts")
+                cursor.execute("DROP TABLE IF EXISTS tvshows_fts")
+                self._create_fts_tables(cursor)
+            
+                # Repovoar FTS
+                cursor.execute("""
+                    INSERT INTO movies_fts(tmdb_id, title, romaji_title)
+                    SELECT tmdb_id, title, romaji_title FROM movies
+                """)
+            
+                cursor.execute("""
+                    INSERT INTO tvshows_fts(tmdb_id, title, romaji_title)
+                    SELECT tmdb_id, title, romaji_title FROM tvshows
+                """)
+            
+                conn.commit()
+                xbmc.log("[DB] ✅ Romaji instalado com sucesso!", xbmc.LOGINFO)
+        
+        except Exception as e:
+            xbmc.log(f"[DB] Erro ao adicionar Romaji: {e}", xbmc.LOGERROR)
+            conn.rollback()
+        finally:
+            self._release_conn(conn)        
     
     def _get_conn(self):
         """Retorna conexão do pool (MAIS RÁPIDO)"""
@@ -251,6 +299,7 @@ class BaseDatabase:
         cursor.execute('''
             CREATE TABLE IF NOT EXISTS tvshows (
                 tmdb_id INTEGER PRIMARY KEY, title TEXT NOT NULL, original_title TEXT NOT NULL, 
+                romaji_title TEXT,
                 title_normalized TEXT, year INTEGER, imdb_id TEXT, poster TEXT, backdrop TEXT, 
                 synopsis TEXT, providers TEXT, certification TEXT, date_added TEXT,
                 popularity REAL, rating REAL, genres TEXT, genres_normalized TEXT, 
@@ -326,7 +375,7 @@ class BaseDatabase:
             
             cursor.execute('''
                 CREATE VIRTUAL TABLE IF NOT EXISTS tvshows_fts 
-                USING fts5(tmdb_id UNINDEXED, title, content=tvshows, content_rowid=tmdb_id)
+                USING fts5(tmdb_id UNINDEXED, title, romaji_title, content=tvshows, content_rowid=tmdb_id)
             ''')
             
             # Triggers para manter FTS sincronizado
@@ -344,13 +393,16 @@ class BaseDatabase:
             
             cursor.execute('''
                 CREATE TRIGGER IF NOT EXISTS tvshows_fts_insert AFTER INSERT ON tvshows BEGIN
-                    INSERT INTO tvshows_fts(tmdb_id, title) VALUES (new.tmdb_id, new.title);
+                    INSERT INTO tvshows_fts(tmdb_id, title, romaji_title) 
+                    VALUES (new.tmdb_id, new.title, new.romaji_title);
                 END
             ''')
-            
+        
             cursor.execute('''
                 CREATE TRIGGER IF NOT EXISTS tvshows_fts_update AFTER UPDATE ON tvshows BEGIN
-                    UPDATE tvshows_fts SET title = new.title WHERE tmdb_id = new.tmdb_id;
+                    UPDATE tvshows_fts 
+                    SET title = new.title, romaji_title = new.romaji_title 
+                    WHERE tmdb_id = new.tmdb_id;
                 END
             ''')
         except sqlite3.OperationalError as e:
