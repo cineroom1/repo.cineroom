@@ -109,7 +109,7 @@ def _fetch_extras_batch(items, media_type):
         return []
     
     # REDUZ workers para evitar sobrecarga (10 -> 5)
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         # Submit todas as tarefas mantendo a ordem
         future_to_index = {
             executor.submit(_fetch_tmdb_extra, item, media_type): idx 
@@ -502,4 +502,111 @@ def get_season_episodes(tmdb_id, season_number):
         
     except Exception as e:
         xbmc.log(f"[TMDB API] Erro ao buscar episódios {tmdb_id} S{season_number}: {e}", xbmc.LOGERROR)
+        return []
+    
+def fetch_movies_by_keywords(keyword_ids, genres=None, page=1):
+    """
+    Busca filmes por keywords (COM INFO DE PAGINAÇÃO)
+    """
+    if not keyword_ids:
+        return []
+    
+    cache_key = f"keywords_movies_{','.join(map(str, keyword_ids))}_{','.join(map(str, genres or []))}_{page}"
+    cached = db.get_tmdb_cache(cache_key, hours=24)
+    if cached:
+        return cached
+    
+    url = f"{BASE_URL}/discover/movie"
+    
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": TMDB_LANG,
+        "page": page,
+        "sort_by": "popularity.desc",
+        "vote_count.gte": 100,
+        "with_keywords": "|".join(map(str, keyword_ids)),
+        "include_adult": False
+    }
+    
+    if genres:
+        params["with_genres"] = ",".join(map(str, genres))
+    
+    try:
+        response = get_session().get(url, params=params, timeout=5)
+        json_data = response.json()  # ✅ Pega o JSON completo
+        data = json_data.get('results', [])
+        
+        # ✅ PEGA INFO DE PÁGINAS
+        total_pages = json_data.get('total_pages', 1)
+        
+        extra_results = _fetch_extras_batch(data, 'movie')
+        
+        results = []
+        for item, extra in zip(data, extra_results):
+            normalized = _normalize_item(item, 'movie', extra)
+            results.append(normalized)
+        
+        # ✅ ADICIONA INFO DE PÁGINAS AOS RESULTADOS
+        # Hack: adiciona como propriedade do primeiro item
+        if results:
+            results[0]['_has_next_page'] = (page < total_pages)
+            db.save_tmdb_cache(cache_key, results)
+        
+        return results
+        
+    except Exception as e:
+        xbmc.log(f"[TMDB] Erro busca keywords: {e}", xbmc.LOGERROR)
+        return []
+
+def fetch_tvshows_by_keywords(keyword_ids, genres=None, page=1):
+    """
+    Busca séries por keywords (COM INFO DE PAGINAÇÃO)
+    """
+    if not keyword_ids:
+        return []
+    
+    cache_key = f"keywords_tv_{','.join(map(str, keyword_ids))}_{','.join(map(str, genres or []))}_{page}"
+    cached = db.get_tmdb_cache(cache_key, hours=24)
+    if cached:
+        return cached
+    
+    url = f"{BASE_URL}/discover/tv"
+    
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": TMDB_LANG,
+        "page": page,
+        "sort_by": "popularity.desc",
+        "vote_count.gte": 50,
+        "with_keywords": "|".join(map(str, keyword_ids)),
+        "include_adult": False
+    }
+    
+    if genres:
+        params["with_genres"] = ",".join(map(str, genres))
+    
+    try:
+        response = get_session().get(url, params=params, timeout=5)
+        json_data = response.json()
+        data = json_data.get('results', [])
+        
+        # ✅ PEGA INFO DE PÁGINAS
+        total_pages = json_data.get('total_pages', 1)
+        
+        extra_results = _fetch_extras_batch(data, 'tv')
+        
+        results = []
+        for item, extra in zip(data, extra_results):
+            normalized = _normalize_item(item, 'tv', extra)
+            results.append(normalized)
+        
+        # ✅ ADICIONA INFO DE PÁGINAS
+        if results:
+            results[0]['_has_next_page'] = (page < total_pages)
+            db.save_tmdb_cache(cache_key, results)
+        
+        return results
+        
+    except Exception as e:
+        xbmc.log(f"[TMDB] Erro busca keywords séries: {e}", xbmc.LOGERROR)
         return []

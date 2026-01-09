@@ -1,66 +1,9 @@
-Versão – [B][COLOR yellow]1.3.0[/COLOR][/B]
+Versão – [B][COLOR yellow]1.3.4[/COLOR][/B]
 
 ────────────────────────────────────
 
-[B][COLOR blue]Arquitetura e Desempenho[/COLOR][/B]
-• Refatoração completa das funções centrais com implementação de lazy loading.
-• Redução significativa no consumo de memória e CPU.
-• Add-on totalmente reestruturado para melhor desempenho, inclusive em dispositivos com hardware limitado.
+[B][COLOR blue]Ajustes Estéticos[/COLOR][/B]
+• Melhoria no carregamento de arte.
+• Resolver de Reprodução ajustado.
+• Extras mais leves e precisos.
 
-────────────────────────────────────
-
-[B][COLOR blue]Banco de Dados e Cache[/COLOR][/B]
-• Sistema de cache SQL totalmente refeito, proporcionando maior eficiência, estabilidade e menor tempo de resposta.
-• Implementação de auto-recuperação do banco de dados em casos de dados ausentes ou inconsistentes.
-
-────────────────────────────────────
-
-[B][COLOR blue]Biblioteca do Kodi (Usuários Avançados)[/COLOR][/B]
-• Integração direta e completa com a biblioteca do Kodi.
-• Criação automática de arquivos .STRM e .NFO para filmes e séries.
-• Gerenciamento total da biblioteca diretamente pelo add-on.
-• Funções avançadas para adicionar, remover, limpar e atualizar conteúdos.
-• Aviso de segurança exibido ao acessar a biblioteca, recomendado apenas para usuários com conhecimento avançado.
-• Sistema aprimorado de limpeza para evitar títulos órfãos na biblioteca do Kodi.
-
-────────────────────────────────────
-
-[B][COLOR blue]Integração com Trakt[/COLOR][/B]
-• Integração completa com a plataforma Trakt.
-• Sincronização automática do progresso de filmes e episódios.
-• Suporte a listas do usuário (watchlist, coleções e histórico).
-• Atualização contínua do status de visualização entre dispositivos.
-• Integração direta com o gerenciamento de séries e notificações.
-
-────────────────────────────────────
-
-[B][COLOR blue]Detalhes Extras e Navegação[/COLOR][/B]
-• Aprimoramento dos diálogos de detalhes com botões interativos.
-• Ao selecionar gêneros, provedores ou coleções, o usuário é redirecionado automaticamente para a listagem correspondente.
-• Navegação mais fluida e intuitiva entre conteúdos relacionados.
-
-────────────────────────────────────
-
-[B][COLOR blue]Pesquisa Inteligente[/COLOR][/B]
-• Implementação de um sistema de pesquisa independente.
-• Caso o conteúdo não seja encontrado localmente, a busca é realizada automaticamente no TMDb.
-• Resultados mais completos, precisos e relevantes.
-
-────────────────────────────────────
-
-[B][COLOR blue]Séries e Notificações[/COLOR][/B]
-• Sistema automático de notificações para novos episódios de séries salvas pelo usuário.
-• Melhor gerenciamento de temporadas e episódios.
-
-────────────────────────────────────
-
-[B][COLOR blue]Servidores e Interface[/COLOR][/B]
-• Melhorias gerais na infraestrutura de servidores utilizados pelo add-on.
-• Diálogos e interações mais rápidas e estáveis.
-• Experiência geral mais fluida, consistente e responsiva.
-
-────────────────────────────────────
-
-[B]Observação[/B]
-As funcionalidades relacionadas à biblioteca do Kodi e à integração com serviços externos são destinadas a usuários avançados.
-Recomenda-se conhecimento prévio para evitar configurações incorretas ou impactos na biblioteca local.

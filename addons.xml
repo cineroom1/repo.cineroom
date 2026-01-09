@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom.lite" version="1.3.0" name="Cineroom [COLOR cyan]Lite[/COLOR]" provider-name="Gael">
+<addon id="plugin.video.cineroom.lite" version="1.3.4" name="Cineroom [COLOR cyan]Lite[/COLOR]" provider-name="Gael">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests" />
