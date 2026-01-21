@@ -13,46 +13,58 @@ HANDLE = int(sys.argv[1])
 ADDON = xbmcaddon.Addon()
 ADDON_PATH = ADDON.getAddonInfo("path")
 
-# ============ INICIALIZA SCROBBLER AUTOMÁTICO ============
+# ============ SCROBBLER - LAZY LOADING REAL ============
 _SCROBBLER = None
 
 def _init_scrobbler():
-    """Inicializa o monitor de scrobble automático do Trakt"""
+    """✅ Inicializa o monitor de scrobble automático do Trakt (chamado no router)"""
     global _SCROBBLER
-    if _SCROBBLER is not None:
-        return _SCROBBLER
     
     try:
-        if ADDON.getSettingBool('trakt_auto_scrobble'):
-            from resources.lib.trakt_sync import TraktScrobbler
-            _SCROBBLER = TraktScrobbler()
-            xbmc.log("[Cineroom] Scrobbler Trakt iniciado", xbmc.LOGINFO)
+        # Verifica se o scrobbler está ativado nas configurações
+        if not ADDON.getSettingBool('trakt_auto_scrobble'):
+            if _SCROBBLER:
+                del _SCROBBLER
+                _SCROBBLER = None
+            return None
+        
+        # Se já existe, retorna
+        if _SCROBBLER is not None:
             return _SCROBBLER
+        
+        # Lazy import + criação
+        from resources.lib.trakt.trakt_sync import init_trakt_scrobbler
+        _SCROBBLER = init_trakt_scrobbler()
+        xbmc.log("[Cineroom] Scrobbler Trakt iniciado", xbmc.LOGINFO)
+        return _SCROBBLER
+        
     except Exception as e:
         xbmc.log(f"[Cineroom] Erro ao inicializar Scrobbler: {e}", xbmc.LOGERROR)
-    
-    return None
+        _SCROBBLER = None
+        return None
 
+def _get_scrobbler():
+    """✅ Retorna scrobbler existente (para uso interno)"""
+    return _SCROBBLER
 
 # ============ SISTEMA DE CACHE OTIMIZADO ============
 _MODULE_CACHE = {}
 _JSON_CACHE = {}
-_ACTION_HANDLERS = {}  # ✅ NOVO: Cache de handlers compilados
+_ACTION_HANDLERS = {}
 
 def _get_module(name):
-    """Lazy loading ultrarrápido com cache de módulos"""
+    """✅ Lazy loading ultrarrápido com cache de módulos"""
     if name in _MODULE_CACHE:
         return _MODULE_CACHE[name]
     
     try:
+        # Módulos principais
         if name == 'movies':
             from resources.lib import movies as mod
         elif name == 'tvshows':
             from resources.lib import tvshows as mod
         elif name == 'navigation':
             from resources.lib import navigation as mod
-        elif name == 'extras_dialog':
-            from resources.lib import extras_dialog as mod
         elif name == 'indexer':
             from resources.lib import indexer as mod
         elif name == 'favorites':
@@ -61,14 +73,28 @@ def _get_module(name):
             from resources.lib.db import db as mod
         elif name == 'constants':
             from resources.lib import constants as mod
-        elif name == 'xbmcplugin':
-            import xbmcplugin as mod
-        elif name == 'donation_window':
-            from resources.lib.donation_window import DonationDialog as mod
-        elif name == 'trakt_sync':
-            from resources.lib import trakt_sync as mod
         elif name == 'library':
             from resources.lib import library as mod
+        
+        # Diálogos
+        elif name == 'extras_dialog':
+            from resources.lib.dialog import extras_dialog as mod
+        elif name == 'donation_window':
+            from resources.lib.dialog.donation_window import DonationDialog as mod
+        elif name == 'changelog_dialog':
+            from resources.lib.dialog.changelog_dialog import ChangelogDialog as mod
+        
+        # Funcionalidades
+        elif name == 'search':
+            from resources.lib.search import search as mod
+        elif name == 'playback':
+            from resources.lib import playback as mod
+        elif name == 'trakt_sync':
+            from resources.lib.trakt import trakt_sync as mod
+        
+        # Sistema
+        elif name == 'xbmcplugin':
+            import xbmcplugin as mod
         else:
             return None
         
@@ -79,25 +105,28 @@ def _get_module(name):
         return None
 
 def _parse_json(data):
-    """Cache inteligente de JSON com limite de memória"""
+    """✅ Cache inteligente de JSON com LRU"""
     if not data:
         return {}
     
-    if data in _JSON_CACHE:
-        return _JSON_CACHE[data]
+    # Cache hit
+    cached = _JSON_CACHE.get(data)
+    if cached is not None:
+        return cached
     
     try:
         from urllib.parse import unquote_plus
         import json
         parsed = json.loads(unquote_plus(data))
         
-        # Limita cache a 50 entradas
-        if len(_JSON_CACHE) > 50:
-            _JSON_CACHE.clear()
+        # LRU simples: remove primeiro se exceder limite
+        if len(_JSON_CACHE) >= 50:
+            _JSON_CACHE.pop(next(iter(_JSON_CACHE)))
         
         _JSON_CACHE[data] = parsed
         return parsed
-    except:
+    except Exception as e:
+        xbmc.log(f"[Cineroom] JSON parse error: {e}", xbmc.LOGWARNING)
         return {}
 
 def _end_dir(success=True):
@@ -108,13 +137,10 @@ def _end_dir(success=True):
 
 # ============ MAPEAMENTO DE AÇÕES - OTIMIZADO ============
 _ACTIONS = {
-    
-    
-    # == TRAKT.TV ===
+    # === TRAKT.TV ===
     'list_trakt_watchlist': ('trakt_sync', 'list_trakt_watchlist', False, None),
     'list_trakt_collection': ('trakt_sync', 'list_trakt_collection', False, None),
     'list_trakt_watched': ('trakt_sync', 'list_trakt_watched', False, None),
-
     
     # === TRAKT FILMES ===
     'trakt_movies_trending': ('trakt_sync', 'trakt_movies_trending', True, None),
@@ -124,6 +150,7 @@ _ACTIONS = {
     'trakt_movies_most_anticipated': ('trakt_sync', 'trakt_movies_most_anticipated', True, None),
     'trakt_movies_box_office': ('trakt_sync', 'trakt_movies_box_office', True, None),
     'trakt_movies_top_rated': ('trakt_sync', 'trakt_movies_top_rated', True, None),
+    'trakt_movies_personal_recommended': ('trakt_sync', 'trakt_movies_personal_recommended', True, None),
     
     # === TRAKT SÉRIES ===
     'trakt_tv_trending': ('trakt_sync', 'trakt_tv_trending', True, None),
@@ -133,10 +160,12 @@ _ACTIONS = {
     'trakt_tv_most_anticipated': ('trakt_sync', 'trakt_tv_most_anticipated', True, None),
     'trakt_tv_top_rated': ('trakt_sync', 'trakt_tv_top_rated', True, None),
     'trakt_tv_recommended': ('trakt_sync', 'trakt_tv_recommended', True, None),
+    'trakt_tv_personal_recommended': ('trakt_sync', 'trakt_tv_personal_recommended', True, None),
     
     # === FILMES ===
     'list_genres': ('movies', 'list_genres', False, None),
     'list_years': ('movies', 'list_years', False, None),
+    'list_movie_themes': ('movies', 'list_movie_themes', False, None),
     'list_movies_by_genre': ('movies', 'list_movies_by_genre', True, ['genre']),
     'list_movies_by_year': ('movies', 'list_movies_by_year', True, ['year']),
     'list_movies_by_rating': ('movies', 'list_movies_by_rating', True, None),
@@ -148,9 +177,11 @@ _ACTIONS = {
     'list_movies_by_revenue': ('movies', 'list_movies_by_revenue', True, None),
     'list_movies_by_provider': ('movies', 'list_movies_by_provider', True, ['provider']),
     'list_trending_movies': ('movies', 'list_trending_movies', True, None),
+    'list_movies_by_theme': ('movies', 'list_movies_by_theme', True, ['theme']),
     
     # === SÉRIES ===
     'list_tvshows_genres': ('tvshows', 'list_tvshows_genres', False, None),
+    'list_tvshow_themes': ('tvshows', 'list_tvshow_themes', False, None),
     'list_providers': ('tvshows', 'list_providers', False, None),
     'list_trending_tvshows': ('tvshows', 'list_trending_tvshows', True, None),
     'list_tvshows_by_genre': ('tvshows', 'list_tvshows_by_genre', True, ['genre']),
@@ -159,13 +190,11 @@ _ACTIONS = {
     'list_tvshows_by_provider': ('tvshows', 'list_tvshows_by_provider', True, ['provider']),
     'list_animes': ('tvshows', 'list_animes', True, None),
     'list_kids_tvshows': ('tvshows', 'list_kids_tvshows', True, None),
+    'list_tvshows_by_theme': ('tvshows', 'list_tvshows_by_theme', True, ['theme']),
 }
 
 def _get_action_handler(action):
-    """
-    ✅ NOVA FUNÇÃO: Retorna handler pré-compilado
-    Evita lookup repetido no dicionário _ACTIONS
-    """
+    """✅ Retorna handler pré-compilado"""
     if action in _ACTION_HANDLERS:
         return _ACTION_HANDLERS[action]
     
@@ -173,16 +202,11 @@ def _get_action_handler(action):
     if not config:
         return None
     
-    module_name, method_name, needs_page, extra_params = config
-    
-    # Cria handler como tupla (mais rápido que dict)
-    handler = (module_name, method_name, needs_page, extra_params)
-    _ACTION_HANDLERS[action] = handler
-    
-    return handler
+    _ACTION_HANDLERS[action] = config
+    return config
 
 def _handle_generic_action(action, params):
-    """Handler genérico OTIMIZADO"""
+    """✅ Handler genérico OTIMIZADO"""
     handler = _get_action_handler(action)
     if not handler:
         return False
@@ -194,7 +218,7 @@ def _handle_generic_action(action, params):
     if not mod:
         return False
     
-    # Pega método (cached pelo Python)
+    # Pega método
     method = getattr(mod, method_name, None)
     if not method:
         return False
@@ -216,7 +240,7 @@ def _handle_generic_action(action, params):
     method(*args)
     return True
 
-# ============ HANDLERS ESPECÍFICOS OTIMIZADOS ============
+# ============ HANDLERS ESPECÍFICOS ============
 
 def _handle_show_details(params):
     """Handler otimizado para detalhes"""
@@ -228,10 +252,10 @@ def _handle_show_details(params):
     setting_key = f"{media_type}.enable_details"
     
     if not ADDON.getSettingBool(setting_key):
-        nav = _get_module('navigation')
-        if nav:
+        playback = _get_module('playback')
+        if playback:
             autoplay = (media_type == "movie")
-            nav.find_and_play_sources(item_data, autoplay=autoplay)
+            playback.find_and_play_sources(item_data, autoplay=autoplay)
     else:
         dialog = _get_module('extras_dialog')
         if dialog:
@@ -285,10 +309,8 @@ def _handle_favorites(action, params):
     
     return True
 
-# ✅ SUBSTITUA a função _handle_trakt() no main.py por esta versão COMPLETA:
-
 def _handle_trakt(action, params):
-    """Handler COMPLETO para Trakt - com ações individuais"""
+    """✅ Handler COMPLETO para Trakt"""
     
     # Menu principal - não precisa importar nada
     if action == 'trakt_main_menu':
@@ -298,7 +320,6 @@ def _handle_trakt(action, params):
             nav.show_main_menu(const.TRAKT_MENU)
         return True
     
-    # Sync menu - não precisa importar nada
     if action == 'trakt_sync_menu':
         nav = _get_module('navigation')
         const = _get_module('constants')
@@ -306,18 +327,15 @@ def _handle_trakt(action, params):
             nav.show_main_menu(const.TRAKT_SYNC_MENU)
         return True
     
-    # ✅ LAZY IMPORT apenas para ações que realmente precisam
+    # Lazy import do módulo trakt
     trakt = _get_module('trakt_sync')
     if not trakt:
         return False
-    
-    # ============================================
-    # ✅ AÇÕES INDIVIDUAIS (MENU DE CONTEXTO)
-    # ============================================
-    
+
     tmdb_id = params.get('tmdb_id')
     media_type = params.get('media_type')
     
+    # Ações individuais
     if action == 'trakt_add_collection':
         if tmdb_id and media_type:
             trakt.trakt_add_to_collection(tmdb_id, media_type)
@@ -353,10 +371,7 @@ def _handle_trakt(action, params):
             trakt.trakt_rate_item(tmdb_id, media_type)
         return True
     
-    # ============================================
-    # AUTH E STATUS
-    # ============================================
-    
+    # Auth e status
     if action == 'trakt_auth':
         settings = trakt.get_trakt_settings()
         if settings.get('access_token'):
@@ -369,10 +384,7 @@ def _handle_trakt(action, params):
         trakt.show_trakt_status()
         return True
     
-    # ============================================
-    # MENUS DE LISTAGEM
-    # ============================================
-    
+    # Menus de listagem
     page = int(params.get('page', 1))
     
     if action == 'trakt_watchlist_menu':
@@ -395,7 +407,6 @@ def _handle_trakt(action, params):
         trakt.show_trakt_popular_items(page)
         return True
     
-    # Listas customizadas
     if action == 'trakt_lists_menu':
         trakt.show_trakt_custom_lists()
         return True
@@ -405,10 +416,7 @@ def _handle_trakt(action, params):
         trakt.show_trakt_list_items(list_id, page)
         return True
     
-    # ============================================
-    # SYNC
-    # ============================================
-    
+    # Sync
     if action == 'trakt_full_sync':
         trakt.full_bidirectional_sync()
         return True
@@ -458,23 +466,41 @@ def _handle_trakt(action, params):
         trakt.show_trakt_public_list(category, media_type, page)
         return True
     
-    return False
-    
-    
-    
+    if action == 'trakt_movies_submenu':
+        nav = _get_module('navigation')
+        const = _get_module('constants')
+        if nav and const:
+            nav.show_main_menu(const.TRAKT_MOVIES_MENU)
+        return True
 
+    if action == 'trakt_tv_submenu':
+        nav = _get_module('navigation')
+        const = _get_module('constants')
+        if nav and const:
+            nav.show_main_menu(const.TRAKT_TV_MENU)
+        return True
+    
+    if action == 'trakt_rate':
+        if tmdb_id and media_type:
+            trakt.trakt_rate_item(tmdb_id, media_type)  # 👈 Esta função precisa existir
+        return True
     
     return False
 
 def _handle_navigation(action, params):
-    """Handler otimizado para navegação"""
-    nav = _get_module('navigation')
-    if not nav:
-        return False
+    """✅ Handler otimizado para navegação"""
     
+    # Search
     if action == 'search':
-        nav.search(params.get('query'), params.get('page', '1'))
+        search = _get_module('search')
+        if search:
+            search.search(params.get('query'), params.get('page', '1'))
         return True
+    
+    # Playback
+    playback = _get_module('playback')
+    if not playback:
+        return False
     
     if action == 'find_sources':
         item_data = {
@@ -483,6 +509,7 @@ def _handle_navigation(action, params):
             'media_type': params.get('media_type', ''),
             'title': params.get('title', ''),
             'original_title': params.get('original_title', ''),
+            'romaji_title': params.get('romaji_title', ''),
             'year': params.get('year', ''),
             'clearlogo': params.get('clearlogo', ''),
             'fanart': params.get('fanart', ''),
@@ -491,7 +518,7 @@ def _handle_navigation(action, params):
             'season': params.get('season'),
             'episode': params.get('episode')
         }
-        nav.find_and_play_sources(
+        playback.find_and_play_sources(
             item_data,
             season=params.get('season'),
             episode=params.get('episode')
@@ -501,13 +528,13 @@ def _handle_navigation(action, params):
     if action == 'play_item_direct':
         item_data = _parse_json(params.get('data', ''))
         if item_data:
-            nav.find_and_play_sources(item_data, autoplay=False)
+            playback.find_and_play_sources(item_data, autoplay=False)
         return True
     
     if action == 'find_and_play_episode':
         item_data = _parse_json(params.get('item_data', ''))
         if item_data:
-            nav.find_and_play_sources(
+            playback.find_and_play_sources(
                 item_data,
                 autoplay=False,
                 season=params.get('season'),
@@ -544,7 +571,7 @@ def _handle_menu(action, params):
     return False
 
 def _handle_library(action, params):
-    """Handler OTIMIZADO para biblioteca - Lazy import"""
+    """✅ Handler OTIMIZADO para biblioteca"""
     
     # Menu não precisa de import
     if action == 'library_menu':
@@ -560,14 +587,13 @@ def _handle_library(action, params):
                 return False
             win.setProperty("cineroom.library.warning", "true")
         
-        # ✅ LAZY IMPORT apenas aqui
         lib = _get_module('library')
         if lib and hasattr(lib, 'show_library_menu'):
             lib.show_library_menu()
             return True
         return False
     
-    # ✅ LAZY IMPORT apenas para ações que precisam
+    # Lazy import apenas para ações
     lib = _get_module('library')
     if not lib:
         return False

@@ -20,12 +20,12 @@ def _parse_interval_setting(setting_value):
 def run_update_check():
     log('Iniciando verificação de novo conteúdo...')
     try:
-        # 1. Verifica novos filmes/séries nos seus JSONs (Atualiza o DB local)
+        # 1. Verifica novos itens e atualiza o banco completo
+        # A função já notifica e atualiza tudo internamente
         from resources.lib.indexer import check_for_updates_silently
         check_for_updates_silently(ADDON)
         
         # 2. Sincroniza o DB local com a Biblioteca do Kodi (arquivos .strm)
-        # Respeita a nova configuração de ativação automática
         if ADDON.getSetting('sync_auto_library') == 'true':
             try:
                 from resources.lib.library import sync_library_silently
@@ -39,41 +39,17 @@ def run_update_check():
         else:
             log('Sincronização automática ignorada (desativada nas configurações).')
 
-        # 3. Atualiza popularidade (TMDB)
-        try:
-            from resources.lib.tmdb_api import update_local_popularity
-            log('Iniciando sincronização de popularidade...')
-            update_local_popularity() 
-        except Exception as e_pop:
-            log(f'Erro ao atualizar popularidade: {e_pop}')
-
-        # 4. MANUTENÇÃO E NOTIFICAÇÃO
+        # 3. Limpeza de cache antigo
         try:
             from resources.lib.db import db 
             conn = db._get_conn()
             cursor = conn.cursor()
-            
-            # Limpa cache antigo
             cursor.execute("DELETE FROM api_cache WHERE timestamp < datetime('now', '-48 hours')")
             conn.commit()
-            
-            # Notificação de Itens Novos
-            hoje = datetime.now().strftime('%Y-%m-%d')
-            cursor.execute("SELECT COUNT(*) FROM movies WHERE date_added LIKE ?", (f"{hoje}%",))
-            novos_filmes = cursor.fetchone()[0]
-            cursor.execute("SELECT COUNT(*) FROM tvshows WHERE date_added LIKE ?", (f"{hoje}%",))
-            novas_series = cursor.fetchone()[0]
             conn.close()
-
-            if novos_filmes > 0 or novas_series > 0:
-                itens = []
-                if novos_filmes > 0: itens.append(f"+{novos_filmes} Filmes")
-                if novas_series > 0: itens.append(f"+{novas_series} Séries")
-                texto = "Novidades: " + " e ".join(itens)
-                icon_path = xbmcvfs.translatePath(ADDON.getAddonInfo('path') + '/icon.png')
-                xbmc.executebuiltin(f'Notification("Cineroom Lite", "{texto}", 7000, "{icon_path}")')
-        except Exception as e_maint:
-            log(f'Erro na manutenção: {e_maint}')
+            log('Cache antigo limpo.')
+        except Exception as e_cache:
+            log(f'Erro ao limpar cache: {e_cache}')
 
         # Salva o sucesso da operação
         ADDON.setSetting('last_update_check', datetime.now(timezone.utc).isoformat())

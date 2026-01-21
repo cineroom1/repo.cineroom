@@ -26,7 +26,7 @@ class TVShowsDatabase(BaseDatabase):
                 normalized_genres = [self._normalize_text(g) for g in genres]
                 
                 data.append((
-                    show.get('tmdb_id'), show.get('title'), original_title, title_norm,
+                    show.get('tmdb_id'), show.get('title'), original_title, show.get('romaji_title', ''), title_norm,
                     show.get('year'), show.get('imdb_id'), show.get('poster'),
                     show.get('backdrop'), show.get('synopsis'),
                     json.dumps(show.get('providers', [])), show.get('certification'),
@@ -40,12 +40,12 @@ class TVShowsDatabase(BaseDatabase):
             
             cursor.executemany('''
                 INSERT OR REPLACE INTO tvshows (
-                    tmdb_id, title, original_title, title_normalized, year, imdb_id,
+                    tmdb_id, title, original_title, romaji_title, title_normalized, year, imdb_id,
                     poster, backdrop, synopsis, providers, certification, date_added,
                     popularity, rating, genres, genres_normalized, seasons_data,
                     clearlogo, banner, landscape, playcount, season_count,
                     episodes_count, status, popularity_updated
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
             ''', data)
             
             conn.commit()
