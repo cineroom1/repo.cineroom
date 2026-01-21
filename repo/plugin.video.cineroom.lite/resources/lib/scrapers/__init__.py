@@ -76,6 +76,7 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 season=season,
                 episode=episode
             )
+<<<<<<< HEAD
         
         elif provider_name == "CMD1":
             from . import cmd1
@@ -85,6 +86,9 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 season=season,
                 episode=episode
             )     
+=======
+             
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
             
         else:
             xbmc.log(f"[SCRAPER] Provedor '{provider_name}' não reconhecido.", xbmc.LOGWARNING)

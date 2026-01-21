@@ -58,6 +58,7 @@ TOOLS_MENU = [
 
 MOVIES_MENU = [
     {'title': 'Recomendações', 'action': 'trakt_movies_personal_recommended', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+<<<<<<< HEAD
     {'title': 'Recentes', 'action': 'list_recently_added_movies', 'icon': os.path.join(ICON_PATH, 'movies.png')},
     {'title': 'Em Alta', 'action': 'list_trending_movies', 'icon': os.path.join(ICON_PATH, 'movies.png')},
     {'title': 'Populares', 'action': 'list_movies_by_popularity', 'icon': os.path.join(ICON_PATH, 'movies.png')},
@@ -67,12 +68,24 @@ MOVIES_MENU = [
     {'title': 'Maiores bilheterias', 'action': 'list_movies_by_revenue', 'icon': os.path.join(ICON_PATH, 'movies.png')},
     {'title': 'Por Ano', 'action': 'list_years', 'icon': os.path.join(ICON_PATH, 'movies.png')},
     {'title': 'Coleções', 'action': 'list_collections', 'icon': os.path.join(ICON_PATH, 'movies.png')},
+=======
+    {'title': 'Recentes', 'action': 'list_recently_added_movies', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Em Alta', 'action': 'list_trending_movies', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Populares', 'action': 'list_movies_by_popularity', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Gêneros', 'action': 'list_genres', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Temas', 'action': 'list_movie_themes', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': '4K Ultra HD', 'action': 'list_4k_movies', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Maiores bilheterias', 'action': 'list_movies_by_revenue', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Por Ano', 'action': 'list_years', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Coleções', 'action': 'list_collections', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 
     
 ]
 
 TVSHOWS_MENU = [
     {'title': 'Recomendações', 'action': 'trakt_tv_personal_recommended', 'icon': os.path.join(ICON_PATH, 'trakt_menu.png')},
+<<<<<<< HEAD
     {'title': 'Recentes', 'action': 'list_recently_added_tvshows', 'icon': os.path.join(ICON_PATH, 'tv.png')},
     {'title': 'Em Alta', 'action': 'list_trending_tvshows', 'icon': os.path.join(ICON_PATH, 'tv.png')},
     {'title': 'Populares', 'action': 'list_tvshows_by_popularity', 'icon': os.path.join(ICON_PATH, 'tv.png')},
@@ -81,6 +94,16 @@ TVSHOWS_MENU = [
     {'title': 'Provedores', 'action': 'list_providers', 'icon': os.path.join(ICON_PATH, 'tv.png')},
     {'title': 'Animes', 'action': 'list_animes', 'icon': os.path.join(ICON_PATH, 'tv.png')},
     {'title': 'Infantil', 'action': 'list_kids_tvshows', 'icon': os.path.join(ICON_PATH, 'tv.png')},
+=======
+    {'title': 'Recentes', 'action': 'list_recently_added_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Em Alta', 'action': 'list_trending_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Populares', 'action': 'list_tvshows_by_popularity', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Gêneros', 'action': 'list_tvshows_genres', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Temas', 'action': 'list_tvshow_themes', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Provedores', 'action': 'list_providers', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Animes', 'action': 'list_animes', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+    {'title': 'Infantil', 'action': 'list_kids_tvshows', 'icon': os.path.join(ICON_PATH, 'tmdb_color.png')},
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 ]
 # === MENU TRAKT PRINCIPAL ===
 TRAKT_MENU = [

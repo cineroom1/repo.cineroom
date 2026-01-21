@@ -101,9 +101,13 @@
                 <orientation>horizontal</orientation>
                 <itemgap>10</itemgap>
                 <onup>999</onup>
+<<<<<<< HEAD
                 <ondown condition="String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)">312</ondown>
                 <ondown condition="String.IsEqual(Window.Property(media_type),movie) + !String.IsEqual(Window.Property(HasCollection),true)">302</ondown>
                 <ondown condition="String.IsEqual(Window.Property(media_type),tvshow)">321</ondown>
+=======
+                <ondown>501</ondown>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                 <animation effect="fade" start="0" end="100" time="400" delay="300">WindowOpen</animation>
                 
                 <control type="button" id="401">
@@ -118,9 +122,14 @@
                     <texturenofocus border="15" colordiffuse="33FFFFFF">panel.png</texturenofocus>
                     <textcolor>FFCCCCCC</textcolor>   
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="auto" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="auto" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="auto" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <onup>999</onup>
                     <onleft>999</onleft>
                     <ondown condition="String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)">312</ondown>
@@ -141,6 +150,7 @@
                     <texturenofocus border="15" colordiffuse="33FFFFFF">panel.png</texturenofocus>
                     <textcolor>FFCCCCCC</textcolor>   
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="auto" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="auto" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
@@ -149,6 +159,13 @@
                     <ondown condition="String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)">312</ondown>
                     <ondown condition="String.IsEqual(Window.Property(media_type),movie) + !String.IsEqual(Window.Property(HasCollection),true)">302</ondown>
                     <ondown condition="String.IsEqual(Window.Property(media_type),tvshow)">321</ondown>
+=======
+                    <animation effect="zoom" start="95" end="100" center="auto" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+                    <onup>999</onup>
+                    <onleft>401</onleft>
+                    <ondown>501</ondown>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                 </control>
                 
                 <control type="button" id="403">
@@ -163,6 +180,7 @@
                     <texturenofocus border="15" colordiffuse="33FFFFFF">panel.png</texturenofocus>
                     <textcolor>FFCCCCCC</textcolor>   
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="auto" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="auto" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
@@ -171,6 +189,13 @@
                     <ondown condition="String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)">312</ondown>
                     <ondown condition="String.IsEqual(Window.Property(media_type),movie) + !String.IsEqual(Window.Property(HasCollection),true)">302</ondown>
                     <ondown condition="String.IsEqual(Window.Property(media_type),tvshow)">321</ondown>
+=======
+                    <animation effect="zoom" start="95" end="100" center="auto" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+                    <onup>999</onup>
+                    <onleft>402</onleft>
+                    <ondown>501</ondown>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                 </control>
             </control>
 
@@ -183,7 +208,12 @@
                 <animation effect="fade" start="0" end="100" time="400" delay="400">WindowOpen</animation>
             </control>
 
+<<<<<<< HEAD
             <!-- PROVIDERS -->
+=======
+
+            <!-- ================== PROVIDERS ================== -->
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
             <control type="group" id="6000">
                 <top>340</top>
                 <width>1100</width>
@@ -229,6 +259,7 @@
                             <height>60</height>
                             <texturenofocus />
                             <texturefocus colordiffuse="FF00AEEF" border="30">focus.png</texturefocus>
+<<<<<<< HEAD
                             <animation effect="zoom" start="100" end="108" time="120" center="30,30">Focus</animation>
                             <animation effect="zoom" start="108" end="100" time="120" center="30,30">UnFocus</animation>
                             <animation effect="fade" start="70" end="100" time="150">Focus</animation>
@@ -236,6 +267,16 @@
                             <onleft>403</onleft>
                             <onright condition="!IsEmpty(Window.Property(Provider.2.Icon))">502</onright>
                             <ondown>302</ondown>
+=======
+                            <animation effect="zoom" start="100" end="110" time="150" center="30,30">Focus</animation>
+                            <animation effect="zoom" start="110" end="100" time="150" center="30,30">UnFocus</animation>
+                            <onup>400</onup>
+                            <onleft>403</onleft>
+                            <onright condition="!IsEmpty(Window.Property(Provider.2.Icon))">502</onright>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),movie) + !String.IsEqual(Window.Property(HasCollection),true)">302</ondown>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)">312</ondown>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),tvshow)">321</ondown>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                         </control>
                     </control>
 
@@ -266,6 +307,7 @@
                             <height>60</height>
                             <texturenofocus />
                             <texturefocus colordiffuse="FF00AEEF" border="30">focus.png</texturefocus>
+<<<<<<< HEAD
                             <animation effect="zoom" start="100" end="108" time="120" center="30,30">Focus</animation>
                             <animation effect="zoom" start="108" end="100" time="120" center="30,30">UnFocus</animation>
                             <animation effect="fade" start="70" end="100" time="150">Focus</animation>
@@ -273,6 +315,16 @@
                             <onleft>501</onleft>
                             <onright condition="!IsEmpty(Window.Property(Provider.3.Icon))">503</onright>
                             <ondown>302</ondown>
+=======
+                            <animation effect="zoom" start="100" end="110" time="150" center="30,30">Focus</animation>
+                            <animation effect="zoom" start="110" end="100" time="150" center="30,30">UnFocus</animation>
+                            <onup>400</onup>
+                            <onleft>501</onleft>
+                            <onright condition="!IsEmpty(Window.Property(Provider.3.Icon))">503</onright>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),movie) + !String.IsEqual(Window.Property(HasCollection),true)">302</ondown>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)">312</ondown>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),tvshow)">321</ondown>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                         </control>
                     </control>
 
@@ -303,9 +355,14 @@
                             <height>60</height>
                             <texturenofocus />
                             <texturefocus colordiffuse="FF00AEEF" border="30">focus.png</texturefocus>
+<<<<<<< HEAD
                             <animation effect="zoom" start="100" end="108" time="120" center="30,30">Focus</animation>
                             <animation effect="zoom" start="108" end="100" time="120" center="30,30">UnFocus</animation>
                             <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+=======
+                            <animation effect="zoom" start="100" end="110" time="150" center="30,30">Focus</animation>
+                            <animation effect="zoom" start="110" end="100" time="150" center="30,30">UnFocus</animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                             <onup>400</onup>
                             <onleft condition="!IsEmpty(Window.Property(Provider.2.Icon))">502</onleft>
                             <onleft condition="IsEmpty(Window.Property(Provider.2.Icon))">501</onleft>
@@ -341,6 +398,7 @@
                             <height>60</height>
                             <texturenofocus />
                             <texturefocus colordiffuse="FF00AEEF" border="30">focus.png</texturefocus>
+<<<<<<< HEAD
                             <animation effect="zoom" start="100" end="108" time="120" center="30,30">Focus</animation>
                             <animation effect="zoom" start="108" end="100" time="120" center="30,30">UnFocus</animation>
                             <animation effect="fade" start="70" end="100" time="150">Focus</animation>
@@ -348,6 +406,16 @@
                             <onleft condition="!IsEmpty(Window.Property(Provider.3.Icon))">503</onleft>
                             <onleft condition="IsEmpty(Window.Property(Provider.3.Icon))">502</onleft>
                             <ondown>302</ondown>
+=======
+                            <animation effect="zoom" start="100" end="110" time="150" center="30,30">Focus</animation>
+                            <animation effect="zoom" start="110" end="100" time="150" center="30,30">UnFocus</animation>
+                            <onup>400</onup>
+                            <onleft condition="!IsEmpty(Window.Property(Provider.3.Icon))">503</onleft>
+                            <onleft condition="IsEmpty(Window.Property(Provider.3.Icon))">502</onleft>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),movie) + !String.IsEqual(Window.Property(HasCollection),true)">302</ondown>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)">312</ondown>
+                            <ondown condition="String.IsEqual(Window.Property(media_type),tvshow)">321</ondown>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                         </control>
                     </control>
                 </control>
@@ -369,16 +437,25 @@
                 <control type="button" id="302">
                     <width>540</width>
                     <height>70</height>
-                    <label>Play</label>
+                    <label>▶ Play</label>
                     <font>font14</font>
                     <texturefocus border="15" colordiffuse="FF00AEEF">panel.png</texturefocus>
                     <texturenofocus border="15" colordiffuse="FF282828">panel.png</texturenofocus>
                     <textcolor>FFCCCCCC</textcolor>
                     <textoffsety>10</textoffsety>
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="270,35" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="270,35" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="270,35" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+                    <animation type="Focus" reversible="false">
+                        <effect type="zoom" end="105" time="100" center="270,35" />
+                        <effect type="zoom" start="105" end="100" time="200" delay="100" center="270,35" />
+                    </animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <align>center</align>
                     <onup>501</onup>
                     <onleft>504</onleft>
@@ -394,9 +471,18 @@
                     <textcolor>FFCCCCCC</textcolor>
                     <textoffsety>10</textoffsety>
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="270,35" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="270,35" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="270,35" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+                    <animation type="Focus" reversible="false">
+                        <effect type="zoom" end="105" time="100" center="270,35" />
+                        <effect type="zoom" start="105" end="100" time="200" delay="100" center="270,35" />
+                    </animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <align>center</align>
                     <onup>501</onup>
                     <onleft>302</onleft>
@@ -413,7 +499,10 @@
                 <onup condition="!IsEmpty(Window.Property(Provider.1.Icon))">501</onup>
                 <onup condition="IsEmpty(Window.Property(Provider.1.Icon))">400</onup>
                 <ondown>50</ondown>
+<<<<<<< HEAD
                 <usecontrolcoords>true</usecontrolcoords>
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                 <animation effect="slide" start="-100,0" end="0,0" time="300">WindowOpen</animation>
                 <animation effect="fade" start="0" end="100" time="400" delay="600">WindowOpen</animation>
                 <visible>String.IsEqual(Window.Property(media_type),movie) + String.IsEqual(Window.Property(HasCollection),true)</visible>
@@ -421,16 +510,21 @@
                 <control type="button" id="312">
                     <width>340</width>
                     <height>70</height>
-                    <label>Play</label>
+                    <label>▶ Play</label>
                     <font>font14</font>
                     <texturefocus border="15" colordiffuse="FF00AEEF">panel.png</texturefocus>
                     <texturenofocus border="15" colordiffuse="FF282828">panel.png</texturenofocus>
                     <textcolor>FFCCCCCC</textcolor>
                     <textoffsety>10</textoffsety>
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="170,35" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="170,35" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="170,35" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <align>center</align>
                     <onup condition="!IsEmpty(Window.Property(Provider.1.Icon))">501</onup>
                     <onup condition="IsEmpty(Window.Property(Provider.1.Icon))">400</onup>
@@ -446,9 +540,14 @@
                     <textcolor>FFCCCCCC</textcolor>
                     <textoffsety>10</textoffsety>
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="170,35" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="170,35" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="170,35" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <align>center</align>
                     <onup condition="!IsEmpty(Window.Property(Provider.1.Icon))">501</onup>
                     <onup condition="IsEmpty(Window.Property(Provider.1.Icon))">400</onup>
@@ -464,9 +563,14 @@
                     <textcolor>FFCCCCCC</textcolor>
                     <textoffsety>10</textoffsety>
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="170,35" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="170,35" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="170,35" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <align>center</align>
                     <onup condition="!IsEmpty(Window.Property(Provider.1.Icon))">501</onup>
                     <onup condition="IsEmpty(Window.Property(Provider.1.Icon))">400</onup>
@@ -496,9 +600,14 @@
                     <textcolor>FFCCCCCC</textcolor>
                     <textoffsety>10</textoffsety>
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="270,35" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="270,35" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="270,35" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <align>center</align>
                     <onup>501</onup>
                     <onleft>504</onleft>
@@ -514,16 +623,26 @@
                     <textcolor>FFCCCCCC</textcolor>
                     <textoffsety>10</textoffsety>
                     <focusedcolor>FF000000</focusedcolor>
+<<<<<<< HEAD
                     <animation effect="zoom" start="100" end="102" center="270,35" time="100">Focus</animation>
                     <animation effect="zoom" start="102" end="100" center="270,35" time="100">UnFocus</animation>
                     <animation effect="fade" start="80" end="100" time="150">Focus</animation>
+=======
+                    <animation effect="zoom" start="95" end="100" center="270,35" time="150">Focus</animation>
+                    <animation effect="fade" start="70" end="100" time="150">Focus</animation>
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     <align>center</align>
                     <onup>501</onup>
                     <onleft>321</onleft>
                 </control>
             </control>
 
+<<<<<<< HEAD
             <!-- SINOPSE -->
+=======
+            <!-- ================== SINOPSE ================== -->
+
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
             <control type="button" id="50">
                 <top>595</top>
                 <width>1100</width>

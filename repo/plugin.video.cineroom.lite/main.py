@@ -16,6 +16,13 @@ ADDON_PATH = ADDON.getAddonInfo("path")
 # ============ SCROBBLER - LAZY LOADING REAL ============
 _SCROBBLER = None
 
+# Inicializa imediatamente
+try:
+    from resources.lib.trakt.trakt_sync import init_trakt_scrobbler
+    _SCROBBLER = init_trakt_scrobbler()
+except:
+    pass
+
 def _init_scrobbler():
     """✅ Inicializa o monitor de scrobble automático do Trakt (chamado no router)"""
     global _SCROBBLER
@@ -32,9 +39,15 @@ def _init_scrobbler():
         if _SCROBBLER is not None:
             return _SCROBBLER
         
+<<<<<<< HEAD
         # Lazy import + criação
         from resources.lib.trakt.trakt_sync import init_trakt_scrobbler
         _SCROBBLER = init_trakt_scrobbler()
+=======
+        # Tenta importar e criar
+        from resources.lib.trakt.trakt_sync import TraktScrobbler
+        _SCROBBLER = TraktScrobbler()
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         xbmc.log("[Cineroom] Scrobbler Trakt iniciado", xbmc.LOGINFO)
         return _SCROBBLER
         
@@ -65,6 +78,11 @@ def _get_module(name):
             from resources.lib import tvshows as mod
         elif name == 'navigation':
             from resources.lib import navigation as mod
+<<<<<<< HEAD
+=======
+        elif name == 'extras_dialog':
+            from resources.lib.dialog import extras_dialog as mod
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         elif name == 'indexer':
             from resources.lib import indexer as mod
         elif name == 'favorites':
@@ -73,6 +91,15 @@ def _get_module(name):
             from resources.lib.db import db as mod
         elif name == 'constants':
             from resources.lib import constants as mod
+<<<<<<< HEAD
+=======
+        elif name == 'xbmcplugin':
+            import xbmcplugin as mod
+        elif name == 'donation_window':
+            from resources.lib.dialog.donation_window import DonationDialog as mod
+        elif name == 'trakt_sync':
+            from resources.lib.trakt import trakt_sync as mod
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         elif name == 'library':
             from resources.lib import library as mod
         
@@ -151,6 +178,10 @@ _ACTIONS = {
     'trakt_movies_box_office': ('trakt_sync', 'trakt_movies_box_office', True, None),
     'trakt_movies_top_rated': ('trakt_sync', 'trakt_movies_top_rated', True, None),
     'trakt_movies_personal_recommended': ('trakt_sync', 'trakt_movies_personal_recommended', True, None),
+<<<<<<< HEAD
+=======
+    
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     
     # === TRAKT SÉRIES ===
     'trakt_tv_trending': ('trakt_sync', 'trakt_tv_trending', True, None),
@@ -309,6 +340,10 @@ def _handle_favorites(action, params):
     
     return True
 
+<<<<<<< HEAD
+=======
+
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 def _handle_trakt(action, params):
     """✅ Handler COMPLETO para Trakt"""
     
@@ -327,7 +362,11 @@ def _handle_trakt(action, params):
             nav.show_main_menu(const.TRAKT_SYNC_MENU)
         return True
     
+<<<<<<< HEAD
     # Lazy import do módulo trakt
+=======
+
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     trakt = _get_module('trakt_sync')
     if not trakt:
         return False
@@ -478,6 +517,7 @@ def _handle_trakt(action, params):
         const = _get_module('constants')
         if nav and const:
             nav.show_main_menu(const.TRAKT_TV_MENU)
+<<<<<<< HEAD
         return True
     
     if action == 'trakt_rate':
@@ -502,7 +542,26 @@ def _handle_navigation(action, params):
     if not playback:
         return False
     
+=======
+        return True
+    
+    return False
+    
+
+def _handle_navigation(action, params):
+    """Handler otimizado para navegação (REFATORADO)"""
+    
+    # === SEARCH - USA MÓDULO DEDICADO ===
+    if action == 'search':
+        from resources.lib.search.search import search
+        search(params.get('query'), params.get('page', '1'))
+        return True
+    
+    # === PLAYBACK - USA MÓDULO DEDICADO ===
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     if action == 'find_sources':
+        from resources.lib.playback import find_and_play_sources
+        
         item_data = {
             'tmdb_id': params.get('tmdb_id', ''),
             'imdb_id': params.get('imdb_id', ''),
@@ -518,7 +577,11 @@ def _handle_navigation(action, params):
             'season': params.get('season'),
             'episode': params.get('episode')
         }
+<<<<<<< HEAD
         playback.find_and_play_sources(
+=======
+        find_and_play_sources(
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
             item_data,
             season=params.get('season'),
             episode=params.get('episode')
@@ -526,15 +589,27 @@ def _handle_navigation(action, params):
         return True
     
     if action == 'play_item_direct':
+        from resources.lib.playback import find_and_play_sources
+        
         item_data = _parse_json(params.get('data', ''))
         if item_data:
+<<<<<<< HEAD
             playback.find_and_play_sources(item_data, autoplay=False)
+=======
+            find_and_play_sources(item_data, autoplay=False)
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         return True
     
     if action == 'find_and_play_episode':
+        from resources.lib.playback import find_and_play_sources
+        
         item_data = _parse_json(params.get('item_data', ''))
         if item_data:
+<<<<<<< HEAD
             playback.find_and_play_sources(
+=======
+            find_and_play_sources(
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                 item_data,
                 autoplay=False,
                 season=params.get('season'),

@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 [B][COLOR yellow]1.3.6[/COLOR][/B]
 
 ────────────────────────────────────
@@ -13,3 +14,14 @@
 • Carregamento de artes otimizado, reduzindo tempo de exibição  
 • Resolver de reprodução ajustado para maior precisão na seleção de fontes  
 • Extras otimizados, tornando a navegação mais leve e eficiente  
+=======
+Versão – [B][COLOR yellow]1.3.4[/COLOR][/B]
+
+────────────────────────────────────
+
+[B][COLOR blue]Ajustes Estéticos[/COLOR][/B]
+• Melhoria no carregamento de arte.
+• Resolver de Reprodução ajustado.
+• Extras mais leves e precisos.
+
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260

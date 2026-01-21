@@ -457,11 +457,16 @@ VIEW_MODE_MAP = {
 }
 
 def set_view_mode(content_type, view_setting_key='view_mode', default='wall'):
+<<<<<<< HEAD
     """View mode otimizado para boxes fracos"""
+=======
+    """View mode otimizado - define e deixa o Kodi aplicar"""
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     try:
         view_mode_setting = _SETTINGS.get(view_setting_key, default)
         view_mode_id = VIEW_MODE_MAP.get(view_mode_setting, VIEW_MODE_MAP.get(default, 500))
         
+<<<<<<< HEAD
         xbmc.sleep(100)
         
         current_content = xbmc.getInfoLabel('Container.Content')
@@ -471,6 +476,11 @@ def set_view_mode(content_type, view_setting_key='view_mode', default='wall'):
         else:
             xbmc.executebuiltin(f'SetProperty(ViewMode,{view_mode_id},Home)')
             xbmc.executebuiltin(f'AlarmClock(SetView,Container.SetViewMode({view_mode_id}),00:00:30,silent)')
+=======
+        # ✅ SOLUÇÃO SIMPLES: Apenas define a property
+        # O Kodi aplica automaticamente quando o container carrega
+        xbmc.executebuiltin(f'Container.SetViewMode({view_mode_id})')
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         
     except Exception as e:
         xbmc.log(f"[ViewMode] Erro: {e}", xbmc.LOGERROR)

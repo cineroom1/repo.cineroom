@@ -157,14 +157,23 @@
 </category>
     
     <category label="Provedores">
+<<<<<<< HEAD
         <setting label="Torrent" type="lsep"/> 
+=======
+        <setting label="Torrent" type="lsep"/>  
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         <setting id="provider.starckfilmes.enabled" type="bool" label="StarckFilmes (Torrent)" default="true" />
         <setting id="provider.filmesmaster.enabled" type="bool" label="FilmesMaster (Torrent)" default="false" />
         <setting id="provider.apachetorrent.enabled" type="bool" label="Apache (Torrent)" default="false" />
         <setting id="provider.comandotop.enabled" type="bool" label="ComandoFilmes (Torrent)" default="false" />
         <setting id="provider.mico-leão.enabled" type="bool" label="Mico-Leão (Torrent)" default="false" /> 
+<<<<<<< HEAD
         <setting id="provider.torrentio.enabled" type="bool" label="Torrentio (Torrent)" default="true" /> 
         <setting id="provider.brazuca.enabled" type="bool" label="Brazuca (Torrent)" default="false" /> 
+=======
+        <setting id="provider.torrentio.enabled" type="bool" label="Torrentio (Torrent)" default="false" /> 
+        <setting id="provider.brazuca.enabled" type="bool" label="Brazuca (Torrent)" default="true" /> 
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 
         <setting label="Link Direto" type="lsep"/>  
         <setting id="provider.cdflix.enabled" type="bool" label="CDflix (Direto)" default="true" />  

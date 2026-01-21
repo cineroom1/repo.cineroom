@@ -27,7 +27,11 @@ PROVIDERS = {
         "priority": 1
     },
     "CDFlix": {
+<<<<<<< HEAD
         "url": "https://cdflix.cdteam.xyz",
+=======
+        "url": "https://cdflix.cdteam.xyz/%7B%22language%22%3A%22pt_br%22%7D",
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         "configurable": False,
         "priority": 2
     },
@@ -130,7 +134,11 @@ def find_and_play_sources(item_data, autoplay=False, season=None, episode=None):
         # Mostra progress apenas se demorar
         if elapsed > 0.7 and not pDialog:
             pDialog = xbmcgui.DialogProgressBG()
+<<<<<<< HEAD
             pDialog.create("Cineroom [COLOR cyan]Lite[/COLOR]", "Buscando fontes...")
+=======
+            pDialog.create("CR [COLOR cyan]Lite[/COLOR]", "Buscando fontes...")
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 
         if pDialog:
             percent = int((completed / total_threads) * 100)

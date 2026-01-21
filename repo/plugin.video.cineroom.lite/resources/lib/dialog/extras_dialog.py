@@ -5,7 +5,10 @@ import json
 import urllib.parse
 from xbmcaddon import Addon
 import xbmcvfs
+<<<<<<< HEAD
 from collections import OrderedDict
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 
 ADDON = Addon('plugin.video.cineroom.lite')
 ADDON_PATH = xbmcvfs.translatePath(ADDON.getAddonInfo('path'))
@@ -67,11 +70,15 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         self.meta = kwargs.get('meta', {})
         self.is_tvshow = self.meta.get('media_type') == 'tvshow'
         self.has_collection = bool(self.meta.get('collection'))
+<<<<<<< HEAD
         self._is_favorite = None  # Cache de favorito
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         
         # Setup ANTES do primeiro frame
         self._setup_properties()
     
+<<<<<<< HEAD
     def _check_favorite_status(self):
         """Verifica status de favorito (com cache)"""
         if self._is_favorite is None:
@@ -94,6 +101,8 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         
         return self._is_favorite
     
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     def _setup_properties(self):
         """Define propriedades do dialog (instantâneo)"""
         m = self.meta
@@ -107,14 +116,44 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         self.setProperty("duration", m.get("duration_str", ""))
         self.setProperty("plot", m.get("synopsis", ""))
         self.setProperty("clearlogo", m.get("clearlogo", ""))
+<<<<<<< HEAD
+=======
+        self.setProperty("FavoriteLabel", "Adicionar à Lista")
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         self.setProperty("HasCollection", "true" if self.has_collection else "false")
         self.setProperty("Collection.Label", str(m.get("collection", "")))
         self.setProperty("tmdb_id", str(m.get("tmdb_id", "")))
         
+<<<<<<< HEAD
         # Define label de favorito
         is_favorite = self._check_favorite_status()
         label = "Remover da Lista" if is_favorite else "Adicionar à Lista"
         self.setProperty("FavoriteLabel", label)
+=======
+        from resources.lib.db import db
+        tmdb_id = m.get("tmdb_id")
+        media_type = "tvshow" if self.is_tvshow else "movie"
+    
+        try:
+            is_favorite = db.is_favorite(tmdb_id, media_type)
+        except AttributeError:
+            # Fallback se método não existir
+            conn = db._get_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT 1 FROM favorites WHERE tmdb_id=? AND media_type=? LIMIT 1",
+                (tmdb_id, media_type)
+            )
+            is_favorite = cur.fetchone() is not None
+            db._release_conn(conn)
+    
+        # ✅ DEFINE LABEL CORRETA
+        if is_favorite:
+            self.setProperty("FavoriteLabel", "✓ Remover da Lista")
+        else:
+            self.setProperty("FavoriteLabel", "Adicionar à Lista")
+        
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         
         # Gêneros (max 3)
         for i, g in enumerate(m.get('genre_list', []), 1):
@@ -186,7 +225,10 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
                 idx = controlID - 401
                 genres = self.meta.get('genre_list', [])
                 if idx < len(genres):
+<<<<<<< HEAD
                     self.close()
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     genre = urllib.parse.quote_plus(genres[idx])
                     action = "list_tvshows_by_genre" if self.is_tvshow else "list_movies_by_genre"
                     self._open_container(
@@ -199,7 +241,10 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
                 idx = controlID - 501
                 providers = self.meta.get('provider_data', [])
                 if idx < len(providers):
+<<<<<<< HEAD
                     self.close()
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                     provider = urllib.parse.quote_plus(providers[idx]['name'])
                     action = "list_tvshows_by_provider" if self.is_tvshow else "list_movies_by_provider"
                     self._open_container(
@@ -209,7 +254,10 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         
         except Exception as e:
             xbmc.log(f"[CINEROOM] onClick error: {e}", xbmc.LOGERROR)
+<<<<<<< HEAD
             self._show_error("Operação falhou. Tente novamente.")
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     
     def _open_container(self, url):
         """Abre container (fecha dialog antes)"""
@@ -222,6 +270,7 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         navigation.find_and_play_sources(self.meta, autoplay=autoplay)
     
     def _toggle_favorite(self, tmdb_id, media_type):
+<<<<<<< HEAD
         """Adiciona/remove favorito com atualização de UI"""
         from resources.lib.favorites import add_item_to_favorites, remove_item_from_favorites
         
@@ -252,35 +301,81 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
             xbmcgui.NOTIFICATION_ERROR,
             2000
         )
+=======
+        """Adiciona/remove favorito (otimizado)"""
+        from resources.lib.favorites import add_item_to_favorites, remove_item_from_favorites
+        from resources.lib.db import db
+        
+        # Usa helper is_favorite() se disponível
+        try:
+            is_fav = db.is_favorite(tmdb_id, media_type)
+            if is_fav:
+                remove_item_from_favorites(tmdb_id, media_type)
+            else:
+                add_item_to_favorites(tmdb_id, media_type)
+        except AttributeError:
+            # Fallback para query direta
+            conn = db._get_conn()
+            cur = conn.cursor()
+            cur.execute(
+                "SELECT 1 FROM favorites WHERE tmdb_id=? AND media_type=? LIMIT 1",
+                (tmdb_id, media_type)
+            )
+            exists = cur.fetchone()
+            db._release_conn(conn)
+            
+            if exists:
+                remove_item_from_favorites(tmdb_id, media_type)
+            else:
+                add_item_to_favorites(tmdb_id, media_type)
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     
     def onAction(self, action):
         """Handler de ações (back, esc)"""
         if action.getId() in (10, 92, xbmcgui.ACTION_NAV_BACK, xbmcgui.ACTION_PREVIOUS_MENU):
             self.close()
+<<<<<<< HEAD
     
     def __del__(self):
         """Cleanup ao destruir janela"""
         self.meta = None
         self._is_favorite = None
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 
 # === PREPARAÇÃO DE METADADOS ===
 def _prepare_common_meta(item_data):
     """
+<<<<<<< HEAD
     Prepara metadados comuns (OTIMIZADO v2).
+=======
+    Prepara metadados comuns (OTIMIZADO).
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     Evita regex, usa função do utils.py.
     """
     meta = item_data.copy()
     
     # === GÊNEROS (limita a 3) ===
     raw_genres = meta.get("genre", "")
+<<<<<<< HEAD
     meta['genre_list'] = (
         [g.strip() for g in raw_genres.split(",") if g.strip()][:3]
         if isinstance(raw_genres, str) else []
     )
+=======
+    if isinstance(raw_genres, str):
+        meta['genre_list'] = [g.strip() for g in raw_genres.split(",") if g.strip()][:3]
+    else:
+        meta['genre_list'] = []
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     
     # === POSTER (usa scale_tmdb do utils.py) ===
     poster = meta.get("poster", "")
     if poster and 'image.tmdb.org' in poster:
+<<<<<<< HEAD
+=======
+        # Importa função otimizada
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         from resources.lib.utils import scale_tmdb
         meta["poster"] = scale_tmdb(poster, "original")
     
@@ -295,6 +390,7 @@ def _prepare_common_meta(item_data):
         except:
             providers = []
     
+<<<<<<< HEAD
     # Usa OrderedDict para manter ordem e remover duplicatas
     unique_providers = OrderedDict()
     
@@ -307,6 +403,19 @@ def _prepare_common_meta(item_data):
     
     meta['provider_data'] = list(unique_providers.values())
     
+=======
+    meta['provider_data'] = []
+    seen_logos = set()
+    
+    for p in providers:
+        logo = get_logo_path(p)
+        if logo and logo not in seen_logos:
+            meta['provider_data'].append({'name': p, 'icon': logo})
+            seen_logos.add(logo)
+            if len(meta['provider_data']) >= 4:
+                break
+    
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     return meta
 
 # === FUNÇÕES PÚBLICAS ===

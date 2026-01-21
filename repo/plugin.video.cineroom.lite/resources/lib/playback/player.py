@@ -85,6 +85,7 @@ def play_url(url, item_info):
 
 def _detect_stream_type(url):
     """
+<<<<<<< HEAD
     Detecta corretamente o tipo de stream.
     Regras:
     - InputStream Adaptive SOMENTE para HLS (.m3u8) e DASH (.mpd)
@@ -107,14 +108,28 @@ def _detect_stream_type(url):
         or url_lower.startswith('plugin://plugin.video.elementum')
         or (len(url) == 40 and ' ' not in url and not url_lower.startswith('http'))
     ):
+=======
+    Detecta tipo de stream e retorna configuração ideal
+    """
+    url_lower = url.lower()
+    
+    # Torrent/Magnet
+    if url.startswith('magnet:') or 'elementum' in url or (len(url) == 40 and not url.startswith('http')):
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         return {
             'type': 'torrent',
             'player': 'elementum',
             'needs_headers': False,
             'needs_watchdog': False,
         }
+<<<<<<< HEAD
         
     if '.m3u8' in url_lower:
+=======
+    
+    # HLS (melhor com InputStream)
+    if '.m3u8' in url_lower or 'm3u8' in url_lower:
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         return {
             'type': 'hls',
             'player': 'inputstream',
@@ -122,7 +137,12 @@ def _detect_stream_type(url):
             'needs_headers': True,
             'needs_watchdog': True,
         }
+<<<<<<< HEAD
         
+=======
+    
+    # DASH (requer InputStream)
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     if '.mpd' in url_lower:
         return {
             'type': 'dash',
@@ -131,6 +151,7 @@ def _detect_stream_type(url):
             'needs_headers': True,
             'needs_watchdog': True,
         }
+<<<<<<< HEAD
 
     if '.mp4' in url_lower:
         return {
@@ -141,12 +162,32 @@ def _detect_stream_type(url):
         }
 
     if any(ext in url_lower for ext in ('.mkv', '.avi', '.flv')):
+=======
+    
+    # MP4 direto (pode usar InputStream ou nativo)
+    if '.mp4' in url_lower:
+        # Se tem domínios problemáticos, usa InputStream
+        problematic_domains = ['animezey', 'workers.dev', 'cloudflare']
+        needs_inputstream = any(domain in url_lower for domain in problematic_domains)
+        
+        return {
+            'type': 'mp4',
+            'player': 'inputstream' if needs_inputstream else 'native',
+            'manifest_type': 'hls' if needs_inputstream else None,
+            'needs_headers': True,
+            'needs_watchdog': needs_inputstream,
+        }
+    
+    # MKV/AVI (sempre nativo)
+    if any(ext in url_lower for ext in ['.mkv', '.avi', '.flv']):
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         return {
             'type': 'video',
             'player': 'native',
             'needs_headers': True,
             'needs_watchdog': False,
         }
+<<<<<<< HEAD
         
     return {
         'type': 'video',
@@ -157,6 +198,19 @@ def _detect_stream_type(url):
 
 
 
+=======
+    
+    # Fallback: trata como MP4 com InputStream
+    return {
+        'type': 'unknown',
+        'player': 'inputstream',
+        'manifest_type': 'hls',
+        'needs_headers': True,
+        'needs_watchdog': True,
+    }
+
+
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 def _process_url(url, item_info, stream_config):
     """
     Processa URL baseado no tipo detectado
@@ -297,8 +351,11 @@ def _apply_headers(play_item, url, stream_config):
         'Origin': f"https://{domain}" if domain else '',
         'Accept': '*/*',
         'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+<<<<<<< HEAD
         'Connection': 'keep-alive',
         # REMOVIDO: 'Range': 'bytes=0-'  # <-- ESTE É O PROBLEMA!
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     }
     
     # Remove headers vazios
@@ -565,9 +622,12 @@ def _intelligent_scrobble(item_info, stream_config):
         # Envia para Trakt
         _send_to_trakt(item_info, effective_progress, max_position, avg_total)
         
+<<<<<<< HEAD
         from resources.lib.trakt_rating import ask_rating_after_playback
         ask_rating_after_playback(item_info, effective_progress, delay=3)
         
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     except Exception as e:
         xbmc.log(f"[Trakt Scrobble] Erro crítico: {e}", xbmc.LOGERROR)
         import traceback

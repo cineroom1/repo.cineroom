@@ -3,6 +3,7 @@
 
 """
 Sistema de Categorias Temáticas com Keywords do TMDb
+<<<<<<< HEAD
 OTIMIZADO COM CACHE EM DISCO E MEMÓRIA
 """
 
@@ -203,6 +204,64 @@ def resolve_keywords(keyword_names):
     # Converte para tuple para usar com lru_cache
     names_tuple = tuple(keyword_names)
     return resolve_keywords_cached(names_tuple)
+=======
+Busca keywords por NOME (mais flexível e legível)
+"""
+
+import xbmc
+import requests
+from functools import lru_cache
+
+TMDB_API_KEY = "f0b9cd2de131c900f5bb03a0a5776342"
+
+# Cache de IDs já resolvidos (evita requisições repetidas)
+_KEYWORD_CACHE = {}
+
+@lru_cache(maxsize=100)
+def search_keyword_id(keyword_name):
+    """
+    Busca o ID de uma keyword pelo nome no TMDb
+    Usa cache para não repetir requisições
+    """
+    # Verifica cache em memória
+    if keyword_name in _KEYWORD_CACHE:
+        return _KEYWORD_CACHE[keyword_name]
+    
+    url = f"https://api.themoviedb.org/3/search/keyword"
+    params = {
+        "api_key": TMDB_API_KEY,
+        "query": keyword_name
+    }
+    
+    try:
+        response = requests.get(url, params=params, timeout=3)
+        data = response.json()
+        
+        if data.get('results'):
+            keyword_id = data['results'][0]['id']
+            _KEYWORD_CACHE[keyword_name] = keyword_id
+            xbmc.log(f"[Keywords] '{keyword_name}' → ID {keyword_id}", xbmc.LOGDEBUG)
+            return keyword_id
+        else:
+            xbmc.log(f"[Keywords] Keyword '{keyword_name}' não encontrada", xbmc.LOGWARNING)
+            return None
+            
+    except Exception as e:
+        xbmc.log(f"[Keywords] Erro buscando '{keyword_name}': {e}", xbmc.LOGERROR)
+        return None
+
+def resolve_keywords(keyword_names):
+    """
+    Converte lista de nomes em lista de IDs
+    Exemplo: ["snow", "winter"] → [2238, 10683]
+    """
+    ids = []
+    for name in keyword_names:
+        keyword_id = search_keyword_id(name)
+        if keyword_id:
+            ids.append(keyword_id)
+    return ids
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 
 # Mapeamento PT-BR → Keyword Names (inglês)
 KEYWORDS_MAP = {
@@ -487,6 +546,7 @@ def get_theme_config(theme_slug):
 def get_theme_keyword_ids(theme_slug):
     """
     Retorna IDs das keywords de uma categoria
+<<<<<<< HEAD
     COM CACHE INTELIGENTE (SQLite + Memória)
     """
     # Verifica cache SQLite primeiro
@@ -495,11 +555,16 @@ def get_theme_keyword_ids(theme_slug):
         xbmc.log(f"[Keywords] Cache HIT para tema: {theme_slug}", xbmc.LOGDEBUG)
         return cached_ids
     
+=======
+    Busca dinamicamente no TMDb se necessário
+    """
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     config = KEYWORDS_MAP.get(theme_slug)
     if not config:
         return []
     
     keyword_names = config['keywords']
+<<<<<<< HEAD
     
     # Busca IDs (com cache LRU)
     keyword_ids = resolve_keywords(keyword_names)
@@ -512,6 +577,9 @@ def get_theme_keyword_ids(theme_slug):
         save_theme_cache(theme_slug, valid_ids)
     
     return valid_ids
+=======
+    return resolve_keywords(keyword_names)
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
 
 def search_theme_slug(query):
     """Busca categoria por termo em português"""
@@ -526,6 +594,7 @@ def search_theme_slug(query):
         if query_lower in slug or query_lower in data['name'].lower():
             return slug
     
+<<<<<<< HEAD
     return None
 
 def preload_common_themes():
@@ -541,3 +610,6 @@ try:
     xbmc.log("[Keywords] Cache DB inicializado", xbmc.LOGINFO)
 except Exception as e:
     xbmc.log(f"[Keywords] Erro inicializando cache DB: {e}", xbmc.LOGERROR)
+=======
+    return None
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260

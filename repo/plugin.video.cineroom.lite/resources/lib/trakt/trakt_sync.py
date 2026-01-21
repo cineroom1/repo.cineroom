@@ -799,17 +799,23 @@ def trakt_remove_watched(tmdb_id, media_type):
 
 
 def trakt_rate_item(tmdb_id, media_type):
+<<<<<<< HEAD
     """
     ✅ Avalia item no Trakt usando o diálogo visual de estrelas
     """
     settings = get_trakt_settings()
     
     # ✅ OTIMIZAÇÃO: Só verifica o token, sem refresh (mais rápido)
+=======
+    """Avalia item no Trakt (1-10)"""
+    settings = get_trakt_settings()
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
     if not settings.get('access_token'):
         xbmcgui.Dialog().ok("Trakt", "Você precisa estar autenticado no Trakt.")
         return False
     
     try:
+<<<<<<< HEAD
         # 🌟 IMPORTA O MÓDULO DE AVALIAÇÃO
         from resources.lib.trakt_rating import rate_item_from_context_menu
         
@@ -853,6 +859,51 @@ def trakt_rate_item(tmdb_id, media_type):
             xbmcgui.NOTIFICATION_ERROR,
             3000
         )
+=======
+        # Diálogo para escolher nota
+        rating = xbmcgui.Dialog().numeric(0, "Avaliar (1-10)", "0")
+        
+        if not rating or rating == "0":
+            return False
+        
+        rating_value = int(rating)
+        if rating_value < 1 or rating_value > 10:
+            xbmcgui.Dialog().ok("Erro", "Nota deve ser entre 1 e 10")
+            return False
+        
+        rated_at = datetime.now().isoformat()
+        
+        if media_type == 'movie':
+            payload = {
+                'movies': [{'ids': {'tmdb': int(tmdb_id)}, 'rating': rating_value, 'rated_at': rated_at}]
+            }
+        else:
+            payload = {
+                'shows': [{'ids': {'tmdb': int(tmdb_id)}, 'rating': rating_value, 'rated_at': rated_at}]
+            }
+        
+        response = trakt_request('POST', '/sync/ratings', payload)
+        
+        if response:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                f"✅ Avaliado com nota {rating_value}!",
+                xbmcgui.NOTIFICATION_INFO,
+                2000
+            )
+            return True
+        else:
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "❌ Erro ao avaliar",
+                xbmcgui.NOTIFICATION_ERROR,
+                2000
+            )
+            return False
+            
+    except Exception as e:
+        xbmc.log(f"[Trakt] Erro rating: {e}", xbmc.LOGERROR)
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         return False
 
 
@@ -1046,7 +1097,10 @@ def authenticate_trakt():
         if not confirmed:
             return False
         
+<<<<<<< HEAD
         # === CONTINUA COM A AUTENTICAÇÃO ===
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         device_code = data['device_code']
         
         # Mostra progresso enquanto aguarda
@@ -1080,7 +1134,10 @@ def authenticate_trakt():
                 ADDON.setSetting('trakt_refresh_token', token['refresh_token'])
                 ADDON.setSetting('trakt_expires_at', str(time.time() + token['expires_in']))
                 
+<<<<<<< HEAD
                 # Busca username
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
                 try:
                     user_resp = requests.get(
                         'https://api.trakt.tv/users/me',

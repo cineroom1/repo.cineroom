@@ -239,6 +239,7 @@ class AnimeZeyScraper:
                 seen.add(q_stripped)
                 unique_queries.append(q_stripped)
         
+<<<<<<< HEAD
         xbmc.log(f"{self.log_prefix} 📋 {len(unique_queries)} queries: {unique_queries[:8]}", xbmc.LOGINFO)
         return unique_queries
     
@@ -278,11 +279,41 @@ class AnimeZeyScraper:
         if not names:
             return []
     
+=======
+        xbmc.log(f"{self.log_prefix} 🔍 {len(unique_queries)} queries: {unique_queries[:8]}", xbmc.LOGINFO)
+        return unique_queries
+    
+    def _get_base_names(self):
+        """Obtém nomes base (prioridade: romaji > original > title)"""
+        names = []
+        
+        # PRIORIDADE 1: Romaji (melhor para animes)
+        if self.romaji_title:
+            clean = self.romaji_title.split(":")[0].strip()
+            names.append(clean)
+        
+        # PRIORIDADE 2: Original
+        if self.original_title:
+            clean = self.original_title.split(":")[0].strip()
+            if clean not in names:
+                names.append(clean)
+        
+        # PRIORIDADE 3: Title
+        if self.title:
+            clean = self.title.split(":")[0].strip()
+            if clean not in names:
+                names.append(clean)
+        
+        if not names:
+            return []
+        
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         # Criar variações
         final_names = []
         for name in names:
             # Original
             final_names.append(name)
+<<<<<<< HEAD
         
             # Sem apóstrofo (prioridade)
             if "'" in name:
@@ -296,6 +327,20 @@ class AnimeZeyScraper:
                     if len(words) > 1:
                         final_names.append(words[1])
     
+=======
+            
+            # Sem apóstrofo (prioridade)
+            if "'" in name:
+                final_names.append(name.replace("'", ""))
+            
+            # Sem artigos
+            name_lower = name.lower()
+            if name_lower.startswith(('the ', 'a ', 'an ', 'o ', 'os ')):
+                words = name.split(' ', 1)
+                if len(words) > 1:
+                    final_names.append(words[1])
+        
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         # Remover duplicatas
         seen = set()
         unique = []
@@ -303,7 +348,11 @@ class AnimeZeyScraper:
             if n and n not in seen:
                 seen.add(n)
                 unique.append(n)
+<<<<<<< HEAD
     
+=======
+        
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         return unique
     
     def _is_correct_episode(self, filename):
@@ -355,14 +404,22 @@ class AnimeZeyScraper:
         return False
     
     def _matches_series_in_filename(self, filename_lower):
+<<<<<<< HEAD
         """Verifica se o nome da série está no arquivo - CORRIGIDO: verificação mais rigorosa"""
         # Obter nomes para verificação (priorizar nomes completos)
         base_names = self._get_base_names()[:8]  # Aumentar para incluir mais variações
     
+=======
+        """Verifica se o nome da série está no arquivo (rápido)"""
+        # Obter nomes para verificação
+        base_names = self._get_base_names()[:5]  # Top 5
+        
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         for name in base_names:
             name_lower = name.lower()
             name_normalized = normalize_for_compare(name)
             filename_normalized = normalize_for_compare(filename_lower)
+<<<<<<< HEAD
         
             # VERIFICAÇÃO MAIS RIGOROSA:
             # Se o nome tem subtítulo (ex: "Transformers: Rescue Bots")
@@ -397,6 +454,16 @@ class AnimeZeyScraper:
                     xbmc.log(f"{self.log_prefix} ✅ Match simples: '{name}' em '{filename_lower[:80]}'", xbmc.LOGDEBUG)
                     return True
     
+=======
+            
+            # Verificações rápidas
+            if (name_lower in filename_lower or
+                name_normalized in filename_normalized or
+                name_lower.replace(' ', '.') in filename_lower or
+                name_lower.replace(' ', '') in filename_lower.replace('[', '').replace(']', '')):
+                return True
+        
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         return False
     
     # --- BUSCA DE FILMES (OTIMIZADA) ---
@@ -508,9 +575,13 @@ class AnimeZeyScraper:
         seen_links = set()
         
         for item in items:
+<<<<<<< HEAD
             # NOVO: Extrai URL do player Video.js
             download_url = self._extract_player_url(item)
             
+=======
+            download_url = self._build_download_link(item.get('link'))
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
             if not download_url or download_url in seen_links:
                 continue
             
@@ -523,6 +594,7 @@ class AnimeZeyScraper:
         
         return results
     
+<<<<<<< HEAD
     def _extract_player_url(self, item):
         """
         NOVO: Extrai URL do player Video.js (com expiry e mac válidos)
@@ -574,6 +646,10 @@ class AnimeZeyScraper:
     
     def _build_download_link(self, link_part):
         """Constrói link de download (FALLBACK - método antigo)"""
+=======
+    def _build_download_link(self, link_part):
+        """Constrói link de download"""
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
         if not link_part or not link_part.startswith('/'):
             return None
             

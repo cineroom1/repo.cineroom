@@ -335,7 +335,10 @@ def list_episodes(tvshow_tmdb_id, season_number):
             'year': show_data.get('year'),
             'backdrop': show_data.get('backdrop'),
             'poster': show_data.get('poster'),
+<<<<<<< HEAD
             'clearlogo': show_data.get('clearlogo', ''),
+=======
+>>>>>>> 927d3c6445ca543ef8b5e72dbdf7c6efafc9b260
             'episode_title': ep_data_tmdb.get('name'),
             'plot': ep_data_tmdb.get('overview'),
             'episode_poster': episode_poster_url,
