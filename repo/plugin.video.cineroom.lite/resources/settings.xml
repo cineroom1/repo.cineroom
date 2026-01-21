@@ -28,6 +28,12 @@
         </setting>               
     </category>
 
+    <category label="Legendas">
+    <setting id="enable_subtitles" type="bool" label="Ativar legendas automáticas" default="false"/>
+    <setting id="subtitle_language" type="select" label="Idioma" values="por|pob|pt-br" default="por"/>
+    <setting id="auto_load_subtitle" type="bool" label="Carregar automaticamente ao reproduzir" default="true" />
+    </category>
+
     <category label="API">
         <setting id="tmdb_api"
                  type="text"
@@ -111,6 +117,7 @@
     <setting id="trakt_access_token" type="text" label="Access Token" default="" visible="false" />
     <setting id="trakt_refresh_token" type="text" label="Refresh Token" default="" visible="false" />
     <setting id="trakt_expires_at" type="text" label="Expires At" default="0" visible="false" />
+
     <setting label="Sincronização" type="lsep"/> 
     <setting id="trakt_sync_on_startup" type="bool" label="Sincronizar no startup" default="true" />
     <setting id="trakt_sync_interval" type="enum" label="Intervalo de sincronização" values="15 minutos|30 minutos|60 minutos|120 minutos|240 minutos" default="60" />
@@ -119,23 +126,45 @@
     <setting id="trakt_sync_ratings" type="bool" label="Sincronizar avaliações" default="true" />
     <setting id="trakt_sync_collection" type="bool" label="Sincronizar coleção" default="true" />
     <setting id="trakt_sync_playback" type="bool" label="Sincronizar progresso" default="true" />
+
     <setting label="Autenticação" type="lsep"/> 
+    <setting id="trakt_show_notifications" type="bool" label="Mostrar notificações Trakt" default="true"/>
     <setting type="action" label="Autenticar com Trakt" action="RunAddon(plugin.video.cineroom.lite,action=trakt_auth)" />
     <setting type="action" label="Sincronização Manual" action="RunAddon(plugin.video.cineroom.lite,action=trakt_sync)" />
     <setting type="action" label="Abrir Menu Trakt" action="RunAddon(plugin.video.cineroom.lite,action=trakt_menu)" />
-
     <setting id="trakt_auto_scrobble" type="bool" label="Scrobble Automático" default="true"/>
-<setting id="cache_age_hours" type="number" label="Cache (horas)" default="72"/>
+    <setting id="cache_age_hours" type="number" label="Cache (horas)" default="72"/>
+    <setting label="Avaliação" type="lsep"/> 
+    <setting 
+        id="trakt_ask_rating_after_playback" 
+        type="bool" 
+        label="Perguntar avaliação após assistir"
+        default="true" />
+    
+    <setting 
+        id="trakt_rating_min_progress" 
+        type="number" 
+        label="Progresso mínimo para perguntar (%)"
+        default="70"
+        visible="eq(-1,true)" />
+    
+    <setting 
+        id="trakt_show_notifications" 
+        type="bool" 
+        label="Mostrar notificações de avaliação"
+        default="true"
+        visible="eq(-2,true)" />
 </category>
     
     <category label="Provedores">
-        <setting label="Torrent" type="lsep"/>  
-        <setting id="provider.filmesmaster.enabled" type="bool" label="Filmesmaster (Torrent)" default="false" />
+        <setting label="Torrent" type="lsep"/> 
+        <setting id="provider.starckfilmes.enabled" type="bool" label="StarckFilmes (Torrent)" default="true" />
+        <setting id="provider.filmesmaster.enabled" type="bool" label="FilmesMaster (Torrent)" default="false" />
         <setting id="provider.apachetorrent.enabled" type="bool" label="Apache (Torrent)" default="false" />
         <setting id="provider.comandotop.enabled" type="bool" label="ComandoFilmes (Torrent)" default="false" />
-        <setting id="provider.mico-leão.enabled" type="bool" label="Mico-Leão (Torrent)" default="true" /> 
+        <setting id="provider.mico-leão.enabled" type="bool" label="Mico-Leão (Torrent)" default="false" /> 
         <setting id="provider.torrentio.enabled" type="bool" label="Torrentio (Torrent)" default="true" /> 
-        <setting id="provider.brazuca.enabled" type="bool" label="Brazuca (Torrent)" default="true" /> 
+        <setting id="provider.brazuca.enabled" type="bool" label="Brazuca (Torrent)" default="false" /> 
 
         <setting label="Link Direto" type="lsep"/>  
         <setting id="provider.cdflix.enabled" type="bool" label="CDflix (Direto)" default="true" />  

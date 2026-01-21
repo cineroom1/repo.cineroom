@@ -109,7 +109,7 @@ def _fetch_extras_batch(items, media_type):
         return []
     
     # REDUZ workers para evitar sobrecarga (10 -> 5)
-    with ThreadPoolExecutor(max_workers=5) as executor:
+    with ThreadPoolExecutor(max_workers=10) as executor:
         # Submit todas as tarefas mantendo a ordem
         future_to_index = {
             executor.submit(_fetch_tmdb_extra, item, media_type): idx 
@@ -190,7 +190,7 @@ def fetch_trending_tvshows(page=1):
     return fetch_trending('tv', page)
 
 def search_tmdb(query, page=1):
-    """Busca unificada (Filmes e Séries) - OTIMIZADA."""
+    """Busca unificada (Filmes e Séries) - OTIMIZADA COM BATCH."""
     url = f"{BASE_URL}/search/multi"
     params = {
         "api_key": TMDB_API_KEY, 
@@ -201,22 +201,39 @@ def search_tmdb(query, page=1):
     }
     
     try:
-        # USA SESSÃO
         r = get_session().get(url, params=params, timeout=5)
         data = r.json().get('results', [])
         
         # Filtra apenas o que interessa
         filtered = [i for i in data if i.get('media_type') in ['movie', 'tv']]
 
-        # CRÍTICO: Para busca, extras são menos importantes
-        # Você pode até desabilitar se quiser velocidade máxima
-        extra_results = _fetch_extras_batch(filtered[:10], None)  # Limita a 10 primeiros
-        extra_results += [{'imdb_id': '', 'clearlogo': '', 'providers': [], 'runtime': 0}] * (len(filtered) - 10)
-
-        return [
-            _normalize_item(item, item['media_type'], extra) 
-            for item, extra in zip(filtered, extra_results)
-        ]
+        # 🔥 SEPARA POR TIPO
+        movies = [i for i in filtered if i.get('media_type') == 'movie']
+        tvshows = [i for i in filtered if i.get('media_type') == 'tv']
+        
+        # 🔥 BUSCA EXTRAS EM BATCH SEPARADAMENTE
+        movie_extras = _fetch_extras_batch(movies, 'movie')
+        tv_extras = _fetch_extras_batch(tvshows, 'tv')
+        
+        # 🔥 MONTA RESULTADOS NA ORDEM ORIGINAL
+        results = []
+        movie_idx = 0
+        tv_idx = 0
+        
+        for item in filtered:
+            media_type = item.get('media_type')
+            
+            if media_type == 'movie':
+                extra = movie_extras[movie_idx]
+                movie_idx += 1
+            else:
+                extra = tv_extras[tv_idx]
+                tv_idx += 1
+            
+            normalized = _normalize_item(item, media_type, extra)
+            results.append(normalized)
+        
+        return results
         
     except Exception as e:
         xbmc.log(f"[TMDB SEARCH] Erro: {str(e)}", xbmc.LOGERROR)
@@ -502,4 +519,111 @@ def get_season_episodes(tmdb_id, season_number):
         
     except Exception as e:
         xbmc.log(f"[TMDB API] Erro ao buscar episódios {tmdb_id} S{season_number}: {e}", xbmc.LOGERROR)
+        return []
+    
+def fetch_movies_by_keywords(keyword_ids, genres=None, page=1):
+    """
+    Busca filmes por keywords (COM INFO DE PAGINAÇÃO)
+    """
+    if not keyword_ids:
+        return []
+    
+    cache_key = f"keywords_movies_{','.join(map(str, keyword_ids))}_{','.join(map(str, genres or []))}_{page}"
+    cached = db.get_tmdb_cache(cache_key, hours=24)
+    if cached:
+        return cached
+    
+    url = f"{BASE_URL}/discover/movie"
+    
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": TMDB_LANG,
+        "page": page,
+        "sort_by": "popularity.desc",
+        "vote_count.gte": 100,
+        "with_keywords": "|".join(map(str, keyword_ids)),
+        "include_adult": False
+    }
+    
+    if genres:
+        params["with_genres"] = ",".join(map(str, genres))
+    
+    try:
+        response = get_session().get(url, params=params, timeout=5)
+        json_data = response.json()  # ✅ Pega o JSON completo
+        data = json_data.get('results', [])
+        
+        # ✅ PEGA INFO DE PÁGINAS
+        total_pages = json_data.get('total_pages', 1)
+        
+        extra_results = _fetch_extras_batch(data, 'movie')
+        
+        results = []
+        for item, extra in zip(data, extra_results):
+            normalized = _normalize_item(item, 'movie', extra)
+            results.append(normalized)
+        
+        # ✅ ADICIONA INFO DE PÁGINAS AOS RESULTADOS
+        # Hack: adiciona como propriedade do primeiro item
+        if results:
+            results[0]['_has_next_page'] = (page < total_pages)
+            db.save_tmdb_cache(cache_key, results)
+        
+        return results
+        
+    except Exception as e:
+        xbmc.log(f"[TMDB] Erro busca keywords: {e}", xbmc.LOGERROR)
+        return []
+
+def fetch_tvshows_by_keywords(keyword_ids, genres=None, page=1):
+    """
+    Busca séries por keywords (COM INFO DE PAGINAÇÃO)
+    """
+    if not keyword_ids:
+        return []
+    
+    cache_key = f"keywords_tv_{','.join(map(str, keyword_ids))}_{','.join(map(str, genres or []))}_{page}"
+    cached = db.get_tmdb_cache(cache_key, hours=24)
+    if cached:
+        return cached
+    
+    url = f"{BASE_URL}/discover/tv"
+    
+    params = {
+        "api_key": TMDB_API_KEY,
+        "language": TMDB_LANG,
+        "page": page,
+        "sort_by": "popularity.desc",
+        "vote_count.gte": 50,
+        "with_keywords": "|".join(map(str, keyword_ids)),
+        "include_adult": False
+    }
+    
+    if genres:
+        params["with_genres"] = ",".join(map(str, genres))
+    
+    try:
+        response = get_session().get(url, params=params, timeout=5)
+        json_data = response.json()
+        data = json_data.get('results', [])
+        
+        # ✅ PEGA INFO DE PÁGINAS
+        total_pages = json_data.get('total_pages', 1)
+        
+        extra_results = _fetch_extras_batch(data, 'tv')
+        
+        results = []
+        for item, extra in zip(data, extra_results):
+            normalized = _normalize_item(item, 'tv', extra)
+            results.append(normalized)
+        
+        # ✅ ADICIONA INFO DE PÁGINAS
+        if results:
+            results[0]['_has_next_page'] = (page < total_pages)
+            db.save_tmdb_cache(cache_key, results)
+        
+        return results
+        
+    except Exception as e:
+        xbmc.log(f"[TMDB] Erro busca keywords séries: {e}", xbmc.LOGERROR)
         return []

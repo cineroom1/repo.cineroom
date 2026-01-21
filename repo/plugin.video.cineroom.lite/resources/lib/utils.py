@@ -16,7 +16,7 @@ class SettingsCache:
     def __init__(self):
         self._cache = {}
         self._last_check = 0
-        self._ttl = 30
+        self._ttl = 5
     
     def get(self, key, default=''):
         import time
@@ -244,7 +244,7 @@ def create_video_item(item_data, media_type, show_data=None):
         'originaltitle': item_data.get('original_title', ''),
         'plot': item_data.get('synopsis', ''),
         'aired': aired,
-        'year': year,  # ✅ COMO INT (alguns addons esperam int)
+        'year': year,
         'duration': duration_sec,
         'studio': studio_str,
         'mpaa': mpaa,
@@ -457,24 +457,20 @@ VIEW_MODE_MAP = {
 }
 
 def set_view_mode(content_type, view_setting_key='view_mode', default='wall'):
+    """View mode otimizado para boxes fracos"""
     try:
         view_mode_setting = _SETTINGS.get(view_setting_key, default)
         view_mode_id = VIEW_MODE_MAP.get(view_mode_setting, VIEW_MODE_MAP.get(default, 500))
         
         xbmc.sleep(100)
         
-        timeout = 0
-        max_timeout = 1000
+        current_content = xbmc.getInfoLabel('Container.Content')
         
-        while xbmc.getInfoLabel('Container.Content') != content_type:
-            xbmc.sleep(50)
-            timeout += 50
-            
-            if timeout >= max_timeout:
-                xbmc.log(f"[ViewMode] Timeout para '{content_type}'", xbmc.LOGWARNING)
-                return
-        
-        xbmc.executebuiltin(f'Container.SetViewMode({view_mode_id})')
+        if current_content == content_type:
+            xbmc.executebuiltin(f'Container.SetViewMode({view_mode_id})')
+        else:
+            xbmc.executebuiltin(f'SetProperty(ViewMode,{view_mode_id},Home)')
+            xbmc.executebuiltin(f'AlarmClock(SetView,Container.SetViewMode({view_mode_id}),00:00:30,silent)')
         
     except Exception as e:
         xbmc.log(f"[ViewMode] Erro: {e}", xbmc.LOGERROR)

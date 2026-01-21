@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom.lite" version="1.3.0" name="Cineroom [COLOR cyan]Lite[/COLOR]" provider-name="Gael">
+<addon id="plugin.video.cineroom.lite" version="1.3.6" name="Cineroom [COLOR cyan]Lite[/COLOR]" provider-name="Gael">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests" />
@@ -33,15 +33,15 @@
     </assets>
   </extension>
 </addon>
-<addon id="repository.cineroom" name="Cineroom Repo" version="1.0.0" provider-name="Gael">
+<addon id="repository.cineroom" name="Cineroom Repo" version="1.0.1" provider-name="Gael">
   <requires>
     <import addon="xbmc.addon" version="12.0.0"/>
   </requires>
   <extension point="xbmc.addon.repository" name="Cineroom Repository">
     <dir>
-      <info compressed="false">https://raw.githubusercontent.com/cineroom1/repo.cineroom/main/addons.xml</info>
-      <checksum>https://raw.githubusercontent.com/cineroom1/repo.cineroom/main/addons.xml.md5</checksum>
-      <datadir>https://raw.githubusercontent.com/cineroom1/repo.cineroom/main/repo/</datadir>
+      <info compressed="false">https://raw.githubusercontent.com/cineroom1/repo.cineroom/master/addons.xml</info>
+      <checksum>https://raw.githubusercontent.com/cineroom1/repo.cineroom/master/addons.xml.md5</checksum>
+      <datadir>https://raw.githubusercontent.com/cineroom1/repo.cineroom/master/repo/</datadir>
       <hashes>false</hashes>
     </dir>
   </extension>
@@ -49,7 +49,7 @@
     <summary>Repositório oficial Cineroom</summary>
     <description>Repositório com os addons oficiais do Cineroom</description>
     <platform>all</platform>
-	<assets>
+    <assets>
       <icon>icon.png</icon>
     </assets>
   </extension>

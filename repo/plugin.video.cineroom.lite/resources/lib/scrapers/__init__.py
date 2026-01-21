@@ -22,7 +22,6 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
 
     try:
         
-        
         if provider_name in ["Brazuca", "Torrentio", "SkyFlix", "Mico-Leão","CDFlix"]:
             # Chama a função 'scrape' do módulo 'stremio.py'
             sources = stremio.scrape(
@@ -39,12 +38,10 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
             sources = animezey.scrape(
                 provider_url=provider_data.get('url'),
                 item_data=item_data
-                # season/episode estão dentro do item_data
             )
             
-        elif provider_name in ["Comando.la", "ComandoTop"]:
+        elif provider_name in ["ComandoTop"]:
             from . import comando
-            # Chama a função 'scrape' do módulo 'comando.py'
             sources = comando.scrape(
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
@@ -59,18 +56,35 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 item_data=item_data,
                 season=season,
                 episode=episode
-           )
+            )
             
-        elif provider_name == "Filmesmaster":  # CORRIGIDO: faltava as aspas de fechamento
+        elif provider_name == "Filmesmaster":
             from . import filmesmaster
-            sources = filmesmaster.scrape_filmesmaster(  # CORRIGIDO: nome da função
+            sources = filmesmaster.scrape_filmesmaster(
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
                 episode=episode
-           )    
-      
+            )
             
+        elif provider_name == "StarckFilmes":
+            # NOVO: Scraper do Starck Filmes
+            from . import starckfilmes
+            sources = starckfilmes.scrape(
+                provider_url=provider_data.get('url'),
+                item_data=item_data,
+                season=season,
+                episode=episode
+            )
+        
+        elif provider_name == "CMD1":
+            from . import cmd1
+            sources = cmd1.scrape(
+                provider_url=provider_data.get('url'),
+                item_data=item_data,
+                season=season,
+                episode=episode
+            )     
             
         else:
             xbmc.log(f"[SCRAPER] Provedor '{provider_name}' não reconhecido.", xbmc.LOGWARNING)

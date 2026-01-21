@@ -4,8 +4,9 @@
 import xbmcgui
 import xbmc
 import xbmcaddon
-import xbmcplugin # Necessário para fechar o loading do Kodi
-import sys # Necessário para pegar o ID do plugin
+import xbmcplugin
+import xbmcvfs
+import sys
 import urllib.request
 import json
 import base64
@@ -54,15 +55,17 @@ def _fetch_json_source(url):
 
 def check_for_updates_silently(addon_object):
     """
-    Verifica e adiciona apenas o novo conteúdo de forma silenciosa.
+    Verifica novos itens, notifica o usuário e atualiza o banco completo.
     """
+    xbmc.log("[Indexer] Iniciando verificação de atualizações...", xbmc.LOGINFO)
+    
+    # 1. Buscar timestamp da última verificação
     last_check_str = addon_object.getSetting('last_update_check')
-
     if not last_check_str:
         last_check_dt = datetime(2000, 1, 1, tzinfo=timezone.utc)
     else:
         try:
-            last_check_dt = datetime.fromisoformat(last_check_str)
+            last_check_dt = datetime.fromisoformat(last_check_str.replace('Z', '+00:00'))
         except ValueError:
             try:
                 last_check_dt = datetime.fromtimestamp(int(last_check_str), tz=timezone.utc)
@@ -70,101 +73,149 @@ def check_for_updates_silently(addon_object):
                 last_check_dt = datetime(2000, 1, 1, tzinfo=timezone.utc)
 
     current_check_dt = datetime.now(timezone.utc)
-    last_check_date_only = last_check_dt.date()
 
+    # 2. Baixar as listas completas
     movies_url = _get_source_url('movies')
     tvshows_url = _get_source_url('tvshows')
     movies_data = _fetch_json_source(movies_url) 
     tvshows_data = _fetch_json_source(tvshows_url) 
     
     if movies_data is None and tvshows_data is None:
-        xbmc.log("[Indexer] Fontes indisponíveis. Abortando verificação silenciosa.", xbmc.LOGINFO)
+        xbmc.log("[Indexer] Fontes indisponíveis. Abortando verificação.", xbmc.LOGINFO)
         return
     
     movies_data = movies_data or []
     tvshows_data = tvshows_data or []
 
-    xbmc.log("[Indexer] Buscando IDs existentes no banco de dados...", level=xbmc.LOGINFO)
+    # 3. Buscar IDs já existentes no banco usando as classes específicas
     try:
-        existing_movie_ids = db.get_all_movie_ids_set()
-        existing_tvshow_ids = db.get_all_tvshow_ids_set()
+        from resources.lib.db.movies_db import movies_db
+        from resources.lib.db.tvshows_db import tvshows_db
+        
+        existing_movie_ids = movies_db.get_all_movie_ids_set()
+        existing_tvshow_ids = tvshows_db.get_all_tvshow_ids_set()
+        
+        xbmc.log(f"[Indexer] Banco atual: {len(existing_movie_ids)} filmes, {len(existing_tvshow_ids)} séries", xbmc.LOGINFO)
     except Exception as e:
-        xbmc.log(f"[Indexer] Falha grave ao buscar IDs existentes: {e}", xbmc.LOGERROR)
+        xbmc.log(f"[Indexer] Falha ao buscar IDs existentes: {e}", xbmc.LOGERROR)
         existing_movie_ids = set()
         existing_tvshow_ids = set()
 
+    # 4. Identificar itens NOVOS (não existem no banco E foram adicionados após última verificação)
     new_movies = []
+    new_tvshows = []
+
+    # Processar filmes
     for movie in movies_data:
-        try:
-            date_str = movie.get('date_added')
-            if not isinstance(date_str, str) or not date_str:
-                continue
-
-            item_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            if item_dt.tzinfo is None:
-                item_dt = item_dt.replace(tzinfo=timezone.utc)
-
-            is_new_by_date = False
-            if 'T' in date_str:
-                if item_dt > last_check_dt:
-                    is_new_by_date = True
-            else:
-                if item_dt.date() >= last_check_date_only:
-                    is_new_by_date = True
-
-            tmdb_id = movie.get('tmdb_id')
-            if is_new_by_date and tmdb_id not in existing_movie_ids:
+        tmdb_id = movie.get('tmdb_id')
+        if not tmdb_id:
+            continue
+            
+        # Se NÃO existe no banco, verificar data
+        if tmdb_id not in existing_movie_ids:
+            try:
+                date_str = movie.get('date_added')
+                if not date_str:
+                    # Se não tem data, considerar como novo
+                    new_movies.append(movie)
+                    continue
+                
+                # Normalizar para UTC
+                item_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                if item_dt.tzinfo is None:
+                    item_dt = item_dt.replace(tzinfo=timezone.utc)
+                
+                # Verificar se foi adicionado após última verificação
+                if item_dt >= last_check_dt:
+                    new_movies.append(movie)
+                    xbmc.log(f"[Indexer] Novo filme detectado: {movie.get('title', 'Unknown')} (ID: {tmdb_id})", xbmc.LOGDEBUG)
+                    
+            except (ValueError, TypeError) as e:
+                xbmc.log(f"[Indexer] Erro ao processar data do filme {tmdb_id}: {e}", xbmc.LOGDEBUG)
+                # Em caso de erro na data, considerar como novo se não está no banco
                 new_movies.append(movie)
 
-        except (ValueError, TypeError):
-            continue
-
-    new_tvshows = []
+    # Processar séries
     for show in tvshows_data:
-        try:
-            date_str = show.get('date_added')
-            if not isinstance(date_str, str) or not date_str:
-                continue
-
-            item_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-            if item_dt.tzinfo is None:
-                item_dt = item_dt.replace(tzinfo=timezone.utc)
-
-            is_new_by_date = False
-            if 'T' in date_str:
-                if item_dt > last_check_dt:
-                    is_new_by_date = True
-            else:
-                if item_dt.date() >= last_check_date_only:
-                    is_new_by_date = True
-
-            tmdb_id = show.get('tmdb_id')
-            if is_new_by_date and tmdb_id not in existing_tvshow_ids:
+        tmdb_id = show.get('tmdb_id')
+        if not tmdb_id:
+            continue
+            
+        if tmdb_id not in existing_tvshow_ids:
+            try:
+                date_str = show.get('date_added')
+                if not date_str:
+                    new_tvshows.append(show)
+                    continue
+                
+                item_dt = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+                if item_dt.tzinfo is None:
+                    item_dt = item_dt.replace(tzinfo=timezone.utc)
+                
+                if item_dt >= last_check_dt:
+                    new_tvshows.append(show)
+                    xbmc.log(f"[Indexer] Nova série detectada: {show.get('name', 'Unknown')} (ID: {tmdb_id})", xbmc.LOGDEBUG)
+                    
+            except (ValueError, TypeError) as e:
+                xbmc.log(f"[Indexer] Erro ao processar data da série {tmdb_id}: {e}", xbmc.LOGDEBUG)
                 new_tvshows.append(show)
 
-        except (ValueError, TypeError):
-            continue
-
-    total_new_items = len(new_movies) + len(new_tvshows)
-
-    if total_new_items > 0:
-        xbmc.log(f"[Indexer] Adicionando {len(new_movies)} novos filmes e {len(new_tvshows)} novas séries.", level=xbmc.LOGINFO)
-        if new_movies:
-            db.add_movies_bulk(new_movies)
-        if new_tvshows:
-            db.add_tvshows_bulk(new_tvshows)
-
-        message = f"{total_new_items} novos itens adicionados ao catálogo."
-        xbmcgui.Dialog().notification("Cineroom Lite", message, xbmcgui.NOTIFICATION_INFO, 5000)
+    # 5. Contar e NOTIFICAR
+    new_movies_count = len(new_movies)
+    new_tvshows_count = len(new_tvshows)
+    total_new = new_movies_count + new_tvshows_count
+    
+    xbmc.log(f"[Indexer] Resultado da verificação: {new_movies_count} novos filmes, {new_tvshows_count} novas séries", xbmc.LOGINFO)
+    
+    if total_new > 0:
+        itens = []
+        if new_movies_count > 0:
+            itens.append(f"{new_movies_count} {'Filme' if new_movies_count == 1 else 'Filmes'}")
+        if new_tvshows_count > 0:
+            itens.append(f"{new_tvshows_count} {'Série' if new_tvshows_count == 1 else 'Séries'}")
+        
+        texto = " e ".join(itens) + " encontrado" + ("s" if total_new > 1 else "")
+        
+        try:
+            icon_path = xbmcvfs.translatePath(addon_object.getAddonInfo('path') + '/icon.png')
+        except:
+            icon_path = ""
+            
+        xbmc.log(f"[Indexer] {texto}. Adicionando ao banco...", xbmc.LOGINFO)
+        xbmc.executebuiltin(f'Notification("Cineroom Lite", "{texto}. Atualizando...", 5000, "{icon_path}")')
     else:
-        xbmc.log("[Indexer] Nenhum conteúdo novo encontrado.", level=xbmc.LOGINFO)
+        xbmc.log("[Indexer] Nenhum conteúdo novo encontrado.", xbmc.LOGINFO)
 
+    # 6. ATUALIZAR BANCO: Adicionar apenas os novos (sem limpar tudo)
+    try:
+        if new_movies:
+            xbmc.log(f"[Indexer] Adicionando {len(new_movies)} novos filmes ao banco...", xbmc.LOGINFO)
+            db.add_movies_bulk(new_movies)
+        
+        if new_tvshows:
+            xbmc.log(f"[Indexer] Adicionando {len(new_tvshows)} novas séries ao banco...", xbmc.LOGINFO)
+            db.add_tvshows_bulk(new_tvshows)
+        
+        # Sincronizar popularidade do TMDB apenas se houver novos itens
+        if total_new > 0:
+            xbmc.log("[Indexer] Sincronizando com TMDB...", xbmc.LOGINFO)
+            try:
+                update_local_popularity()
+            except Exception as e_tmdb:
+                xbmc.log(f"[Indexer] Erro ao sincronizar TMDB: {e_tmdb}", xbmc.LOGWARNING)
+        
+        xbmc.log("[Indexer] Verificação concluída com sucesso!", xbmc.LOGINFO)
+        
+    except Exception as e:
+        xbmc.log(f"[Indexer] Erro ao atualizar banco: {e}", xbmc.LOGERROR)
+
+    # 7. Salvar timestamp da verificação atual
     addon_object.setSetting('last_update_check', current_check_dt.isoformat())
 
 
 def run_indexer(batch_size=100):
     """
-    Atualiza o banco de dados completamente com feedback visual.
+    Atualiza o banco de dados completamente com feedback visual (chamado pelo menu).
     """
     progress = xbmcgui.DialogProgress()
     addon = xbmcaddon.Addon()
@@ -202,7 +253,6 @@ def run_indexer(batch_size=100):
                 db.add_movies_bulk(batch)
                 movies_processed += len(batch)
                 
-                # Ocupa de 10% a 45% da barra
                 percent = int(10 + (movies_processed / total_items) * 80)
                 progress.update(percent, f"Adicionando filmes: {movies_processed}/{total_movies}")
 
@@ -215,16 +265,14 @@ def run_indexer(batch_size=100):
                 db.add_tvshows_bulk(batch)
                 tvshows_processed += len(batch)
                 
-                # Continua de onde parou até ~90%
                 total_done = movies_processed + tvshows_processed
                 percent = int(10 + (total_done / total_items) * 80)
                 progress.update(percent, f"Adicionando séries: {tvshows_processed}/{total_tvshows}")
 
-        # --- ETAPA 5: SINCRONIZAÇÃO TMDB (O Toque Final) ---
+        # --- ETAPA 5: SINCRONIZAÇÃO TMDB ---
         if not progress.iscanceled():
             progress.update(92, "Sincronizando capas e tendências (TMDB)...")
             try:
-                # Agora que o banco tem IDs, podemos buscar popularidade
                 update_local_popularity()
             except Exception as e:
                 xbmc.log(f"[Indexer] Erro TMDB: {e}", xbmc.LOGWARNING)
@@ -233,7 +281,6 @@ def run_indexer(batch_size=100):
         if not progress.iscanceled():
             progress.update(100, "Catalogação concluída com sucesso!")
             
-            # Atualiza data da última verificação
             current_check_dt = datetime.now(timezone.utc)
             addon.setSetting('last_update_check', current_check_dt.isoformat())
             
@@ -245,16 +292,13 @@ def run_indexer(batch_size=100):
         xbmcgui.Dialog().ok("Erro na Atualização", f"Detalhes: {e}")
     
     finally:
-        # Fecha a barra de progresso
         if progress:
             progress.close()
         
-        # Finaliza o handle do plugin para o Kodi parar de "girar" o loading
         try:
             handle = int(sys.argv[1])
             xbmcplugin.endOfDirectory(handle, succeeded=True, updateListing=True)
         except:
             pass
 
-        # Garante que qualquer diálogo de espera do sistema seja fechado
         xbmc.executebuiltin("Dialog.Close(busydialog)")
