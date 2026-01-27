@@ -1,15 +1,7 @@
-[B][COLOR yellow]1.3.6[/COLOR][/B]
+[B][COLOR yellow]1.3.8[/COLOR][/B]
 
 ────────────────────────────────────
 [B][COLOR blue]Melhorias[/COLOR][/B]
-• Recomendações do Trakt aprimoradas, com resultados mais relevantes e precisos  
-• Sincronização com o Trakt otimizada, permitindo acompanhamento de progresso em tempo real pelo aplicativo  
-• Layout da tela de sincronização ajustado para melhor organização e usabilidade  
-• Provedores de links diretos revisados para maior estabilidade e compatibilidade  
-• Sistema de cache aprimorado, garantindo melhor desempenho em dispositivos com hardware limitado  
+• Ajuste com sincronização dos favoritos no trakt
+• Melhoria na UI dos detalhes extras
 
-────────────────────────────────────
-[B][COLOR blue]Ajustes Estéticos[/COLOR][/B]
-• Carregamento de artes otimizado, reduzindo tempo de exibição  
-• Resolver de reprodução ajustado para maior precisão na seleção de fontes  
-• Extras otimizados, tornando a navegação mais leve e eficiente  

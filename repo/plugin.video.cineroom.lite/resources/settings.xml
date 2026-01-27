@@ -27,13 +27,7 @@
             <description>Se ativado, tenta reproduzir a melhor fonte automaticamente.</description>
         </setting>               
     </category>
-
-    <category label="Legendas">
-    <setting id="enable_subtitles" type="bool" label="Ativar legendas automáticas" default="false"/>
-    <setting id="subtitle_language" type="select" label="Idioma" values="por|pob|pt-br" default="por"/>
-    <setting id="auto_load_subtitle" type="bool" label="Carregar automaticamente ao reproduzir" default="true" />
-    </category>
-
+    
     <category label="API">
         <setting id="tmdb_api"
                  type="text"

@@ -580,8 +580,8 @@ def _handle_library(action, params):
         
         if not warned:
             ok = xbmcgui.Dialog().yesno(
-                "Biblioteca (Experimental)",
-                "Função em teste. Recomendado apenas para usuários avançados!\n\nDeseja continuar?"
+                "Biblioteca",
+                "Recomendado apenas para usuários avançados!\n\nDeseja continuar?"
             )
             if not ok:
                 return False

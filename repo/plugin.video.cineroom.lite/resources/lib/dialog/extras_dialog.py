@@ -60,16 +60,16 @@ def get_logo_path(provider):
         return ""
     return _LOGO_PATHS.get(provider.lower(), "")
 
-# === DIALOG DE DETALHES ===
+# === DIALOG DE DETALHES ESTILO NETFLIX ===
 class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.meta = kwargs.get('meta', {})
         self.is_tvshow = self.meta.get('media_type') == 'tvshow'
         self.has_collection = bool(self.meta.get('collection'))
-        self._is_favorite = None  # Cache de favorito
+        self._is_favorite = None
         
-        # Setup ANTES do primeiro frame
+        # Setup inicial
         self._setup_properties()
     
     def _check_favorite_status(self):
@@ -82,7 +82,6 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
             try:
                 self._is_favorite = db.is_favorite(tmdb_id, media_type)
             except AttributeError:
-                # Fallback se método não existir
                 conn = db._get_conn()
                 cur = conn.cursor()
                 cur.execute(
@@ -95,7 +94,7 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         return self._is_favorite
     
     def _setup_properties(self):
-        """Define propriedades do dialog (instantâneo)"""
+        """Define propriedades do dialog"""
         m = self.meta
         
         # Propriedades básicas
@@ -111,9 +110,9 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         self.setProperty("Collection.Label", str(m.get("collection", "")))
         self.setProperty("tmdb_id", str(m.get("tmdb_id", "")))
         
-        # Define label de favorito
+        # Label de favorito
         is_favorite = self._check_favorite_status()
-        label = "Remover da Lista" if is_favorite else "Adicionar à Lista"
+        label = "Minha Lista" if not is_favorite else "Remover"
         self.setProperty("FavoriteLabel", label)
         
         # Gêneros (max 3)
@@ -121,29 +120,41 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
             self.setProperty(f"Genre.{i}.Label", g)
         
         # Provedores (max 4)
-        for i, prov in enumerate(m.get('provider_data', []), 1):
-            self.setProperty(f"Provider.{i}.Label", prov['name'])
-            self.setProperty(f"Provider.{i}.Icon", prov['icon'])
+        provider_data = m.get('provider_data', [])
+        xbmc.log(f"[CINEROOM] Provider data: {provider_data}", xbmc.LOGINFO)
+        
+        for i, prov in enumerate(provider_data, 1):
+            label = prov.get('name', '')
+            icon = prov.get('icon', '')
+            xbmc.log(f"[CINEROOM] Setting Provider.{i}: label={label}, icon={icon}", xbmc.LOGINFO)
+            self.setProperty(f"Provider.{i}.Label", label)
+            self.setProperty(f"Provider.{i}.Icon", icon)
+        
+        # Limpa provedores não utilizados
+        for i in range(len(provider_data) + 1, 5):
+            self.setProperty(f"Provider.{i}.Label", "")
+            self.setProperty(f"Provider.{i}.Icon", "")
     
     def onInit(self):
-        """Inicialização (só define foco)"""
+        """Inicialização - define foco"""
         self.set_focus_immediate()
     
     def set_focus_immediate(self):
-        """Define foco no botão correto"""
+        """Define foco no botão principal"""
+        # Prioriza botão de play/temporadas
         if self.is_tvshow:
-            ids = [321, 303, 10]
+            focus_ids = [321, 322, 10]
         elif self.has_collection:
-            ids = [311, 301, 10]
+            focus_ids = [301, 302, 304, 305, 10]
         else:
-            ids = [301, 10]
+            focus_ids = [301, 302, 305, 10]
         
-        for i in ids:
+        for control_id in focus_ids:
             try:
-                self.setFocusId(i)
+                self.setFocusId(control_id)
                 break
             except:
-                pass
+                continue
     
     def onClick(self, controlID):
         """Handler de cliques"""
@@ -151,25 +162,26 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
             tmdb_id = self.meta.get("tmdb_id")
             media_type = "tvshow" if self.is_tvshow else "movie"
             
-            # Botões de play
-            if controlID in (301, 311):
+            # === REPRODUZIR (FILMES) ===
+            if controlID == 301:
                 self.close()
                 self._play(True)
             
-            elif controlID in (302, 312):
+            # === ESCOLHER FONTE (FILMES) ===
+            elif controlID == 302:
                 self.close()
                 self._play(False)
             
-            # Listar temporadas (séries)
-            elif controlID in (303, 321) and self.is_tvshow:
+            # === VER TEMPORADAS (SÉRIES) ===
+            elif controlID == 321:
                 self.close()
                 self._open_container(
                     f"plugin://plugin.video.cineroom.lite?"
                     f"action=list_seasons&tvshow_tmdb_id={tmdb_id}"
                 )
             
-            # Listar coleção (filmes)
-            elif controlID in (304, 313) and self.has_collection:
+            # === VER COLEÇÃO ===
+            elif controlID == 304:
                 self.close()
                 collection = urllib.parse.quote_plus(str(self.meta.get("collection", "")))
                 self._open_container(
@@ -177,12 +189,12 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
                     f"action=list_movies_by_collection&collection={collection}"
                 )
             
-            # Toggle favorito
-            elif controlID in (305, 315, 322):
+            # === TOGGLE FAVORITO ===
+            elif controlID in (305, 322):
                 self._toggle_favorite(tmdb_id, media_type)
             
-            # Clique em gênero (400-409)
-            elif 400 < controlID < 410:
+            # === CLIQUE EM GÊNERO (401-403) ===
+            elif 400 < controlID < 404:
                 idx = controlID - 401
                 genres = self.meta.get('genre_list', [])
                 if idx < len(genres):
@@ -194,8 +206,8 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
                         f"action={action}&genre={genre}"
                     )
             
-            # Clique em provedor (500-509)
-            elif 500 < controlID < 510:
+            # === CLIQUE EM PROVEDOR (501-504) ===
+            elif 500 < controlID < 505:
                 idx = controlID - 501
                 providers = self.meta.get('provider_data', [])
                 if idx < len(providers):
@@ -206,14 +218,17 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
                         f"plugin://plugin.video.cineroom.lite?"
                         f"action={action}&provider={provider}"
                     )
+            
+            # === FECHAR ===
+            elif controlID == 999:
+                self.close()
         
         except Exception as e:
             xbmc.log(f"[CINEROOM] onClick error: {e}", xbmc.LOGERROR)
             self._show_error("Operação falhou. Tente novamente.")
     
     def _open_container(self, url):
-        """Abre container (fecha dialog antes)"""
-        self.close()
+        """Abre container"""
         xbmc.executebuiltin(f"Container.Update({url})")
     
     def _play(self, autoplay):
@@ -222,7 +237,7 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         navigation.find_and_play_sources(self.meta, autoplay=autoplay)
     
     def _toggle_favorite(self, tmdb_id, media_type):
-        """Adiciona/remove favorito com atualização de UI"""
+        """Adiciona/remove favorito"""
         from resources.lib.favorites import add_item_to_favorites, remove_item_from_favorites
         
         was_favorite = self._check_favorite_status()
@@ -230,14 +245,14 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
         try:
             if was_favorite:
                 remove_item_from_favorites(tmdb_id, media_type)
-                new_label = "Adicionar à Lista"
+                new_label = "Minha Lista"
                 self._is_favorite = False
             else:
                 add_item_to_favorites(tmdb_id, media_type)
-                new_label = "Remover da Lista"
+                new_label = "Remover"
                 self._is_favorite = True
             
-            # Atualiza UI instantaneamente
+            # Atualiza UI
             self.setProperty("FavoriteLabel", new_label)
             
         except Exception as e:
@@ -259,53 +274,55 @@ class CineroomDetailsWindow(xbmcgui.WindowXMLDialog):
             self.close()
     
     def __del__(self):
-        """Cleanup ao destruir janela"""
+        """Cleanup"""
         self.meta = None
         self._is_favorite = None
 
 # === PREPARAÇÃO DE METADADOS ===
 def _prepare_common_meta(item_data):
-    """
-    Prepara metadados comuns (OTIMIZADO v2).
-    Evita regex, usa função do utils.py.
-    """
+    """Prepara metadados comuns"""
     meta = item_data.copy()
     
-    # === GÊNEROS (limita a 3) ===
+    # Gêneros (limite 3)
     raw_genres = meta.get("genre", "")
     meta['genre_list'] = (
         [g.strip() for g in raw_genres.split(",") if g.strip()][:3]
         if isinstance(raw_genres, str) else []
     )
     
-    # === POSTER (usa scale_tmdb do utils.py) ===
+    # Poster em alta resolução
     poster = meta.get("poster", "")
     if poster and 'image.tmdb.org' in poster:
         from resources.lib.utils import scale_tmdb
         meta["poster"] = scale_tmdb(poster, "original")
     
-    # === ANO ===
+    # Ano
     meta["year_str"] = str(meta.get("year", ""))
     
-    # === PROVEDORES (max 4, sem duplicatas) ===
+    # Provedores (max 4, sem duplicatas)
     providers = meta.get("providers", [])
+    xbmc.log(f"[CINEROOM] Raw providers: {providers}", xbmc.LOGINFO)
+    
     if isinstance(providers, str):
         try:
             providers = json.loads(providers)
-        except:
+            xbmc.log(f"[CINEROOM] Providers after JSON parse: {providers}", xbmc.LOGINFO)
+        except Exception as e:
+            xbmc.log(f"[CINEROOM] Failed to parse providers JSON: {e}", xbmc.LOGERROR)
             providers = []
     
-    # Usa OrderedDict para manter ordem e remover duplicatas
     unique_providers = OrderedDict()
     
     for p in providers:
         logo = get_logo_path(p)
+        xbmc.log(f"[CINEROOM] Provider '{p}' -> logo: {logo}", xbmc.LOGINFO)
         if logo and logo not in unique_providers:
             unique_providers[logo] = {'name': p, 'icon': logo}
             if len(unique_providers) >= 4:
                 break
     
     meta['provider_data'] = list(unique_providers.values())
+    xbmc.log(f"[CINEROOM] Final provider_data: {meta['provider_data']}", xbmc.LOGINFO)
     
     return meta
 
@@ -352,30 +369,24 @@ def show_details_tvshow(item_data):
     del win
 
 def show_details(item_data):
-    """
-    Dispatcher principal.
-    Decide se mostra dialog ou pula direto para play/lista.
-    """
+    """Dispatcher principal"""
     if not item_data:
         return
     
     media_type = item_data.get("media_type")
     
-    # === FILMES ===
+    # FILMES
     if media_type == "movie":
         if not MOVIE_DETAILS_ENABLED:
-            # Pula para play direto
             from resources.lib import navigation
             navigation.find_and_play_sources(item_data, autoplay=AUTOPLAY)
         else:
-            # Mostra dialog
             show_details_movie(item_data)
         return
     
-    # === SÉRIES ===
+    # SÉRIES
     if media_type == "tvshow":
         if not TVSHOW_DETAILS_ENABLED:
-            # Pula para lista de temporadas
             tmdb_id = item_data.get("tmdb_id")
             xbmc.executebuiltin(
                 f"Container.Update("
@@ -383,6 +394,5 @@ def show_details(item_data):
                 f"action=list_seasons&tvshow_tmdb_id={tmdb_id})"
             )
         else:
-            # Mostra dialog
             show_details_tvshow(item_data)
         return

@@ -100,17 +100,6 @@
                     <texture flipx="true" colordiffuse="66FFFFFF">spinner.png</texture>
                     <animation effect="rotate" end="-360" center="auto" time="1600" loop="true" reversible="false" condition="true">Conditional</animation>
                 </control>
-
-                <!-- Ponto central (decorativo) -->
-                <control type="image">
-                    <width>40</width>
-                    <height>40</height>
-                    <top>70</top>
-                    <left>70</left>
-                    <texture colordiffuse="FFFFFFFF">white.png</texture>
-                    <aspectratio>keep</aspectratio>
-                    <animation effect="fade" start="50" end="100" time="1000" loop="true" reversible="true" condition="true">Conditional</animation>
-                </control>
             </control>
 
             <!-- STATUS DINÂMICO ABAIXO DO SPINNER -->
