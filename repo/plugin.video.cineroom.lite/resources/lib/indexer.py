@@ -15,8 +15,8 @@ from .db import db
 from .tmdb_api import update_local_popularity
 
 SOURCES = {
-    'movies':  'https://cdn.jsdelivr.net/gh/Gael1303/flixroom@main/cineroom/jsons/all_movies.json',
-    'tvshows': 'https://cdn.jsdelivr.net/gh/Gael1303/flixroom@main/cineroom/jsons/all_tvshows.json',
+    'movies':  'https://cdn.jsdelivr.net/gh/Gael1303/flixroom@main/cineroom/jsons/todos_filmes.json',
+    'tvshows': 'https://cdn.jsdelivr.net/gh/Gael1303/flixroom@main/cineroom/jsons/todas_series.json',
 }
 
 
