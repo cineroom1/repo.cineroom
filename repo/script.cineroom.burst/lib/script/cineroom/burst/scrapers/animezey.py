@@ -1,0 +1,744 @@
+# -*- coding: utf-8 -*-
+import re
+import unicodedata
+import requests
+import xbmc
+import traceback
+import time
+from urllib.parse import urlparse, urlencode, parse_qs
+from bs4 import BeautifulSoup
+
+from .session import USER_AGENT
+from .utils import guess_quality_from_name, get_anime_search_codes, format_size, normalize_for_compare
+
+
+class ScraperConfig:
+    REQUEST_TIMEOUT = 20
+    MAX_RETRIES     = 2
+    MAX_RESULTS     = 2
+
+
+def with_retry(max_retries=2, delay=1):
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            for attempt in range(max_retries):
+                try:
+                    return func(*args, **kwargs)
+                except (requests.exceptions.Timeout,
+                        requests.exceptions.ConnectionError):
+                    if attempt == max_retries - 1:
+                        raise
+                    time.sleep(delay * (attempt + 1))
+            return None
+        return wrapper
+    return decorator
+
+
+@with_retry(max_retries=ScraperConfig.MAX_RETRIES, delay=1)
+def _post_to_animezey(url, payload):
+    headers = {
+        "accept":           "*/*",
+        "accept-language":  "pt-BR,pt;q=0.9",
+        "content-type":     "application/json",
+        "Referer":          url,
+        "User-Agent":       USER_AGENT,
+    }
+    try:
+        r = requests.post(url, headers=headers, json=payload,
+                          timeout=ScraperConfig.REQUEST_TIMEOUT)
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        xbmc.log(f"[animezey] Erro POST {url}: {e}", xbmc.LOGWARNING)
+        return None
+
+
+class AnimeZeyScraper:
+
+    _TITLE_END_RE = re.compile(
+        r'(?:'
+        r's\d{1,2}e\d{1,2}'
+        r'|\[?\d{3,4}p\]?'
+        r'|(?:19|20)\d{2}'
+        r'|ep?\s*\d+'
+        r'|episode\s*\d+'
+        r'|\[(?:dual|dub|leg|sub|pt[\-.]br|bluray|bdrip|webrip'
+        r'|web[\-.]dl|hdtv|x264|x265|hevc|aac|mkv|mp4|avi|wmv|mov)\]'
+        r'|(?:dual|dub|leg|sub|pt[\-.]br|bluray|bdrip|webrip'
+        r'|web[\-.]dl|hdtv|x264|x265|hevc|aac|mkv|mp4|avi|wmv|mov)'
+        r'|\[\d+'
+        r'|\s-\s\d+'
+        r')',
+        re.IGNORECASE,
+    )
+
+    def __init__(self, provider_url, item_data):
+        self.provider_url = provider_url
+        self.item_data    = item_data
+        self.log_prefix   = "[animezey]"
+        self._setup_item_data()
+        self._setup_domains()
+
+    # ------------------------------------------------------------------
+    # Normalização ASCII
+    # ------------------------------------------------------------------
+
+    def _remove_accents(self, text):
+        """Remove acentos/diacríticos e retorna string ASCII pura."""
+        nfkd = unicodedata.normalize('NFKD', text)
+        return ''.join(c for c in nfkd if not unicodedata.combining(c))
+
+    # ------------------------------------------------------------------
+    # Setup
+    # ------------------------------------------------------------------
+
+    def _setup_item_data(self):
+        self.title          = (self.item_data.get('title')          or '').strip()
+        self.original_title = (self.item_data.get('original_title') or '').strip()
+        self.romaji_title   = (self.item_data.get('romaji_title')   or '').strip()
+        self.media_type     = (self.item_data.get('media_type')     or '').lower()
+
+        try:
+            self.year = int(self.item_data.get('year'))
+        except Exception:
+            self.year = None
+
+        if self.media_type == 'tvshow':
+            try:
+                self.season  = int(self.item_data.get('season',  1))
+                self.episode = int(self.item_data.get('episode', 1))
+            except Exception:
+                self.season  = 1
+                self.episode = 1
+
+            raw_abs = self.item_data.get('absolute_episode')
+            try:
+                self.abs_ep = int(raw_abs) if raw_abs not in (None, '', 'None') else None
+            except (ValueError, TypeError):
+                self.abs_ep = None
+        else:
+            self.season  = None
+            self.episode = None
+            self.abs_ep  = None
+
+        xbmc.log(
+            f"{self.log_prefix} 🎯 Busca: title='{self.title}' "
+            f"abs_ep={self.abs_ep} is_anime={self._is_anime()}",
+            xbmc.LOGINFO,
+        )
+
+    def _setup_domains(self):
+        parsed = urlparse(self.provider_url)
+        self.base_domain     = parsed.netloc or "1.animezey23112022.workers.dev"
+        self.download_domain = "animezey16082023.animezey16082023.workers.dev"
+
+    # ------------------------------------------------------------------
+    # Heurística: anime vs série ocidental
+    # ------------------------------------------------------------------
+
+    def _is_anime(self):
+        if self.romaji_title and self.romaji_title != self.original_title:
+            return True
+        for field in (self.romaji_title, self.original_title, self.title):
+            if field and re.search(r'[\u3040-\u30ff\u4e00-\u9fff]', field):
+                return True
+        return False
+
+    def _is_flat_series(self):
+        """
+        Séries brasileiras indexadas com número puro: '- 001', '- 01', '[001]'.
+        Ativa quando NÃO é anime e season == 1.
+        Não requer abs_ep — usa o próprio self.episode.
+        """
+        return (
+            not self._is_anime()
+            and self.media_type == 'tvshow'
+            and self.season == 1
+        )
+
+    # ------------------------------------------------------------------
+    # Entry point
+    # ------------------------------------------------------------------
+
+    def scrape(self):
+        try:
+            if self.media_type == 'movie':
+                return self._search_movies()
+            elif self.media_type == 'tvshow':
+                return self._search_episodes()
+            else:
+                xbmc.log(f"{self.log_prefix} ⚠️ Tipo desconhecido: {self.media_type}", xbmc.LOGWARNING)
+                return []
+        except Exception as e:
+            xbmc.log(f"{self.log_prefix} ❌ Erro: {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
+            return []
+
+    # ------------------------------------------------------------------
+    # Busca de episódios
+    # ------------------------------------------------------------------
+
+    def _search_episodes(self):
+        xbmc.log(f"{self.log_prefix} 📺 Buscando S{self.season:02d}E{self.episode:02d}", xbmc.LOGINFO)
+
+        episodes  = []
+        seen_ids  = set()
+        queries   = self._generate_episode_queries()[:10]
+
+        if not queries:
+            xbmc.log(f"{self.log_prefix} ⚠️ Nenhuma query gerada", xbmc.LOGWARNING)
+            return []
+
+        xbmc.log(f"{self.log_prefix} 🔍 Testando {len(queries)} queries", xbmc.LOGINFO)
+        search_url = f"https://{self.base_domain}/1:search"
+
+        for query in queries:
+            try:
+                payload = {"q": query, "page_token": None, "page_index": 0}
+                result  = _post_to_animezey(search_url, payload)
+
+                if not (result and 'data' in result and 'files' in result['data']):
+                    continue
+
+                for item in result['data']['files']:
+                    item_id = item.get('id')
+                    if item_id in seen_ids:
+                        continue
+                    seen_ids.add(item_id)
+
+                    if not self._is_video_file(item):
+                        continue
+
+                    name = item.get('name', '')
+                    if self._is_correct_episode(name):
+                        episodes.append(item)
+                        xbmc.log(f"{self.log_prefix}   ✅ {name[:60]}", xbmc.LOGINFO)
+
+                        if len(episodes) >= ScraperConfig.MAX_RESULTS:
+                            xbmc.log(f"{self.log_prefix} 🎯 {len(episodes)} resultados — suficiente", xbmc.LOGINFO)
+                            return self._process_results(episodes)
+
+            except Exception as e:
+                xbmc.log(f"{self.log_prefix} ⚠️ Erro query '{query}': {e}", xbmc.LOGDEBUG)
+                continue
+
+        if episodes:
+            xbmc.log(f"{self.log_prefix} ✅ Total: {len(episodes)} episódio(s)", xbmc.LOGINFO)
+            return self._process_results(episodes)
+
+        xbmc.log(f"{self.log_prefix} ❌ Nenhum episódio encontrado", xbmc.LOGINFO)
+        return []
+
+    # ------------------------------------------------------------------
+    # Geração de queries para episódios
+    # ------------------------------------------------------------------
+
+    def _generate_episode_queries(self):
+        queries    = []
+        base_names = self._get_base_names()
+        if not base_names:
+            return []
+
+        top_names    = base_names[:4]
+        search_codes = get_anime_search_codes(self.season, self.episode)
+        is_anime     = self._is_anime()
+
+        # Derivados de nome — sempre sem acentos para o servidor
+        def _variants(name):
+            clean = self._remove_accents(re.sub(r"[',\\.:]", "", name))
+            clean = re.sub(r'\s*-\s*', ' ', clean)                      # hífen → espaço
+            clean = clean.strip()
+            dots  = clean.replace(' ', '.')
+            return clean, dots
+
+        # ── 1. SxxExx
+        sxey = f"S{self.season:02d}E{self.episode:02d}"
+        for name in top_names:
+            clean, dots = _variants(name)
+            queries.append(f"{dots}.{sxey}")
+            queries.append(f"{clean} {sxey}")
+
+        # ── 1b. Flat "- NNN" para novelas/séries brasileiras (season 1, não-anime)
+        if self._is_flat_series():
+            for name in top_names:
+                clean, dots = _variants(name)
+                queries.append(f"{clean} - {self.episode:03d}")   # "Avenida Brasil - 001"
+                queries.append(f"{clean} - {self.episode:02d}")   # "Avenida Brasil - 01"
+                queries.append(f"{dots}.{self.episode:03d}")       # "Avenida.Brasil.001"
+                queries.append(f"{dots}.{self.episode:02d}")       # "Avenida.Brasil.01"
+                queries.append(f"{clean} {self.episode:03d}")      # "Avenida Brasil 001"
+
+        # ── 2. Absoluto — só para anime quando abs_ep difere do episode
+        use_absolute = (
+            is_anime
+            and self.abs_ep is not None
+            and self.abs_ep != self.episode
+        )
+        if use_absolute:
+            for name in top_names:
+                clean, dots = _variants(name)
+                queries.append(f"{clean} - {self.abs_ep:02d}")
+                queries.append(f"{clean} - {self.abs_ep:03d}")
+                queries.append(f"{dots}.{self.abs_ep:02d}")
+                queries.append(f"{dots}.{self.abs_ep:03d}")
+
+        # ── 3. Flat " - 01" — só para anime season 1
+        if is_anime and self.season == 1:
+            for name in top_names:
+                clean, dots = _variants(name)
+                queries.append(f"{clean} - {self.episode:02d}")
+                queries.append(f"{clean} - {self.episode:03d}")
+                queries.append(f"{dots} - {self.episode:02d}")
+                queries.append(f"{dots}-{self.episode:02d}")
+
+        # ── 4. Códigos do utils
+        for name in top_names:
+            clean, dots = _variants(name)
+            if is_anime and self.season == 1:
+                codes = [c for c in search_codes if c.isdigit()]
+            else:
+                codes = search_codes[:4]
+
+            for code in codes:
+                queries.append(f"{dots}.{code}")
+                if not code.upper().startswith('S'):
+                    queries.append(f"{clean} {code}")
+
+        # ── 5. Com ano (fallback)
+        if self.year and self.year > 1900:
+            for name in top_names[:2]:
+                clean, dots = _variants(name)
+                for code in search_codes[:2]:
+                    queries.append(f"{dots}.{self.year}.{code}")
+                if is_anime and self.season == 1:
+                    queries.append(f"{clean} {self.year} - {self.episode:02d}")
+
+        # Deduplica mantendo ordem
+        seen   = set()
+        unique = []
+        for q in queries:
+            q = q.strip()
+            if q and q not in seen:
+                seen.add(q)
+                unique.append(q)
+
+        xbmc.log(f"{self.log_prefix} 📋 {len(unique)} queries: {unique[:8]}", xbmc.LOGINFO)
+        return unique
+
+    # ------------------------------------------------------------------
+    # Validação de episódio
+    # ------------------------------------------------------------------
+
+    def _is_correct_episode(self, filename):
+        # Normaliza o filename também para comparar sem acentos
+        filename_lower      = filename.lower()
+        filename_ascii_lower = self._remove_accents(filename_lower)
+
+        if not self._matches_series_in_filename(filename_lower):
+            return False
+
+        sxey_patterns = [
+            f"s{self.season:02d}e{self.episode:02d}",
+            f"{self.season}x{self.episode:02d}",
+        ]
+        for p in sxey_patterns:
+            if p in filename_ascii_lower:
+                return True
+
+        for code in get_anime_search_codes(self.season, self.episode):
+            if code.lower() in filename_ascii_lower:
+                return True
+
+        if self._is_anime() and self.season == 1:
+            flat_patterns = [
+                f" - {self.episode:02d}",
+                f" - {self.episode:03d}",
+                f"- {self.episode:02d}",
+                f"- {self.episode:03d}",
+                f" - {self.episode:02d} ",
+                f" - {self.episode:03d} ",
+                f" {self.episode:02d}.",
+                f" {self.episode:03d}.",
+                f"[{self.episode:02d}]",
+                f"[{self.episode:03d}]",
+                f"({self.episode:02d})",
+                f"({self.episode:03d})",
+            ]
+            for p in flat_patterns:
+                if p in filename_ascii_lower:
+                    return True
+
+        if self._is_anime() and self.abs_ep is not None:
+            abs_patterns = [
+                f" - {self.abs_ep:02d}",
+                f" - {self.abs_ep:03d}",
+                f"- {self.abs_ep:02d}",
+                f"- {self.abs_ep:03d}",
+                f" {self.abs_ep:02d} ",
+                f" {self.abs_ep:03d} ",
+                f" {self.abs_ep:02d}.",
+                f" {self.abs_ep:03d}.",
+                f"[{self.abs_ep:02d}]",
+                f"[{self.abs_ep:03d}]",
+            ]
+            for p in abs_patterns:
+                if p in filename_ascii_lower:
+                    xbmc.log(
+                        f"{self.log_prefix} ✅ Match absoluto '{p}' em '{filename[:60]}'",
+                        xbmc.LOGDEBUG,
+                    )
+                    return True
+
+        # ── Flat para novelas brasileiras (season 1, não-anime): "- 001", "[001]", etc.
+        if self._is_flat_series():
+            flat_novela = [
+                f" - {self.episode:03d}",
+                f" - {self.episode:02d}",
+                f"- {self.episode:03d}",
+                f"- {self.episode:02d}",
+                f"[{self.episode:03d}]",
+                f"[{self.episode:02d}]",
+                f" {self.episode:03d}.",
+                f" {self.episode:02d}.",
+                f" {self.episode:03d} ",
+                f" {self.episode:02d} ",
+            ]
+            for p in flat_novela:
+                if p in filename_ascii_lower:
+                    xbmc.log(
+                        f"{self.log_prefix} ✅ Match novela '{p}' em '{filename[:60]}'",
+                        xbmc.LOGDEBUG,
+                    )
+                    return True
+
+        return False
+
+    # ------------------------------------------------------------------
+    # Match de nome de série no filename
+    # ------------------------------------------------------------------
+
+    def _normalize_fn(self, s):
+        s = self._remove_accents(s.lower())
+        s = re.sub(r'[\.\-_\+,:]', ' ', s)
+        s = re.sub(r'[\[\]()\{\}]', ' ', s)
+        return re.sub(r'\s+', ' ', s).strip()
+
+    def _title_match(self, title, filename):
+        """Word-boundary match: o que vem após o título deve ser separador/código."""
+        title_n = self._normalize_fn(title)
+        fn_n    = self._normalize_fn(filename)
+
+        if not title_n:
+            return False
+
+        # Não consome o separador no lookahead — deixa o _TITLE_END_RE avaliar
+        pattern = r'(?<![a-z0-9])' + re.escape(title_n) + r'(?=[^a-z0-9]|$)'
+        for m in re.finditer(pattern, fn_n):
+            after = fn_n[m.end():].strip()
+            if not after:
+                return True
+            if self._TITLE_END_RE.match(after):
+                return True
+            if re.match(r'^[\-\u2013\u2014]?\s*\d', after):
+                return True
+
+        return False
+
+    def _matches_series_in_filename(self, filename_lower):
+        base_names  = self._get_base_names()[:8]
+        fn_norm     = normalize_for_compare(self._remove_accents(filename_lower))
+
+        for name in base_names:
+            name_ascii = self._remove_accents(name)
+            name_norm  = normalize_for_compare(name_ascii)
+
+            if ':' in name_ascii:
+                parts = [p.strip() for p in name_ascii.split(':')]
+                if all(
+                    len(p) <= 2
+                    or self._title_match(p, filename_lower)
+                    or self._title_match(normalize_for_compare(p), fn_norm)
+                    for p in parts
+                ):
+                    xbmc.log(
+                        f"{self.log_prefix} ✅ Match completo: '{name}' em '{filename_lower[:80]}'",
+                        xbmc.LOGDEBUG,
+                    )
+                    return True
+            else:
+                if (self._title_match(name_ascii, filename_lower)
+                        or self._title_match(name_norm, fn_norm)):
+                    xbmc.log(
+                        f"{self.log_prefix} ✅ Match: '{name}' em '{filename_lower[:80]}'",
+                        xbmc.LOGDEBUG,
+                    )
+                    return True
+
+        return False
+
+    # ------------------------------------------------------------------
+    # Nomes base
+    # ------------------------------------------------------------------
+
+    def _get_base_names(self):
+        names = []
+        
+        if self._is_anime():
+            fields = (self.romaji_title, self.original_title, self.title)
+        else:
+            fields = (self.title, self.original_title, self.romaji_title)
+
+        for field in fields:
+            if not field:
+                continue
+            clean = field.strip()
+            if clean not in names:
+                names.append(clean)
+            if ':' in clean:
+                short = clean.split(':')[0].strip()
+                if short not in names:
+                    names.append(short)
+
+        if not names:
+            return []
+
+        final = []
+        for name in names:
+            final.append(name)
+            if "'" in name:
+                final.append(name.replace("'", ""))
+            if ':' not in name:
+                lower = name.lower()
+                for art in ('the ', 'a ', 'an ', 'o ', 'os ', 'as '):
+                    if lower.startswith(art):
+                        rest = name[len(art):]
+                        if rest not in final:
+                            final.append(rest)
+                        break
+
+        seen   = set()
+        unique = []
+        for n in final:
+            if n and n not in seen:
+                seen.add(n)
+                unique.append(n)
+
+        return unique
+
+    # ------------------------------------------------------------------
+    # Busca de filmes
+    # ------------------------------------------------------------------
+
+    def _search_movies(self):
+        xbmc.log(f"{self.log_prefix} 🎬 Buscando filme", xbmc.LOGINFO)
+
+        movies    = []
+        seen_ids  = set()
+        queries   = self._generate_movie_queries()[:8]
+        search_url = f"https://{self.base_domain}/1:search"
+
+        for query in queries:
+            try:
+                result = _post_to_animezey(search_url, {"q": query})
+                if not (result and 'data' in result and 'files' in result['data']):
+                    continue
+
+                for item in result['data']['files']:
+                    item_id = item.get('id')
+                    if item_id in seen_ids:
+                        continue
+                    seen_ids.add(item_id)
+
+                    if self._is_video_file(item) and self._is_correct_movie(item.get('name', '')):
+                        movies.append(item)
+                        xbmc.log(f"{self.log_prefix}   ✅ {item.get('name', '')[:60]}", xbmc.LOGINFO)
+
+                        if len(movies) >= 5:
+                            return self._process_results(movies)
+
+            except Exception as e:
+                xbmc.log(f"{self.log_prefix} ⚠️ Erro query '{query}': {e}", xbmc.LOGDEBUG)
+                continue
+
+        if movies:
+            xbmc.log(f"{self.log_prefix} ✅ {len(movies)} filme(s) encontrado(s)", xbmc.LOGINFO)
+            return self._process_results(movies)
+
+        xbmc.log(f"{self.log_prefix} ❌ Nenhum filme encontrado", xbmc.LOGINFO)
+        return []
+
+    def _generate_movie_queries(self):
+        queries    = []
+        base_names = self._get_base_names()[:5]
+
+        for name in base_names:
+            clean = self._remove_accents(re.sub(r"[',\\.:]", "", name))
+            clean = re.sub(r'\s*-\s*', ' ', clean)   # "Spider-Man" → "Spider Man"
+            clean = clean.strip()
+            dots  = clean.replace(' ', '.')
+            if self.year:
+                queries.append(f"{dots}.{self.year}")
+                queries.append(f"{clean} {self.year}")
+            queries.append(dots)
+            queries.append(clean)
+
+        # ── NOVO: original_title sem remoção de acentos (ex: títulos em japonês)
+        if self.original_title:
+            raw_orig = re.sub(r"[',\.\-]", "", self.original_title).strip()
+            if self.year:
+                queries.append(f"{raw_orig} {self.year}")
+            queries.append(raw_orig)
+
+        seen   = set()
+        unique = []
+        for q in queries:
+            if q and q not in seen:
+                seen.add(q)
+                unique.append(q)
+                
+        return unique
+
+
+    def _is_correct_movie(self, filename):
+        base_names = self._get_base_names()
+        fn_lower   = filename.lower()
+        fn_norm    = normalize_for_compare(self._remove_accents(fn_lower))
+
+        for name in base_names:
+            name_ascii = self._remove_accents(name)
+            name_lower = name_ascii.lower()
+            name_norm  = normalize_for_compare(name_ascii)
+
+            matched = (
+                name_lower in fn_lower
+                or name_norm in fn_norm
+                or name_lower.replace(' ', '.') in fn_lower
+                or self._title_match(name_ascii, fn_lower)   # mantém como fallback
+                or self._title_match(name_norm, fn_norm)
+            )
+
+            if matched:
+                if self.year:
+                    return str(self.year) in fn_lower
+                return True
+
+        return False
+
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _is_video_file(self, item):
+        name = item.get('name', '')
+        mime = item.get('mimeType', '')
+        return (
+            'video' in mime
+            or name.lower().endswith(('.mp4', '.mkv', '.avi', '.mov', '.wmv', '.flv', '.webm'))
+        )
+
+    def _process_results(self, items):
+        results    = []
+        seen_links = set()
+
+        for item in items:
+            url = self._extract_player_url(item)
+            if not url or url in seen_links:
+                continue
+            seen_links.add(url)
+            results.append(self._create_result_item(item, url))
+
+        quality_order = {'4K': 0, '2160p': 0, '1080p': 1, '720p': 2, 'HD': 3, 'SD': 4}
+        results.sort(key=lambda x: quality_order.get(x['quality'], 99))
+        return results
+
+    def _extract_player_url(self, item):
+        try:
+            link_part = item.get('link', '')
+            if not link_part:
+                xbmc.log(f"{self.log_prefix} ⚠️ Item sem link", xbmc.LOGDEBUG)
+                return None
+
+            view_url = f"https://{self.base_domain}{link_part}"
+            if '?a=' not in view_url:
+                view_url += '?a=view'
+
+            headers = {
+                'User-Agent':      USER_AGENT,
+                'Accept':          'text/html,application/xhtml+xml',
+                'Accept-Language': 'pt-BR,pt;q=0.9',
+            }
+            response = requests.get(view_url, headers=headers,
+                                    timeout=ScraperConfig.REQUEST_TIMEOUT)
+            response.raise_for_status()
+
+            soup       = BeautifulSoup(response.text, 'html.parser')
+            source_tag = soup.find('source', {'src': True})
+
+            if source_tag:
+                player_url = source_tag['src']
+                xbmc.log(f"{self.log_prefix} ✅ URL player: {player_url[:120]}", xbmc.LOGINFO)
+                return player_url
+
+            xbmc.log(f"{self.log_prefix} ⚠️ <source> não encontrada — usando fallback", xbmc.LOGWARNING)
+            return self._build_download_link(link_part)
+
+        except Exception as e:
+            xbmc.log(f"{self.log_prefix} ❌ Erro ao extrair URL do player: {e}", xbmc.LOGERROR)
+            return self._build_download_link(item.get('link'))
+
+    def _build_download_link(self, link_part):
+        if not link_part or not link_part.startswith('/'):
+            return None
+        try:
+            path_part, query_string = link_part.split('?', 1)
+            params      = parse_qs(query_string)
+            file_id     = params.get('file', [None])[0]
+            if not file_id:
+                return None
+
+            query_params = {'file': file_id}
+            for param in ('expiry', 'mac'):
+                val = params.get(param, [None])[0]
+                if val:
+                    query_params[param] = val
+
+            return f"https://{self.download_domain}{path_part}?{urlencode(query_params)}"
+
+        except Exception as e:
+            xbmc.log(f"{self.log_prefix} ⚠️ Erro construindo link fallback: {e}", xbmc.LOGWARNING)
+            return None
+
+    def _create_result_item(self, file_data, download_url):
+        file_name = file_data.get('name', '')
+        quality   = guess_quality_from_name(file_name) or 'HD'
+
+        fn_lower = file_name.lower()
+        if any(x in fn_lower for x in ('dual', 'multi')):
+            language = 'DUAL'
+        elif any(x in fn_lower for x in ('dublado', 'dub ', 'pt-br')):
+            language = 'PT-BR'
+        elif any(x in fn_lower for x in ('legendado', 'leg', 'sub', 'eng')):
+            language = 'LEG'
+        else:
+            language = 'PT-BR'
+
+        return {
+            'url':           download_url,
+            'quality':       quality,
+            'type':          'Direto',
+            'title':         file_name,
+            'release_title': file_name,
+            'label':         f"{file_name} [{quality}]",
+            'size':          format_size(file_data.get('size', 0)),
+            'peers':         'N/A',
+            'seeders':       'N/A',
+            'provider':      'AnimeZey',
+            'languages':     language,
+        }
+
+
+def scrape(provider_url, item_data):
+    try:
+        return AnimeZeyScraper(provider_url, item_data).scrape()
+    except Exception as e:
+        xbmc.log(f"[animezey.scrape] ❌ Erro: {e}", xbmc.LOGERROR)
+        return []

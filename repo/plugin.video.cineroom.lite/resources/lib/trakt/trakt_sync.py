@@ -1,13 +1,5 @@
 # -*- coding: utf-8 -*-
-"""
-Sistema de Sincronização com Trakt.tv - VERSÃO REFATORADA
-✅ Autenticação persistente
-✅ Paginação real (streaming de 20 itens por vez)
-✅ Tradução TMDB automática
-✅ Cache DB ultra-rápido
-✅ Listas customizadas funcionais
-✅ Código 40% menor e mais limpo
-"""
+
 
 import xbmc
 import xbmcgui
@@ -25,6 +17,40 @@ from resources.lib.trakt.trakt_client import TraktLists, TraktPresentation
 ADDON = xbmcaddon.Addon()
 
 # === CONFIGURAÇÕES ===
+
+def _parse_sync_interval_minutes(raw_value, default=60):
+
+    if raw_value is None:
+        return default
+
+    s = str(raw_value).strip()
+    if not s:
+        return default
+
+    # Caso já seja número puro
+    if s.isdigit():
+        n = int(s)
+        if n in (0, 1, 2, 3, 4):
+            return (15, 30, 60, 120, 240)[n]
+        return n
+
+    # Caso "60 minutos" -> extrai primeiro número
+    import re
+    m = re.search(r"(\d+)", s)
+    if m:
+        return int(m.group(1))
+
+    # Caso label conhecido
+    mapping = {
+        "15 minutos": 15,
+        "30 minutos": 30,
+        "60 minutos": 60,
+        "120 minutos": 120,
+        "240 minutos": 240,
+    }
+    return mapping.get(s, default)
+
+
 def get_trakt_settings():
     """Retorna configurações do Trakt"""
     return {
@@ -33,7 +59,7 @@ def get_trakt_settings():
         'access_token': ADDON.getSetting('trakt_access_token') or '',
         'refresh_token': ADDON.getSetting('trakt_refresh_token') or '',
         'expires_at': float(ADDON.getSetting('trakt_expires_at') or 0),
-        'sync_interval': int(ADDON.getSetting('trakt_sync_interval') or 60),
+        'sync_interval': _parse_sync_interval_minutes(ADDON.getSetting('trakt_sync_interval'), default=60),
         'sync_on_startup': ADDON.getSettingBool('trakt_sync_on_startup'),
         'sync_watched': ADDON.getSettingBool('trakt_sync_watched'),
         'sync_ratings': ADDON.getSettingBool('trakt_sync_ratings'),
@@ -92,7 +118,6 @@ def _create_trakt_cache_tables():
         cursor.execute('CREATE INDEX IF NOT EXISTS idx_trakt_meta_type ON trakt_tmdb_meta(media_type, last_updated)')
         
         conn.commit()
-        xbmc.log("[Trakt] Tabelas de cache criadas com sucesso", xbmc.LOGINFO)
     except Exception as e:
         xbmc.log(f"[Trakt Sync] Erro: {e}", xbmc.LOGERROR)
         xbmcgui.Dialog().ok("Erro", f"Falha na sincronização: {str(e)}")
@@ -101,210 +126,26 @@ def _create_trakt_cache_tables():
         db._release_conn(conn)
 
 
-# === SINCRONIZAÇÃO TRAKT → LOCAL ===
-
 # -*- coding: utf-8 -*-
 """
-VERSÃO CORRIGIDA DEFINITIVA - sync_local_to_trakt
-✅ Usa o ID da lista imediatamente após criar (não busca novamente)
-✅ Corrige o problema de lista vazia
+PATCH para trakt_sync.py - Corrige Sync de Favoritos com Perfis
+
+Substitua a função sync_trakt_to_local() existente por esta versão.
 """
-
-def sync_local_to_trakt(progress_dialog=None):
-    """
-    Envia dados locais (DB + playcount) para Trakt
-    ✅ Filmes assistidos → History
-    ✅ Séries assistidas → History
-    ✅ Favoritos → Lista personalizada "CineRoom Favoritos"
-    
-    🔧 CORREÇÃO: Usa ID retornado na criação, não busca novamente
-    """
-    from resources.lib.db import db
-    
-    xbmc.log("[Trakt Sync] === INICIANDO SYNC LOCAL → TRAKT ===", xbmc.LOGINFO)
-    
-    if progress_dialog:
-        progress_dialog.update(0, "Coletando dados locais...")
-    
-    try:
-        settings = get_trakt_settings()
-        username = settings.get('username')
-        
-        if not username:
-            xbmc.log("[Trakt Sync] ❌ Username não encontrado", xbmc.LOGERROR)
-            xbmcgui.Dialog().ok("Erro", "Username do Trakt não encontrado. Re-autentique.")
-            return False
-        
-        xbmc.log(f"[Trakt Sync] Username: {username}", xbmc.LOGINFO)
-        
-        # === FILMES ASSISTIDOS ===
-        watched_movies = db.get_watched_movies()
-        watched_movies_count = len(watched_movies) if watched_movies else 0
-        
-        xbmc.log(f"[Trakt Sync] Filmes assistidos locais: {watched_movies_count}", xbmc.LOGINFO)
-        
-        if watched_movies:
-            if progress_dialog:
-                progress_dialog.update(20, f"Enviando {watched_movies_count} filmes assistidos...")
-            
-            trakt_movies = []
-            for movie in watched_movies:
-                trakt_movies.append({
-                    'ids': {'tmdb': movie['tmdb_id']},
-                    'watched_at': movie.get('last_played') or datetime.now().isoformat()
-                })
-            
-            for i in range(0, len(trakt_movies), 50):
-                batch = trakt_movies[i:i+50]
-                trakt_request('POST', '/sync/history', {'movies': batch})
-        
-        # === SÉRIES ASSISTIDAS ===
-        watched_shows = db.get_watched_tvshows()
-        watched_shows_count = len(watched_shows) if watched_shows else 0
-        
-        xbmc.log(f"[Trakt Sync] Séries assistidas locais: {watched_shows_count}", xbmc.LOGINFO)
-        
-        if watched_shows:
-            if progress_dialog:
-                progress_dialog.update(40, f"Enviando {watched_shows_count} séries assistidas...")
-            
-            trakt_shows = []
-            for show in watched_shows:
-                trakt_shows.append({
-                    'ids': {'tmdb': show['tmdb_id']},
-                    'watched_at': show.get('last_played') or datetime.now().isoformat()
-                })
-            
-            for i in range(0, len(trakt_shows), 50):
-                batch = trakt_shows[i:i+50]
-                trakt_request('POST', '/sync/history', {'shows': batch})
-        
-        # === FAVORITOS ===
-        favorites = db.get_all_favorites()
-        favorites_count = len(favorites) if favorites else 0
-        
-        xbmc.log(f"[Trakt Sync] Favoritos locais: {favorites_count}", xbmc.LOGINFO)
-        
-        if favorites:
-            if progress_dialog:
-                progress_dialog.update(60, f"Sincronizando {favorites_count} favoritos...")
-            
-            list_name = "CineRoom Favoritos"
-            list_slug = "cineroom-favoritos"
-            list_id_to_use = None
-            
-            # === ESTRATÉGIA 1: Buscar lista existente ===
-            xbmc.log(f"[Trakt Sync] Buscando lista existente...", xbmc.LOGINFO)
-            lists_response = trakt_request('GET', f'/users/{username}/lists')
-            
-            if lists_response and lists_response.get('data'):
-                xbmc.log(f"[Trakt Sync] {len(lists_response['data'])} lista(s) encontrada(s)", xbmc.LOGINFO)
-                
-                for lst in lists_response['data']:
-                    if lst.get('ids', {}).get('slug') == list_slug:
-                        list_id_to_use = lst['ids'].get('slug') or lst['ids'].get('trakt')
-                        xbmc.log(f"[Trakt Sync] ✅ Lista existente encontrada! ID: {list_id_to_use}", xbmc.LOGINFO)
-                        break
-            
-            # === ESTRATÉGIA 2: Se não encontrou, CRIAR e usar o ID retornado ===
-            if not list_id_to_use:
-                xbmc.log(f"[Trakt Sync] Lista não encontrada, criando nova...", xbmc.LOGINFO)
-                
-                create_response = trakt_request('POST', f'/users/{username}/lists', {
-                    'name': list_name,
-                    'description': 'Meus favoritos do CineRoom Lite (sincronizado automaticamente)',
-                    'privacy': 'public',  # 🔧 PÚBLICO para aparecer nas buscas
-                    'display_numbers': False,
-                    'allow_comments': False
-                })
-                
-                if create_response and create_response.get('data'):
-                    # ✅ USAR O ID RETORNADO DIRETAMENTE (não buscar novamente)
-                    created_list = create_response['data'][0] if isinstance(create_response['data'], list) else create_response['data']
-                    list_id_to_use = created_list.get('ids', {}).get('slug') or created_list.get('ids', {}).get('trakt')
-                    
-                    xbmc.log(f"[Trakt Sync] ✅ Lista criada com sucesso! ID: {list_id_to_use}", xbmc.LOGINFO)
-                else:
-                    xbmc.log(f"[Trakt Sync] ❌ Falha ao criar lista!", xbmc.LOGERROR)
-                    xbmcgui.Dialog().ok(
-                        "Erro",
-                        "Não foi possível criar a lista no Trakt.",
-                        "Verifique suas permissões OAuth."
-                    )
-            
-            # === ADICIONAR ITENS À LISTA ===
-            if list_id_to_use:
-                xbmc.log(f"[Trakt Sync] Adicionando itens à lista ID: {list_id_to_use}", xbmc.LOGINFO)
-                
-                fav_movies = [{'ids': {'tmdb': f['tmdb_id']}} for f in favorites if f['media_type'] == 'movie']
-                fav_shows = [{'ids': {'tmdb': f['tmdb_id']}} for f in favorites if f['media_type'] == 'tvshow']
-                
-                xbmc.log(f"[Trakt Sync] {len(fav_movies)} filmes, {len(fav_shows)} séries", xbmc.LOGINFO)
-                
-                # Limpa lista primeiro
-                trakt_request('POST', f'/users/{username}/lists/{list_id_to_use}/items/remove', {
-                    'movies': fav_movies,
-                    'shows': fav_shows
-                })
-                
-                # Adiciona novos itens
-                add_response = trakt_request('POST', f'/users/{username}/lists/{list_id_to_use}/items', {
-                    'movies': fav_movies,
-                    'shows': fav_shows
-                })
-                
-                if add_response:
-                    xbmc.log(f"[Trakt Sync] ✅ Favoritos adicionados com sucesso!", xbmc.LOGINFO)
-                else:
-                    xbmc.log(f"[Trakt Sync] ⚠️ Possível falha ao adicionar favoritos", xbmc.LOGWARNING)
-            else:
-                xbmc.log(f"[Trakt Sync] ❌ Sem ID de lista para usar", xbmc.LOGERROR)
-        
-        # Limpa cache
-        _clear_trakt_cache()
-        
-        if progress_dialog:
-            progress_dialog.update(100, "Sincronização concluída!")
-        
-        xbmc.log(f"[Trakt Sync] === SYNC CONCLUÍDO ===", xbmc.LOGINFO)
-        
-        xbmcgui.Dialog().notification(
-            "Trakt Sync",
-            f"✅ {watched_movies_count} filmes, {watched_shows_count} séries, {favorites_count} favoritos enviados",
-            xbmcgui.NOTIFICATION_INFO,
-            3000
-        )
-        
-        return True
-        
-    except Exception as e:
-        xbmc.log(f"[Trakt Sync] ❌ ERRO: {e}", xbmc.LOGERROR)
-        import traceback
-        xbmc.log(f"[Trakt Sync] Traceback: {traceback.format_exc()}", xbmc.LOGERROR)
-        
-        if progress_dialog:
-            progress_dialog.close()
-        
-        xbmcgui.Dialog().ok("Erro", f"Erro ao sincronizar: {str(e)}")
-        return False
-
-
-# ============================================================================
-# VERSÃO CORRIGIDA: sync_trakt_to_local
-# ============================================================================
 
 def sync_trakt_to_local(progress_dialog=None):
     """
     Importa dados Trakt para local
     ✅ Marca filmes/séries como assistidos
     ✅ Importa lista "CineRoom Favoritos" para favoritos locais
-    
-    🔧 SOLUÇÃO ALTERNATIVA: Busca itens da lista DIRETAMENTE pelo slug conhecido
+    ✅ CORRIGIDO: Respeita configuração de perfis
     """
     from resources.lib.db import db
     from resources.lib.favorites import add_item_to_favorites
+    import xbmcaddon
     
-    xbmc.log("[Trakt Import] === INICIANDO IMPORT TRAKT → LOCAL ===", xbmc.LOGINFO)
+    addon = xbmcaddon.Addon()
+    
     
     if progress_dialog:
         progress_dialog.update(0, "Buscando dados do Trakt...")
@@ -316,6 +157,26 @@ def sync_trakt_to_local(progress_dialog=None):
         if not username:
             xbmcgui.Dialog().ok("Erro", "Username do Trakt não encontrado. Re-autentique.")
             return False
+        
+        # === DETERMINA DESTINO DOS FAVORITOS ===
+        # Verifica se deve importar para perfil atual ou global
+        use_current_profile = addon.getSettingBool('trakt_favorites_to_current_profile')
+        target_profile_id = None
+        
+        if use_current_profile:
+            try:
+                from resources.lib.profile_manager import ProfileManager
+                pm = ProfileManager()
+                current = pm.get_current_profile()
+                
+                if current:
+                    target_profile_id = current['id']
+                else:
+                    pass
+            except Exception as e:
+                pass
+        else:
+            pass
         
         # === 1. IMPORTAR ASSISTIDOS (FILMES) ===
         watched_movies_response = trakt_request('GET', '/sync/watched/movies?extended=full')
@@ -356,26 +217,23 @@ def sync_trakt_to_local(progress_dialog=None):
                     if local_show:
                         db.update_tvshow_playcount(tmdb_id, last_watched)
         
-        # === 3. IMPORTAR LISTA - SOLUÇÃO ALTERNATIVA ===
+        # === 3. IMPORTAR LISTA DE FAVORITOS ===
         if progress_dialog:
             progress_dialog.update(50, "Buscando favoritos...")
         
         list_slug = "cineroom-favoritos"
         
-        xbmc.log(f"[Trakt Import] Tentando buscar itens diretamente pelo slug: {list_slug}", xbmc.LOGINFO)
         
-        # ✅ SOLUÇÃO: Tentar buscar itens DIRETAMENTE pelo slug conhecido
-        # Não depende de listar todas as listas primeiro
         list_items_response = trakt_request('GET', f'/users/{username}/lists/{list_slug}/items?extended=full')
         
         if list_items_response and list_items_response.get('data'):
             list_items = list_items_response['data']
-            xbmc.log(f"[Trakt Import] ✅ {len(list_items)} itens encontrados na lista!", xbmc.LOGINFO)
             
             if progress_dialog:
                 progress_dialog.update(60, f"Importando {len(list_items)} favoritos...")
             
             imported_count = 0
+            skipped_count = 0
             
             for item in list_items:
                 try:
@@ -394,34 +252,41 @@ def sync_trakt_to_local(progress_dialog=None):
                     if not tmdb_id:
                         continue
                     
-                    # Adiciona se não é favorito
-                    if not db.is_favorite(tmdb_id, media_type):
+                    # Verifica se já é favorito
+                    # IMPORTANTE: Verifica no contexto do target_profile_id
+                    if not db.is_favorite(tmdb_id, media_type, profile_id=target_profile_id):
                         title = obj.get('title', 'Sem título')
-                        xbmc.log(f"[Trakt Import] Adicionando: {title} (TMDB: {tmdb_id})", xbmc.LOGDEBUG)
-                        add_item_to_favorites(tmdb_id, media_type)
+                        
+                        
+                        # 🔧 CORREÇÃO PRINCIPAL: Passa profile_id explicitamente
+                        add_item_to_favorites(tmdb_id, media_type, profile_id=target_profile_id)
                         imported_count += 1
+                    else:
+                        skipped_count += 1
                         
                 except Exception as e:
-                    xbmc.log(f"[Trakt Import] Erro: {e}", xbmc.LOGERROR)
+                    xbmc.log(f"[Trakt Import] Erro ao processar item: {e}", xbmc.LOGERROR)
                     continue
             
-            xbmc.log(f"[Trakt Import] ✅ {imported_count} favoritos importados", xbmc.LOGINFO)
             
             if progress_dialog:
                 progress_dialog.update(80, f"{imported_count} favoritos importados...")
         else:
-            xbmc.log(f"[Trakt Import] ⚠️ Lista '{list_slug}' não encontrada ou vazia", xbmc.LOGWARNING)
-            xbmc.log(f"[Trakt Import] Isso pode significar:", xbmc.LOGINFO)
-            xbmc.log(f"[Trakt Import] 1. A lista ainda não foi criada (sincronize Local → Trakt primeiro)", xbmc.LOGINFO)
-            xbmc.log(f"[Trakt Import] 2. A lista existe mas está vazia", xbmc.LOGINFO)
-            xbmc.log(f"[Trakt Import] 3. O slug da lista é diferente", xbmc.LOGINFO)
+            pass
         
         if progress_dialog:
             progress_dialog.update(100, "Importação concluída!")
         
+        # Mensagem de conclusão
+        msg_profile = ""
+        if target_profile_id:
+            msg_profile = f" (perfil '{target_profile_id}')"
+        else:
+            msg_profile = " (global)"
+        
         xbmcgui.Dialog().notification(
             "Trakt Sync",
-            "✅ Sincronização concluída!",
+            f"✅ Sincronização concluída{msg_profile}",
             xbmcgui.NOTIFICATION_INFO,
             3000
         )
@@ -433,6 +298,177 @@ def sync_trakt_to_local(progress_dialog=None):
         import traceback
         xbmc.log(f"[Trakt Import] Traceback: {traceback.format_exc()}", xbmc.LOGERROR)
         xbmcgui.Dialog().ok("Erro", f"Falha na importação: {str(e)}")
+        return False
+
+
+# ============================================================
+# TAMBÉM CORRIJA sync_local_to_trakt()
+# ============================================================
+
+def sync_local_to_trakt(progress_dialog=None):
+    """
+    Envia dados locais (DB + playcount) para Trakt
+    ✅ CORRIGIDO: Envia favoritos GLOBAIS ou do perfil atual
+    """
+    from resources.lib.db import db
+    import xbmcaddon
+    
+    addon = xbmcaddon.Addon()
+    
+    
+    if progress_dialog:
+        progress_dialog.update(0, "Coletando dados locais...")
+    
+    try:
+        settings = get_trakt_settings()
+        username = settings.get('username')
+        
+        if not username:
+            xbmc.log("[Trakt Sync] ❌ Username não encontrado", xbmc.LOGERROR)
+            xbmcgui.Dialog().ok("Erro", "Username do Trakt não encontrado. Re-autentique.")
+            return False
+        
+        # === DETERMINA ORIGEM DOS FAVORITOS ===
+        use_current_profile = addon.getSettingBool('trakt_favorites_to_current_profile')
+        source_profile_id = None
+        
+        if use_current_profile:
+            try:
+                from resources.lib.profile_manager import ProfileManager
+                pm = ProfileManager()
+                current = pm.get_current_profile()
+                
+                if current:
+                    source_profile_id = current['id']
+            except:
+                pass
+        
+        if not source_profile_id:
+            pass
+        
+        # === FILMES ASSISTIDOS ===
+        watched_movies = db.get_watched_movies()
+        watched_movies_count = len(watched_movies) if watched_movies else 0
+        
+        if watched_movies:
+            if progress_dialog:
+                progress_dialog.update(20, f"Enviando {watched_movies_count} filmes assistidos...")
+            
+            trakt_movies = []
+            for movie in watched_movies:
+                trakt_movies.append({
+                    'ids': {'tmdb': movie['tmdb_id']},
+                    'watched_at': movie.get('last_played') or datetime.now().isoformat()
+                })
+            
+            for i in range(0, len(trakt_movies), 50):
+                batch = trakt_movies[i:i+50]
+                trakt_request('POST', '/sync/history', {'movies': batch})
+        
+        # === SÉRIES ASSISTIDAS ===
+        watched_shows = db.get_watched_tvshows()
+        watched_shows_count = len(watched_shows) if watched_shows else 0
+        
+        if watched_shows:
+            if progress_dialog:
+                progress_dialog.update(40, f"Enviando {watched_shows_count} séries assistidas...")
+            
+            trakt_shows = []
+            for show in watched_shows:
+                trakt_shows.append({
+                    'ids': {'tmdb': show['tmdb_id']},
+                    'watched_at': show.get('last_played') or datetime.now().isoformat()
+                })
+            
+            for i in range(0, len(trakt_shows), 50):
+                batch = trakt_shows[i:i+50]
+                trakt_request('POST', '/sync/history', {'shows': batch})
+        
+        # === FAVORITOS ===
+        # 🔧 CORREÇÃO: Passa profile_id para get_all_favorites
+        favorites = db.get_all_favorites(profile_id=source_profile_id)
+        favorites_count = len(favorites) if favorites else 0
+        
+        
+        if favorites:
+            if progress_dialog:
+                progress_dialog.update(60, f"Sincronizando {favorites_count} favoritos...")
+            
+            list_name = "CineRoom Favoritos"
+            list_slug = "cineroom-favoritos"
+            list_id_to_use = None
+            
+            # Busca ou cria lista
+            lists_response = trakt_request('GET', f'/users/{username}/lists')
+            
+            if lists_response and lists_response.get('data'):
+                for lst in lists_response['data']:
+                    if lst.get('ids', {}).get('slug') == list_slug:
+                        list_id_to_use = lst['ids'].get('slug') or lst['ids'].get('trakt')
+                        break
+            
+            # Cria se não existir
+            if not list_id_to_use:
+                create_response = trakt_request('POST', f'/users/{username}/lists', {
+                    'name': list_name,
+                    'description': 'Meus favoritos do CineRoom Lite (sincronizado automaticamente)',
+                    'privacy': 'private',
+                    'display_numbers': False,
+                    'allow_comments': False
+                })
+                
+                if create_response and create_response.get('data'):
+                    created_list = create_response['data']
+                    if isinstance(created_list, list):
+                        created_list = created_list[0]
+                    
+                    list_id_to_use = created_list.get('ids', {}).get('slug')
+            
+            # Envia favoritos
+            if list_id_to_use:
+                fav_movies = [{'ids': {'tmdb': f['tmdb_id']}} for f in favorites if f['media_type'] == 'movie']
+                fav_shows = [{'ids': {'tmdb': f['tmdb_id']}} for f in favorites if f['media_type'] == 'tvshow']
+                
+                # Limpa lista
+                trakt_request('POST', f'/users/{username}/lists/{list_id_to_use}/items/remove', {
+                    'movies': fav_movies,
+                    'shows': fav_shows
+                })
+                
+                # Adiciona
+                trakt_request('POST', f'/users/{username}/lists/{list_id_to_use}/items', {
+                    'movies': fav_movies,
+                    'shows': fav_shows
+                })
+        
+        # Limpa cache
+        _clear_trakt_cache()
+        
+        if progress_dialog:
+            progress_dialog.update(100, "Sincronização concluída!")
+        
+        msg_profile = ""
+        if source_profile_id:
+            msg_profile = f" (perfil '{source_profile_id}')"
+        
+        xbmcgui.Dialog().notification(
+            "Trakt Sync",
+            f"✅ {watched_movies_count} filmes, {watched_shows_count} séries, {favorites_count} favoritos enviados{msg_profile}",
+            xbmcgui.NOTIFICATION_INFO,
+            3000
+        )
+        
+        return True
+        
+    except Exception as e:
+        xbmc.log(f"[Trakt Sync] ❌ ERRO: {e}", xbmc.LOGERROR)
+        import traceback
+        xbmc.log(f"[Trakt Sync] Traceback: {traceback.format_exc()}", xbmc.LOGERROR)
+        
+        if progress_dialog:
+            progress_dialog.close()
+        
+        xbmcgui.Dialog().ok("Erro", f"Erro ao sincronizar: {str(e)}")
         return False
 
 
@@ -478,7 +514,6 @@ class TraktScrobbler(xbmc.Player):
     
     def onPlayBackStarted(self):
         """Chamado quando a reprodução inicia"""
-        xbmc.log(f"[Trakt Scrobble] === onPlayBackStarted INICIADO ===", xbmc.LOGINFO)
         
         try:
             max_attempts = 50
@@ -489,7 +524,6 @@ class TraktScrobbler(xbmc.Player):
                 attempts += 1
             
             if not self.isPlayingVideo():
-                xbmc.log("[Trakt Scrobble] Timeout: vídeo não iniciou", xbmc.LOGWARNING)
                 return
             
             if not self._lazy_init():
@@ -544,7 +578,6 @@ class TraktScrobbler(xbmc.Player):
                 self.current_item['episode'] = episode
                 self._handle_episode_start(id_type, id_value, season, episode, title)
             else:
-                xbmc.log(f"[Trakt Scrobble] Tipo não suportado: {media_type}", xbmc.LOGWARNING)
                 return
             
             self.scrobbled = False
@@ -819,7 +852,6 @@ def init_trakt_scrobbler():
     try:
         if ADDON.getSettingBool('trakt_auto_scrobble'):
             scrobbler = TraktScrobbler()
-            xbmc.log("[Trakt] Scrobbler inicializado", xbmc.LOGINFO)
             return scrobbler
     except Exception as e:
         xbmc.log(f"[Trakt] Erro ao inicializar scrobbler: {e}", xbmc.LOGERROR)
@@ -1018,7 +1050,7 @@ def trakt_rate_item(tmdb_id, media_type):
                 if item_data:
                     title = item_data.get('title')
             except Exception as e:
-                xbmc.log(f"[Trakt Rate] Erro buscando dados do filme: {e}", xbmc.LOGDEBUG)
+                pass
         
         elif media_type == 'tvshow':
             # Para séries, avisa que deve avaliar episódios individuais
@@ -1294,7 +1326,6 @@ def authenticate_trakt():
                         
                         if username:
                             ADDON.setSetting('trakt_username', username)
-                            xbmc.log(f"[Trakt] Username salvo: {username}", xbmc.LOGINFO)
                             xbmcgui.Dialog().notification(
                                 "Trakt", 
                                 f"✅ Autenticado como {username}!", 
@@ -1699,7 +1730,6 @@ def _show_trakt_category(category, media_type, page=1):
             return
     
     # === BUSCA DADOS ===
-    xbmc.log(f"[Trakt] Buscando {category}/{media_type} página {page}", xbmc.LOGINFO)
     
     if category not in category_map:
         xbmc.log(f"[Trakt] Categoria desconhecida: {category}", xbmc.LOGERROR)
@@ -1925,27 +1955,21 @@ def get_trakt_lists():
     username = settings.get('username')
     
     if not username:
-        xbmc.log("[Trakt] Username não configurado", xbmc.LOGWARNING)
         return []
     
-    xbmc.log(f"[Trakt] Buscando listas do usuário: {username}", xbmc.LOGINFO)
     
     response = trakt_request('GET', f'/users/{username}/lists')
     
     if not response:
-        xbmc.log("[Trakt] Resposta vazia ou erro", xbmc.LOGWARNING)
         return []
     
     if response is True:
-        xbmc.log("[Trakt] Sem listas customizadas", xbmc.LOGINFO)
         return []
     
     if isinstance(response, dict) and response.get('data'):
         lists = response['data']
-        xbmc.log(f"[Trakt] {len(lists)} listas encontradas", xbmc.LOGINFO)
         return lists
     
-    xbmc.log("[Trakt] Formato de resposta inválido", xbmc.LOGWARNING)
     return []
 
 def list_trakt_custom_lists():
@@ -2256,128 +2280,3 @@ def full_sync_with_trakt(direction="both"):
         xbmc.log(f"[Trakt] Erro full sync: {e}", xbmc.LOGERROR)
         progress.close()
         return False
-
-
-# === SINCRONIZAÇÃO LOCAL → TRAKT ===
-
-def sync_local_to_trakt(progress_dialog=None):
-    """
-    Envia dados locais (DB + playcount) para Trakt
-    ✅ Filmes assistidos → History
-    ✅ Séries assistidas → History
-    ✅ Favoritos → Lista personalizada "CineRoom Favoritos"
-    """
-    from resources.lib.db import db
-    
-    if progress_dialog:
-        progress_dialog.update(0, "Coletando dados locais...")
-    
-    try:
-        settings = get_trakt_settings()
-        username = settings.get('username')
-        
-        if not username:
-            xbmcgui.Dialog().ok("Erro", "Username do Trakt não encontrado. Re-autentique.")
-            return False
-        
-        # Filmes assistidos
-        watched_movies = db.get_watched_movies()
-        
-        if watched_movies:
-            if progress_dialog:
-                progress_dialog.update(20, f"Enviando {len(watched_movies)} filmes assistidos...")
-            
-            trakt_movies = []
-            for movie in watched_movies:
-                trakt_movies.append({
-                    'ids': {'tmdb': movie['tmdb_id']},
-                    'watched_at': movie.get('last_played') or datetime.now().isoformat()
-                })
-            
-            for i in range(0, len(trakt_movies), 50):
-                batch = trakt_movies[i:i+50]
-                trakt_request('POST', '/sync/history', {'movies': batch})
-        
-        # Séries assistidas
-        watched_shows = db.get_watched_tvshows()
-        
-        if watched_shows:
-            if progress_dialog:
-                progress_dialog.update(40, f"Enviando {len(watched_shows)} séries assistidas...")
-            
-            trakt_shows = []
-            for show in watched_shows:
-                trakt_shows.append({
-                    'ids': {'tmdb': show['tmdb_id']},
-                    'watched_at': show.get('last_played') or datetime.now().isoformat()
-                })
-            
-            for i in range(0, len(trakt_shows), 50):
-                batch = trakt_shows[i:i+50]
-                trakt_request('POST', '/sync/history', {'shows': batch})
-        
-        # Favoritos
-        favorites = db.get_all_favorites()
-        
-        if favorites:
-            if progress_dialog:
-                progress_dialog.update(60, f"Sincronizando {len(favorites)} favoritos com lista Trakt...")
-            
-            list_name = "CineRoom Favoritos"
-            list_slug = "cineroom-favoritos"
-            
-            lists_response = trakt_request('GET', f'/users/{username}/lists')
-            existing_list = None
-            
-            if lists_response and lists_response.get('data'):
-                for lst in lists_response['data']:
-                    if lst['ids'].get('slug') == list_slug:
-                        existing_list = lst
-                        break
-            
-            if not existing_list:
-                create_response = trakt_request('POST', f'/users/{username}/lists', {
-                    'name': list_name,
-                    'description': 'Meus favoritos do CineRoom Lite (sincronizado automaticamente)',
-                    'privacy': 'private',
-                    'display_numbers': False,
-                    'allow_comments': False
-                })
-                
-                if create_response and create_response.get('data'):
-                    existing_list = create_response['data'][0] if isinstance(create_response['data'], list) else create_response['data']
-            
-            if existing_list:
-                list_id = existing_list['ids'].get('slug') or existing_list['ids'].get('trakt')
-                
-                fav_movies = [{'ids': {'tmdb': f['tmdb_id']}} for f in favorites if f['media_type'] == 'movie']
-                fav_shows = [{'ids': {'tmdb': f['tmdb_id']}} for f in favorites if f['media_type'] == 'tvshow']
-                
-                trakt_request('POST', f'/users/{username}/lists/{list_id}/items/remove', {
-                    'movies': fav_movies,
-                    'shows': fav_shows
-                })
-                
-                trakt_request('POST', f'/users/{username}/lists/{list_id}/items', {
-                    'movies': fav_movies,
-                    'shows': fav_shows
-                })
-        
-        _clear_trakt_cache()
-        
-        if progress_dialog:
-            progress_dialog.update(100, "Sincronização concluída!")
-        
-        xbmcgui.Dialog().notification(
-            "Trakt Sync",
-            f"✅ {len(watched_movies)} filmes, {len(watched_shows)} séries, {len(favorites)} favoritos enviados",
-            xbmcgui.NOTIFICATION_INFO,
-            3000
-        )
-        
-        return True
-        
-    except Exception as e:
-        xbmc.log(f"[Trakt] Erro sincronizando local para Trakt: {e}", xbmc.LOGERROR)
-        
-        

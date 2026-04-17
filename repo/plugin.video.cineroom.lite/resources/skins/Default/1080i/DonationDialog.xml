@@ -1,50 +1,124 @@
 <window type="dialog">
-    <coordinates>
-        <system>1</system>
-    </coordinates>
-
+    <defaultcontrol>200</defaultcontrol>
+    <onback>Close</onback>
     <controls>
-        <!-- Fundo transparente -->
+
+        <!-- Overlay escuro fullscreen -->
         <control type="image" id="99">
             <left>0</left>
             <top>0</top>
-            <width>100%</width>
-            <height>100%</height>
-            <texture>special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            <width>1920</width>
+            <height>1080</height>
+            <texture colordiffuse="CC000000">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            <animation effect="fade" start="0" end="100" time="250">WindowOpen</animation>
         </control>
 
-        <!-- Container principal com ajuste fino -->
+        <!-- Painel principal centralizado -->
         <control type="group">
-            <!-- Ajuste "dois dedos esquerda" e "um dedo alto" -->
-            <left>50% - 300</left>  <!-- +50px para esquerda (original 250) -->
-            <top>50% - 220</top>    <!-- +50px para cima (original 170) -->
-            <width>500</width>
-            <height>340</height>
+            <centerleft>50%</centerleft>
+            <centertop>50%</centertop>
+            <width>520</width>
+            <height>620</height>
 
-            <!-- Imagem -->
-            <control type="image" id="100">
-                <left>-220</left>
-                <top>-150</top>
-                <width>500</width>
-                <height>300</height>
-                <texture fallback="DefaultFolder.png">special://home/addons/plugin.video.cineroom.light/resources/medias/icons/donate.jpg</texture>
-                <aspectratio>keep</aspectratio>
-                <animation effect="fade" start="0" end="100" time="400">WindowOpen</animation>
+            <!-- Fundo -->
+            <control type="image">
+                <left>0</left>
+                <top>0</top>
+                <width>520</width>
+                <height>620</height>
+                <texture colordiffuse="FF1F2020">special://home/addons/plugin.video.cineroom.lite/resources/skins/Default/media/panel.png</texture>
+                <animation effect="fade" start="0" end="100" time="300">WindowOpen</animation>
             </control>
 
-            <!-- Texto com ajuste fino -->
-            <control type="label" id="101">
-                <left>-221</left>
-                <top>170</top>
-                <width>500</width>
-                <height>40</height>
-                <font>font13_title</font>
-                <textcolor>FFFFFFFF</textcolor>
+            <!-- Logo -->
+            <control type="image">
+                <left>150</left>
+                <top>0</top>
+                <width>200</width>
+                <height>120</height>
+                <texture>special://home/addons/plugin.video.cineroom.lite/resources/skins/Default/media/logo.png</texture>
+                <aspectratio>keep</aspectratio>
+                <animation effect="fade" start="0" end="100" time="400" delay="100">WindowOpen</animation>
+            </control>
+
+            <!-- Divisor -->
+            <control type="image">
+                <left>40</left>
+                <top>100</top>
+                <width>440</width>
+                <height>1</height>
+                <texture colordiffuse="44FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            </control>
+
+            <!-- Texto -->
+            <control type="label">
+                <left>20</left>
+                <top>100</top>
+                <width>480</width>
+                <height>50</height>
+                <font>font12</font>
+                <textcolor>FFCCCCCC</textcolor>
+                <align>center</align>
+                <label>Escaneie o QR Code com seu celular[CR]e contribua com qualquer valor via Pix</label>
+            </control>
+
+            <!-- Moldura QR -->
+            <control type="image">
+                <left>104</left>
+                <top>172</top>
+                <width>312</width>
+                <height>312</height>
+                <texture colordiffuse="FFF5A623">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            </control>
+
+            <!-- QR -->
+            <control type="image">
+                <left>110</left>
+                <top>178</top>
+                <width>300</width>
+                <height>300</height>
+                <texture fallback="DefaultFolder.png">special://home/addons/plugin.video.cineroom.lite/resources/medias/icons/donate.jpg</texture>
+                <aspectratio>keep</aspectratio>
+            </control>
+
+            <!-- Divisor inferior -->
+            <control type="image">
+                <left>40</left>
+                <top>494</top>
+                <width>440</width>
+                <height>1</height>
+                <texture colordiffuse="44FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            </control>
+
+            <!-- Mensagem -->
+            <control type="label">
+                <left>20</left>
+                <top>504</top>
+                <width>480</width>
+                <height>30</height>
+                <font>font12</font>
+                <textcolor>FFF5A623</textcolor>
                 <shadowcolor>AA000000</shadowcolor>
                 <align>center</align>
-                <label>[COLOR yellow]Muito obrigado pelo seu apoio![/COLOR]</label>
-                <animation effect="slide" end="0,-10" time="300" delay="200">WindowOpen</animation>
+                <label>Muito obrigado pelo seu apoio!</label>
             </control>
+
+            <!-- Botão -->
+            <control type="button" id="200">
+                <left>200</left>
+                <top>548</top>
+                <width>190</width>
+                <height>36</height>
+                <label>Fechar</label>
+                <font>font12</font>
+                <textcolor>FFFFFFFF</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <texturefocus colordiffuse="FFF5A623">special://home/addons/script.module.pil/resources/media/transparent.png</texturefocus>
+                <texturenofocus colordiffuse="55FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texturenofocus>
+                <aligny>center</aligny>
+            </control>
+
         </control>
+
     </controls>
 </window>

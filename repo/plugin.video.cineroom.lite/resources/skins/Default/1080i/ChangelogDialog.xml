@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <window>
-    <defaultcontrol always="true">2060</defaultcontrol>
+    <defaultcontrol always="true">9001</defaultcontrol>
 
     <controls>
         <!-- Background -->
@@ -45,11 +45,11 @@
                     <width>70</width>
                     <height>70</height>
                     <aspectratio>keep</aspectratio>
-                    <texture>icon.png</texture>
+                    <texture>special://home/addons/plugin.video.cineroom_lite/icon.png</texture>
                 </control>
 
                 <!-- Title -->
-                <control type="label">
+                <control type="label" id="9002">
                     <top>40</top>
                     <left>105</left>
                     <width max="1115">auto</width>
@@ -59,35 +59,30 @@
                     <shadowcolor>FF000000</shadowcolor>
                     <align>center</align>
                     <aligny>center</aligny>
-                    <label>[B]$INFO[Window.Property(heading)][/B]</label>
+                    <label>[B]Cineroom Lite - Atualização do Catálogo[/B]</label>
                 </control>
 
-                <!-- TEXTBOX SMALL -->
-                <control type="textbox" id="2000">
-                    <visible>String.IsEqual(Window.Property(font_size),small) | String.IsEmpty(Window.Property(font_size))</visible>
+                <!-- Main textbox with progress info -->
+                <control type="textbox" id="9005">
                     <left>45</left>
                     <top>114</top>
                     <width>1254</width>
                     <height>816</height>
                     <font>font12</font>
                     <textcolor>FFCCCCCC</textcolor>
-                    <label>$INFO[Window.Property(text)]</label>
-
-                    <pagecontrol>2060</pagecontrol>
-
-                    <onright>2060</onright>
+                    <label></label>
+                    <pagecontrol>9060</pagecontrol>
+                    <onright>9060</onright>
                     <onup>PageUp</onup>
                     <ondown>PageDown</ondown>
-
                     <scrolltime>200</scrolltime>
                     <scrollspeed>200</scrollspeed>
                     <smoothscroll>true</smoothscroll>
-                    <autoscroll>false</autoscroll>
+                    <autoscroll time="2000" delay="3000" repeat="5000">true</autoscroll>
                 </control>
 
-                <!-- SCROLLBAR SMALL -->
-                <control type="scrollbar" id="2060">
-                    <visible>Control.IsVisible(2000)</visible>
+                <!-- Scrollbar -->
+                <control type="scrollbar" id="9060">
                     <left>1335</left>
                     <top>110</top>
                     <width>10</width>
@@ -95,47 +90,14 @@
                     <texturesliderbackground colordiffuse="FF1F2020">white.png</texturesliderbackground>
                     <texturesliderbar colordiffuse="FF555556">white.png</texturesliderbar>
                     <texturesliderbarfocus colordiffuse="FFCCCCCC">white.png</texturesliderbarfocus>
-                    <onleft>2000</onleft>
+                    <onleft>9005</onleft>
                     <showonepage>false</showonepage>
                     <orientation>vertical</orientation>
                 </control>
 
-                <!-- TEXTBOX LARGE -->
-                <control type="textbox" id="2001">
-                    <visible>String.IsEqual(Window.Property(font_size),large)</visible>
-                    <left>45</left>
-                    <top>114</top>
-                    <width>1254</width>
-                    <height>816</height>
-                    <font>font14</font>
-                    <textcolor>FFCCCCCC</textcolor>
-                    <label>$INFO[Window.Property(text)]</label>
-
-                    <pagecontrol>2061</pagecontrol>
-
-                    <onright>2061</onright>
-                    <onup>PageUp</onup>
-                    <ondown>PageDown</ondown>
-
-                    <scrolltime>200</scrolltime>
-                    <scrollspeed>200</scrollspeed>
-                    <smoothscroll>true</smoothscroll>
-                    <autoscroll>false</autoscroll>
-                </control>
-
-                <!-- SCROLLBAR LARGE -->
-                <control type="scrollbar" id="2061">
-                    <visible>Control.IsVisible(2001)</visible>
-                    <left>1335</left>
-                    <top>110</top>
-                    <width>10</width>
-                    <height>820</height>
-                    <texturesliderbackground colordiffuse="FF1F2020">white.png</texturesliderbackground>
-                    <texturesliderbar colordiffuse="FF555556">white.png</texturesliderbar>
-                    <texturesliderbarfocus colordiffuse="FFCCCCCC">white.png</texturesliderbarfocus>
-                    <onleft>2001</onleft>
-                    <showonepage>false</showonepage>
-                    <orientation>vertical</orientation>
+                <!-- Hidden progress bar (for internal use) -->
+                <control type="progress" id="9001">
+                    <visible>false</visible>
                 </control>
             </control>
         </control>

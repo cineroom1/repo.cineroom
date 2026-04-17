@@ -11,6 +11,7 @@ import xbmc
 import xbmcgui
 import xbmcaddon
 import xbmcvfs
+import urllib.parse
 
 ADDON = xbmcaddon.Addon()
 
@@ -45,7 +46,6 @@ def ensure_library_folders():
     for path in [movies_path, tvshows_path]:
         if not xbmcvfs.exists(path):
             xbmcvfs.mkdirs(path)
-            xbmc.log(f"[Library] Pasta criada: {path}", xbmc.LOGINFO)
     
     return movies_path, tvshows_path
 
@@ -184,7 +184,6 @@ def create_strm_file(filepath, plugin_url):
         
         # Verifica se foi criado
         if not xbmcvfs.exists(filepath):
-            xbmc.log(f"[Library] AVISO: .strm não foi criado: {filepath}", xbmc.LOGWARNING)
             return False
         
         return True
@@ -275,10 +274,7 @@ def create_episode_nfo(filepath, episode_data, show_data):
         xbmc.log(f"[Library] Erro ao criar episode.nfo: {e}", xbmc.LOGERROR)
         return False
 
-import urllib.parse
 
-import urllib.parse
-import xbmc, xbmcgui, xbmcvfs, os
 
 # === HELPERS DE VERIFICAÇÃO ===
 
@@ -341,7 +337,6 @@ def add_movie_to_library(movie_data, show_notification=True):
         if show_notification:
             xbmcgui.Dialog().notification("Biblioteca", f"{title} adicionado!", xbmcgui.NOTIFICATION_INFO, 3000)
         
-        xbmc.log(f"[Library] Filme adicionado: {title}", xbmc.LOGINFO)
         return True
         
     except Exception as e:
@@ -412,7 +407,6 @@ def add_tvshow_to_library(show_data, show_notification=True):
         if show_notification:
             xbmcgui.Dialog().notification("Biblioteca", f"{raw_title} finalizada!", xbmcgui.NOTIFICATION_INFO, 3000)
 
-        xbmc.log(f"[Library] Série adicionada: {title} ({episodes_added} episódios)", xbmc.LOGINFO)
         return True
         
     except Exception as e:

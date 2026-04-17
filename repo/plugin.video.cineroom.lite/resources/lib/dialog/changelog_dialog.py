@@ -6,6 +6,7 @@ class ChangelogDialog(xbmcgui.WindowXMLDialog):
         # O super() já lida com o arquivo XML
         self.heading = kwargs.get("heading", "Changelog")
         self.text = kwargs.get("text", "")
+        self.font_size = kwargs.get("font_size", "normal")
         super(ChangelogDialog, self).__init__(*args)
 
     def onInit(self):

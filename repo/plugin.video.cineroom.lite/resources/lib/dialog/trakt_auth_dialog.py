@@ -23,15 +23,12 @@ class TraktAuthDialog(xbmcgui.WindowXMLDialog):
         try:
             code_label = self.getControl(self.CODE_LABEL_ID)
             code_label.setLabel(f"[B]{self.user_code}[/B]")
-            xbmc.log(f"[Trakt Auth Dialog] Código definido: {self.user_code}", xbmc.LOGINFO)
         except Exception as e:
             xbmc.log(f"[Trakt Auth Dialog] Erro ao definir código: {e}", xbmc.LOGERROR)
         
         # Define o foco inicial no botão de confirmar
         self.setFocusId(self.BUTTON_CONFIRM)
         
-        xbmc.log(f"[Trakt Auth Dialog] URL: {self.url}", xbmc.LOGINFO)
-        xbmc.log(f"[Trakt Auth Dialog] Code: {self.user_code}", xbmc.LOGINFO)
 
     def onAction(self, action):
         """Trata ações do controle remoto/teclado"""

@@ -9,32 +9,33 @@ ADDON = xbmcaddon.Addon()
 
 
 def extrair_idiomas_do_titulo(titulo, extras=None, provider=None):
-    """
-    Detecta idioma do stream baseado no título e provedor
-    """
-    # Provedores 100% brasileiros
-    provedores_br = [ 'StarckFilmes', 'SkyFlix', 'Brazuca', 'CDFlix', 'ComandoTop', 'Mico-Leão', 'AnimeZey', 'Fonte Local']
-    
+    provedores_br = ['StarckFilmes', 'SkyFlix', 'Brazuca', 'CDFlix',
+                     'ComandoTop', 'Mico-Leão', 'AnimeZey', 'Fonte Local']
+
     if provider in provedores_br:
-        if titulo and any(x in titulo.lower() for x in ['dual', 'multi']):
+        t = (titulo or '').lower()
+        if 'dual' in t or 'multi' in t:
             return 'DUAL'
+        if 'legendado' in t or ' leg' in t:
+            return 'LEG'
         return 'PT-BR'
 
     if not titulo:
         return 'LEG'
-    
+
     t = titulo.lower()
-    
-    # Detecção de DUAL/DUB
-    if any(x in t for x in ['dual', 'multi', 'dublado', 'dub', 'portugues', 'pt-br', ' pt ']):
-        if 'dual' in t or 'multi' in t:
-            return 'DUAL'
+
+    has_pt = any(x in t for x in ['dublado', 'portugues', 'português', 'pt-br', ' pt '])
+    has_dual = any(x in t for x in ['dual', 'dual audio', 'dublado e legendado', 'dub e leg'])
+    has_multi = 'multi' in t
+
+    if has_dual:
+        return 'DUAL'
+    if has_multi and has_pt:
+        return 'DUAL'
+    if has_pt:
         return 'PT-BR'
-    
-    # Detecção de LEG
-    if any(x in t for x in ['legendado', 'leg', 'sub', 'subs', 'subtitled', 'eng', 'english', 'original']):
-        return 'LEG'
-    
+
     return 'LEG'
 
 
@@ -151,7 +152,12 @@ def process_single_stream(stream, is_local=False, p_name='Fonte Local', p_priori
         return None
 
     raw_title = stream.get('title') or stream.get('name') or ""
-    
+    if raw_title and isinstance(raw_title, str):
+        try:
+            raw_title = raw_title.encode('latin-1').decode('utf-8')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            pass  # já está correto, ignora
+
     # Limpa título para display
     display_title = raw_title
     display_title = re.sub(r'👤\s*\d+', '', display_title)
@@ -179,9 +185,14 @@ def process_single_stream(stream, is_local=False, p_name='Fonte Local', p_priori
         is_torrent = "elementum" in url or stream.get('server_name', '').upper() == 'TORRENT'
         stype = 'Torrent' if is_torrent else 'Direto'
     else:
-        stype = stream.get('type', 'Direto')
-        if re.match(r'^[a-fA-F0-9]{40}$', url) or url.startswith('magnet:'):
-            stype = 'Torrent'
+        force_direct_providers = ('Fenixflix', 'Nuvio')
+
+        if p_name in force_direct_providers:
+            stype = 'Direto'
+        else:
+            stype = stream.get('type', 'Direto')
+            if re.match(r'^[a-fA-F0-9]{40}$', url) or url.startswith('magnet:'):
+                stype = 'Torrent'
 
     # Seeders
     seed_match = re.search(r'(?:👤|S:)\s*(\d+)', raw_title)
@@ -206,6 +217,14 @@ def process_single_stream(stream, is_local=False, p_name='Fonte Local', p_priori
     seed_label, seed_score = get_color_seeders(s_val, stype)
     qual_label, qual_score = get_color_quality(q_str)
 
+    _LANG_MAP = {'DUB': 'PT-BR', 'LEG': 'LEG', 'DUAL': 'DUAL'}
+    raw_lang = (
+        stream.get('languages')
+        or stream.get('audio_label')
+        or extrair_idiomas_do_titulo(raw_title, stream.get('extras', []), p_name)
+    )
+    languages = _LANG_MAP.get((raw_lang or '').upper(), raw_lang) if raw_lang else 'LEG'
+
     return {
         'url': url,
         'display_title': display_title,
@@ -214,7 +233,7 @@ def process_single_stream(stream, is_local=False, p_name='Fonte Local', p_priori
         'seeders_label': seed_label,
         'size': size_str,
         'provider': p_name,
-        'languages': extrair_idiomas_do_titulo(raw_title, stream.get('extras', []), p_name),
+        'languages': languages,
         'codec': codec.lower() if codec else '',
         'hdr': hdr.lower() if hdr else '',
         'audio': audio.lower() if audio else '',
@@ -222,5 +241,8 @@ def process_single_stream(stream, is_local=False, p_name='Fonte Local', p_priori
         'video_info': video_info,
         'p_priority': p_priority,
         'q_score': qual_score,
-        's_score': int(s_val)
+        's_score': int(s_val),
+        'manifest_type': stream.get('manifest_type', ''),
+        'headers': stream.get('headers', ''),
+        'type': stype,
     }

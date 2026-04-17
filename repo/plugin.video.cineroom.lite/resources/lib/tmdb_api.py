@@ -70,35 +70,55 @@ def _normalize_item(item, media_type, extra=None):
         'year': (item.get('release_date' if is_movie else 'first_air_date') or '0000')[:4],
         'rating': item.get('vote_average', 0.0),
         'runtime': extra.get('runtime', 0),
+        'certification': extra.get('certification', ''),
         'media_type': 'movie' if is_movie else 'tvshow'
     }
 
 def _fetch_tmdb_extra(item, media_type):
-    """Busca logos, providers e IDs externos em um único hit (para Threads)."""
     tmdb_id = item.get('id')
     endpoint = 'movie' if media_type == 'movie' else 'tv'
     url = f"{BASE_URL}/{endpoint}/{tmdb_id}"
+    
+    append = "external_ids,images,watch/providers"
+    append += ",release_dates" if media_type == 'movie' else ",content_ratings"
+    
     params = {
         "api_key": TMDB_API_KEY,
-        "append_to_response": "external_ids,images,watch/providers",
+        "append_to_response": append,
         "include_image_language": "en,pt,null"
     }
     try:
-        # USA SESSÃO REUTILIZÁVEL + TIMEOUT MENOR
         res = get_session().get(url, params=params, timeout=3).json()
         logos = res.get('images', {}).get('logos', [])
         watch = res.get('watch/providers', {}).get('results', {}).get('BR', {})
         br_providers = watch.get('flatrate') or watch.get('buy') or []
-        
+
+        # Certification
+        certification = ''
+        if media_type == 'movie':
+            for r in res.get('release_dates', {}).get('results', []):
+                if r.get('iso_3166_1') == 'BR':
+                    for rd in r.get('release_dates', []):
+                        cert = rd.get('certification', '')
+                        if cert:
+                            certification = cert
+                            break
+                    break
+        else:
+            for r in res.get('content_ratings', {}).get('results', []):
+                if r.get('iso_3166_1') == 'BR':
+                    certification = r.get('rating', '')
+                    break
+
         return {
             'imdb_id': res.get('external_ids', {}).get('imdb_id', ''),
             'clearlogo': f"{IMG_POSTER}{logos[0]['file_path']}" if logos else '',
             'providers': [p.get('provider_name') for p in br_providers],
-            'runtime': res.get('runtime', 0) if media_type == 'movie' else 0
+            'runtime': res.get('runtime', 0) if media_type == 'movie' else 0,
+            'certification': certification,  # ← novo
         }
-    except Exception as e:
-        xbmc.log(f"[TMDB] Erro extra {tmdb_id}: {str(e)}", xbmc.LOGDEBUG)
-        return {'imdb_id': '', 'clearlogo': '', 'providers': [], 'runtime': 0}
+    except Exception:
+        return {'imdb_id': '', 'clearlogo': '', 'providers': [], 'runtime': 0, 'certification': ''}
 
 def _fetch_extras_batch(items, media_type):
     """
@@ -108,9 +128,7 @@ def _fetch_extras_batch(items, media_type):
     if not items:
         return []
     
-    # REDUZ workers para evitar sobrecarga (10 -> 5)
-    with ThreadPoolExecutor(max_workers=10) as executor:
-        # Submit todas as tarefas mantendo a ordem
+    with ThreadPoolExecutor(max_workers=5) as executor:
         future_to_index = {
             executor.submit(_fetch_tmdb_extra, item, media_type): idx 
             for idx, item in enumerate(items)
@@ -125,13 +143,12 @@ def _fetch_extras_batch(items, media_type):
             try:
                 results[idx] = future.result(timeout=5)
             except Exception as e:
-                xbmc.log(f"[TMDB] Timeout/erro em extra: {e}", xbmc.LOGDEBUG)
-                results[idx] = {'imdb_id': '', 'clearlogo': '', 'providers': [], 'runtime': 0}
+                results[idx] = {'imdb_id': '', 'clearlogo': '', 'providers': [], 'runtime': 0, 'certification': ''}
         
         # Preenche qualquer resultado faltante
         for i in range(len(results)):
             if results[i] is None:
-                results[i] = {'imdb_id': '', 'clearlogo': '', 'providers': [], 'runtime': 0}
+                results[i] = results[i] = {'imdb_id': '', 'clearlogo': '', 'providers': [], 'runtime': 0, 'certification': ''}
         
         return results
 
@@ -153,13 +170,11 @@ def fetch_trending(media_type='movie', page=1):
         data = r.json().get('results', [])
 
         # DEBUG: Verifique se os IDs estão corretos
-        xbmc.log(f"[TMDB DEBUG] Trending IDs: {[item.get('id') for item in data]}", xbmc.LOGDEBUG)
         
         # OTIMIZAÇÃO: Só busca extras se realmente necessário
         extra_results = _fetch_extras_batch(data, media_type)
         
         # DEBUG: Verifique extras IDs
-        xbmc.log(f"[TMDB DEBUG] Extras IDs: {[extra.get('imdb_id', 'NO_ID') for extra in extra_results]}", xbmc.LOGDEBUG)
 
         # Normaliza o resultado final
         results = []
@@ -172,7 +187,6 @@ def fetch_trending(media_type='movie', page=1):
             results.append(normalized)
             
             # DEBUG: Log para identificar problemas
-            xbmc.log(f"[TMDB DEBUG] Item {item.get('id')} -> {normalized.get('title')}", xbmc.LOGDEBUG)
 
         if results:
             db.save_tmdb_cache(cache_key, results)
@@ -181,6 +195,68 @@ def fetch_trending(media_type='movie', page=1):
     except Exception as e:
         xbmc.log(f"[TMDB API] Erro Trending {media_type}: {str(e)}", xbmc.LOGERROR)
         return []
+    
+    
+def fetch_certification(tmdb_id, media_type='movie'):
+    endpoint = 'movie' if media_type == 'movie' else 'tv'
+    url = f"{BASE_URL}/{endpoint}/{tmdb_id}/release_dates" if media_type == 'movie' \
+          else f"{BASE_URL}/{endpoint}/{tmdb_id}/content_ratings"
+    params = {"api_key": TMDB_API_KEY}
+    try:
+        data = get_session().get(url, params=params, timeout=5).json()
+        if media_type == 'movie':
+            for result in data.get('results', []):
+                if result.get('iso_3166_1') == 'BR':
+                    for rd in result.get('release_dates', []):
+                        cert = rd.get('certification', '')
+                        if cert:
+                            return cert
+        else:
+            for result in data.get('results', []):
+                if result.get('iso_3166_1') == 'BR':
+                    return result.get('rating', '')
+    except Exception:
+        pass
+    return ''
+
+def fetch_recommendations(tmdb_id, media_type='movie', limit=10):
+    cache_key = f"rec_{media_type}_{tmdb_id}"
+    cached = db.get_tmdb_cache(cache_key, hours=72)
+    if cached:
+        return cached
+
+    endpoint = 'movie' if media_type == 'movie' else 'tv'
+    url = f"{BASE_URL}/{endpoint}/{tmdb_id}/recommendations"
+    params = {"api_key": TMDB_API_KEY, "language": TMDB_LANG, "page": 1}
+
+    try:
+        data = get_session().get(url, params=params, timeout=5).json().get('results', [])[:limit]
+        results = [_normalize_item(item, media_type) for item in data]
+        if results:
+            db.save_tmdb_cache(cache_key, results)
+        return results
+    except Exception:
+        return []
+
+
+def fetch_similar(tmdb_id, media_type='movie', limit=10):
+    cache_key = f"similar_{media_type}_{tmdb_id}"
+    cached = db.get_tmdb_cache(cache_key, hours=72)
+    if cached:
+        return cached
+
+    endpoint = 'movie' if media_type == 'movie' else 'tv'
+    url = f"{BASE_URL}/{endpoint}/{tmdb_id}/similar"
+    params = {"api_key": TMDB_API_KEY, "language": TMDB_LANG, "page": 1}
+
+    try:
+        data = get_session().get(url, params=params, timeout=5).json().get('results', [])[:limit]
+        results = [_normalize_item(item, media_type) for item in data]
+        if results:
+            db.save_tmdb_cache(cache_key, results)
+        return results
+    except Exception:
+        return []    
 
 # Wrappers para manter compatibilidade
 def fetch_trending_movies(page=1): 
@@ -276,7 +352,6 @@ def _sync_popularity(media_type, local_ids, update_func):
 
     if updates:
         update_func(updates)
-        xbmc.log(f"[CR Lite] Popularidade de {len(updates)} {media_type}s atualizada.", xbmc.LOGINFO)
 
 # --- FUNÇÕES DE DETALHES (INDEXER/DB) ---
 
@@ -286,7 +361,7 @@ def get_movie_details(tmdb_id):
     params = {
         "api_key": TMDB_API_KEY, 
         "language": TMDB_LANG, 
-        "append_to_response": "external_ids,images,watch/providers",
+        "append_to_response": "external_ids,images,watch/providers,release_dates",
         "include_image_language": "en,pt,null"
     }
     
@@ -298,6 +373,16 @@ def get_movie_details(tmdb_id):
         logos = item.get('images', {}).get('logos', [])
         watch = item.get('watch/providers', {}).get('results', {}).get('BR', {})
         br_providers = watch.get('flatrate') or watch.get('buy') or []
+        
+        certification = ''
+        for r in item.get('release_dates', {}).get('results', []):
+            if r.get('iso_3166_1') == 'BR':
+                for rd in r.get('release_dates', []):
+                    cert = rd.get('certification', '')
+                    if cert:
+                        certification = cert
+                        break
+                break
         
         return {
             'tmdb_id': item.get('id'),
@@ -314,6 +399,7 @@ def get_movie_details(tmdb_id):
             'genres': [g.get('name') for g in item.get('genres', [])],
             'clearlogo': f"{IMG_POSTER}{logos[0]['file_path']}" if logos else '',
             'providers': [p.get('provider_name') for p in br_providers],
+            'certification': certification,
             'popularity_updated': None
         }
     except Exception as e:
@@ -627,3 +713,80 @@ def fetch_tvshows_by_keywords(keyword_ids, genres=None, page=1):
     except Exception as e:
         xbmc.log(f"[TMDB] Erro busca keywords séries: {e}", xbmc.LOGERROR)
         return []
+
+def fetch_person_details(tmdb_person_id):
+    """
+    Busca bio, foto e filmografia do ator via TMDB.
+    Usa api_cache do DB (TTL 24h) para não repetir chamadas.
+    Retorna dict com: name, biography, birthday, birthplace,
+                      profile, known_for, credits (lista de filmes+séries)
+    """
+    cache_key = f"person:{tmdb_person_id}"
+    cached = db.get_tmdb_cache(cache_key, hours=24)
+    if cached:
+        return cached
+
+    try:
+        url = f"{BASE_URL}/person/{tmdb_person_id}"
+        params = {
+            "api_key": TMDB_API_KEY,
+            "language": TMDB_LANG,
+            "append_to_response": "combined_credits",
+        }
+        r = get_session().get(url, params=params, timeout=10)
+        r.raise_for_status()
+        data = r.json()
+
+        # Filmografia: filmes + séries ordenados por data (mais recentes primeiro)
+        cast_credits = data.get("combined_credits", {}).get("cast", [])
+
+        credits = []
+        seen = set()
+        for c in cast_credits:
+            mid = c.get("id")
+            if not mid or mid in seen:
+                continue
+            seen.add(mid)
+
+            media_type = c.get("media_type", "movie")
+            title = c.get("title") or c.get("name") or ""
+            poster = c.get("poster_path")
+            date = c.get("release_date") or c.get("first_air_date") or ""
+            character = c.get("character", "")
+
+            # Filtra entradas sem título ou poster
+            if not title or not poster:
+                continue
+
+            credits.append({
+                "tmdb_id": mid,
+                "title": title,
+                "character": character,
+                "poster": f"{IMG_POSTER}{poster}",
+                "year": date[:4] if date else "",
+                "media_type": "tvshow" if media_type == "tv" else "movie",
+                "popularity": c.get("popularity", 0),
+            })
+
+        # Ordena por popularidade (proxy mais confiável que data no TMDB)
+        credits.sort(key=lambda x: x.get("popularity", 0), reverse=True)
+
+        result = {
+            "tmdb_person_id": tmdb_person_id,
+            "name": data.get("name", ""),
+            "biography": data.get("biography", ""),
+            "birthday": data.get("birthday") or "",
+            "birthplace": data.get("place_of_birth") or "",
+            "known_for": data.get("known_for_department", "Acting"),
+            "profile": f"https://image.tmdb.org/t/p/w300{data['profile_path']}"
+                       if data.get("profile_path") else "",
+            "credits": credits,
+            "credits_count": len(credits),
+        }
+
+        db.save_tmdb_cache(cache_key, result)
+        return result
+
+    except Exception as e:
+        xbmc.log(f"[TMDB] Erro fetch_person_details({tmdb_person_id}): {e}", xbmc.LOGERROR)
+        return None

@@ -7,145 +7,107 @@
     </coordinates>
 
     <controls>
-        <!-- ==================== BACKDROP / FANART ==================== -->
-        <control type="group">
-            <width>1920</width>
-            <height>1080</height>
 
-            <!-- Fanart (prioridade maior) -->
-            <control type="image">
+        <!-- ==================== FANART ==================== -->
+        <control type="image">
                 <texture background="true">$INFO[Window().Property(info.fanart)]</texture>
                 <aspectratio align="center" aligny="center">scale</aspectratio>
                 <visible>!String.IsEmpty(Window().Property(info.fanart))</visible>
                 <animation effect="fade" start="0" end="100" time="600">WindowOpen</animation>
-            </control>
-
-            <!-- Poster (fallback se não tiver fanart) -->
-            <control type="image">
-                <texture background="true">$INFO[Window().Property(info.poster)]</texture>
-                <aspectratio align="center" aligny="center">scale</aspectratio>
-                <visible>String.IsEmpty(Window().Property(info.fanart)) + !String.IsEmpty(Window().Property(info.poster))</visible>
-                <animation effect="fade" start="0" end="100" time="600">WindowOpen</animation>
-            </control>
-
-            <!-- Dark Overlay com gradiente mais suave -->
-            <control type="image">
-                <texture background="true">white.png</texture>
-                <colordiffuse>D0000000</colordiffuse>
-                <animation effect="fade" start="80" end="100" time="400">WindowOpen</animation>
-            </control>
         </control>
 
-        <!-- ==================== LOGO ==================== -->
+        <!-- ==================== CLEARLOGO ==================== -->
         <control type="image">
             <centerleft>960</centerleft>
-            <centertop>200</centertop>
+            <centertop>400</centertop>
+
             <width>700</width>
             <height>180</height>
+
             <aspectratio>keep</aspectratio>
             <texture>$INFO[Window().Property(info.clearlogo)]</texture>
             <visible>!String.IsEmpty(Window().Property(info.clearlogo))</visible>
-            <!-- Animação de entrada mais suave -->
-            <animation effect="fade" start="0" end="100" time="800" delay="200">WindowOpen</animation>
-            <animation effect="zoom" start="80" end="100" center="960,280" time="800" delay="200" tween="cubic" easing="out">WindowOpen</animation>
-            <!-- Pulse sutil -->
-            <animation effect="zoom" start="100" end="103" center="960,280" time="2000" loop="true" reversible="true" condition="true">Conditional</animation>
+
+            <!-- Entrada suave -->
+            <animation effect="fade"
+                       start="0"
+                       end="100"
+                       time="700"
+                       delay="200">WindowOpen</animation>
+
+            <animation effect="zoom"
+                       start="85"
+                       end="100"
+                       center="960,400"
+                       time="700"
+                       delay="200"
+                       tween="cubic"
+                       easing="out">WindowOpen</animation>
+
+            <!-- Pulse natural (respiração suave) -->
+            <animation effect="zoom"
+                       start="100"
+                       end="103"
+                       center="960,400"
+                       time="1400"
+                       tween="sine"
+                       easing="inout"
+                       loop="true"
+                       condition="true">Conditional</animation>
+
+            <animation effect="zoom"
+                       start="103"
+                       end="100"
+                       center="960,400"
+                       time="1400"
+                       tween="sine"
+                       easing="inout"
+                       delay="1400"
+                       loop="true"
+                       condition="true">Conditional</animation>
+
         </control>
 
-        <!-- ==================== TÍTULO (fallback) ==================== -->
+        <!-- ==================== SPINNER ==================== -->
+        <control type="image">
+            <centerleft>960</centerleft>
+            <centertop>630</centertop>
+            <width>70</width>
+            <height>70</height>
+            <aspectratio>keep</aspectratio>
+            <texture>spinner.png</texture>
+
+            <animation effect="fade" start="0" end="100" time="400" delay="600">WindowOpen</animation>
+
+            <animation effect="rotate"
+                       start="0"
+                       end="360"
+                       center="960,630"
+                       time="1000"
+                       loop="true"
+                       condition="true">Conditional</animation>
+        </control>
+
+        <!-- ==================== TITLE (fallback) ==================== -->
         <control type="label">
             <centerleft>960</centerleft>
-            <centertop>200</centertop>
+            <centertop>400</centertop>
             <width>1400</width>
-            <height>50</height>
+            <height>80</height>
+
             <align>center</align>
-            <font>font35_title</font>
+            <font>font40_title</font>
             <textcolor>FFFFFFFF</textcolor>
             <shadowcolor>FF000000</shadowcolor>
+
             <label>$INFO[Window().Property(info.title)]</label>
             <visible>String.IsEmpty(Window().Property(info.clearlogo))</visible>
-            <animation effect="fade" start="0" end="100" time="600" delay="200">WindowOpen</animation>
-        </control>
 
-        <!-- ==================== CONTAINER DO SPINNER + STATUS ==================== -->
-        <control type="group">
-            <centerleft>960</centerleft>
-            <centertop>600</centertop>
-            <width>800</width>
-            <height>300</height>
-            <visible>String.IsEqual(Window.Property(enable_busy_spinner),true)</visible>
-            <animation effect="fade" start="0" end="100" time="400" delay="400">WindowOpen</animation>
-
-            <!-- SPINNER ANIMADO -->
-            <control type="group">
-                <centerleft>400</centerleft>
-                <centertop>100</centertop>
-                <width>180</width>
-                <height>180</height>
-
-                <!-- Spinner externo -->
-                <control type="image">
-                    <width>180</width>
-                    <height>180</height>
-                    <texture flipx="true" colordiffuse="88FFFFFF">spinner.png</texture>
-                    <animation effect="rotate" end="360" center="auto" time="2000" loop="true" reversible="false" condition="true">Conditional</animation>
-                </control>
-
-                <!-- Spinner interno -->
-                <control type="image">
-                    <width>120</width>
-                    <height>120</height>
-                    <top>30</top>
-                    <left>30</left>
-                    <texture flipx="true" colordiffuse="66FFFFFF">spinner.png</texture>
-                    <animation effect="rotate" end="-360" center="auto" time="1600" loop="true" reversible="false" condition="true">Conditional</animation>
-                </control>
-            </control>
-
-            <!-- STATUS DINÂMICO ABAIXO DO SPINNER -->
-            <control type="label">
-                <centerleft>400</centerleft>
-                <centertop>350</centertop>
-                <width>800</width>
-                <height>40</height>
-                <align>center</align>
-                <font>font16</font>
-                <textcolor>FFFFFFFF</textcolor>
-                <shadowcolor>AA000000</shadowcolor>
-                <label>$INFO[Window().Property(resolve_status)]</label>
-                <animation effect="fade" start="100" end="70" time="800" loop="true" reversible="true" condition="true">Conditional</animation>
-            </control>
-
-            <!-- Barra de progresso estilizada (decorativa) -->
-            <control type="image">
-                <centerleft>400</centerleft>
-                <centertop>385</centertop>
-                <width>400</width>
-                <height>4</height>
-                <texture colordiffuse="33FFFFFF">white.png</texture>
-            </control>
-            <control type="image">
-                <centerleft>400</centerleft>
-                <centertop>385</centertop>
-                <width>400</width>
-                <height>4</height>
-                <texture colordiffuse="FF0084FF">white.png</texture>
-                <animation effect="slide" start="-400,0" end="400,0" time="2000" loop="true" condition="true">Conditional</animation>
-            </control>
-        </control>
-
-        <!-- ==================== MENSAGEM DE CANCELAMENTO ==================== -->
-        <control type="label">
-            <centerleft>960</centerleft>
-            <centertop>920</centertop>
-            <width>800</width>
-            <height>40</height>
-            <align>center</align>
-            <font>font12</font>
-            <textcolor>99FFFFFF</textcolor>
-            <label>Pressione [B]VOLTAR[/B] para cancelar</label>
-            <visible>String.IsEqual(Window.Property(enable_busy_spinner),true)</visible>
-            <animation effect="fade" start="0" end="100" time="600" delay="800">WindowOpen</animation>
+            <animation effect="fade"
+                       start="0"
+                       end="100"
+                       time="600"
+                       delay="200">WindowOpen</animation>
         </control>
 
     </controls>

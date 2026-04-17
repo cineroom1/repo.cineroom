@@ -20,14 +20,12 @@ class CineroomPlayer(xbmc.Player):
         """
         # Este é o ponto onde o Kodi é instruído a iniciar o player.
         xbmcplugin.setResolvedUrl(handle=handle, succeeded=True, listitem=data)
-        xbmc.log("[CineroomPlayer] setResolvedUrl chamado.", xbmc.LOGINFO)
 
     def onPlayBackStarted(self):
         """
         Chamado automaticamente pelo Kodi APÓS a reprodução começar e o buffer inicial terminar.
         """
         self.playback_started = True
-        xbmc.log("[CineroomPlayer] Evento onPlayBackStarted recebido.", xbmc.LOGINFO)
         
         # Chama o callback da janela do resolvedor para fechar
         if self.on_started_callback:
@@ -41,6 +39,5 @@ class CineroomPlayer(xbmc.Player):
         # Se a reprodução parou, mas nunca começou, significa que houve um erro 
         # (Ex: link quebrado, elemento não encontrado, etc.).
         if not self.playback_started and self.on_started_callback:
-            xbmc.log("[CineroomPlayer] Playback Stopped antes de iniciar. Fechando Resolvedor.", xbmc.LOGWARNING)
             # Aciona o callback para fechar a janela em caso de erro.
             self.on_started_callback()

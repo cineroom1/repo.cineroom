@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window type="dialog">
+    <defaultcontrol always="true">9999</defaultcontrol>
+    <onback>9999</onback>
+
+    <controls>
+
+        <!-- Panel centralizado 900x720 (maior e cabe mais texto) -->
+        <control type="group">
+            <centerleft>50%</centerleft>
+            <centertop>50%</centertop>
+            <width>900</width>
+            <height>720</height>
+
+            <animation effect="fade" end="100" time="150">WindowOpen</animation>
+            <animation effect="zoom" start="95" end="100" center="auto" time="150">WindowOpen</animation>
+            <animation effect="fade" start="100" end="0" time="100">WindowClose</animation>
+
+            <!-- Borda dourada (sempre +4 em relação ao painel) -->
+            <control type="image">
+                <left>-2</left>
+                <top>-2</top>
+                <width>904</width>
+                <height>724</height>
+                <texture colordiffuse="FFFFCC00" border="20">circle.png</texture>
+            </control>
+
+            <!-- Fundo escuro -->
+            <control type="image">
+                <left>0</left>
+                <top>0</top>
+                <width>900</width>
+                <height>720</height>
+                <texture colordiffuse="FF1A1A1A" border="20">circle.png</texture>
+            </control>
+
+            <!-- Ícone estrela -->
+            <control type="label">
+                <left>24</left>
+                <top>20</top>
+                <width>70</width>
+                <height>70</height>
+                <font>font30</font>
+                <textcolor>FFFFCC00</textcolor>
+                <label>★</label>
+                <align>center</align>
+                <aligny>center</aligny>
+            </control>
+
+            <!-- Título do benefício -->
+            <control type="label" id="9100">
+                <left>105</left>
+                <top>20</top>
+                <width>770</width>
+                <height>70</height>
+                <font>font22</font>
+                <textcolor>FFFFCC00</textcolor>
+                <label>Título do Benefício</label>
+                <align>left</align>
+                <aligny>center</aligny>
+            </control>
+
+            <!-- Linha separadora -->
+            <control type="image">
+                <left>24</left>
+                <top>100</top>
+                <width>852</width>
+                <height>1</height>
+                <texture colordiffuse="44FFFFFF">white.png</texture>
+            </control>
+
+            <!-- Descrição detalhada (maior + scroll para nunca cortar) -->
+            <control type="textbox" id="9101">
+                <left>40</left>
+                <top>120</top>
+                <width>820</width>
+                <height>510</height>
+                <font>font14</font>
+                <textcolor>FFCCCCCC</textcolor>
+                <align>left</align>
+
+                <!-- ESSENCIAL para texto longo -->
+                <scroll>true</scroll>
+                <autoscroll>false</autoscroll>
+
+                <label>Descrição detalhada do benefício aparecerá aqui.</label>
+            </control>
+
+            <!-- Botão Fechar (desce para o final do painel) -->
+            <control type="button" id="9999">
+                <left>300</left>
+                <top>645</top>
+                <width>300</width>
+                <height>55</height>
+                <font>font13</font>
+                <label>Fechar</label>
+                <texturefocus colordiffuse="FFFFCC00" border="10">circle.png</texturefocus>
+                <texturenofocus colordiffuse="FF444444" border="10">circle.png</texturenofocus>
+                <textcolor>FFCCCCCC</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <align>center</align>
+                <aligny>center</aligny>
+            </control>
+
+        </control>
+    </controls>
+</window>

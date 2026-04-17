@@ -65,7 +65,9 @@ def show_favorite_movies():
     xbmcplugin.setPluginCategory(HANDLE, "Minha Lista • Filmes")
     xbmcplugin.setContent(HANDLE, 'movies')
 
-    favorites = db.get_favorites_by_type('movie')
+    from resources.lib.favorites import get_all_favorites
+    all_favs = get_all_favorites()
+    favorites = [f for f in all_favs if f['media_type'] == 'movie']
 
     for item in favorites:
         li = create_video_item(item, 'movie')
@@ -93,7 +95,9 @@ def show_favorite_tvshows():
     xbmcplugin.setPluginCategory(HANDLE, "Minha Lista • Séries")
     xbmcplugin.setContent(HANDLE, 'tvshows')
 
-    favorites = db.get_favorites_by_type('tvshow')
+    from resources.lib.favorites import get_all_favorites
+    all_favs = get_all_favorites()
+    favorites = [f for f in all_favs if f['media_type'] == 'tvshow']
 
     for item in favorites:
         li = create_video_item(item, 'tvshow')

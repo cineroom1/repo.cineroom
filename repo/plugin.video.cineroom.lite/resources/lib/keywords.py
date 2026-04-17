@@ -1,543 +1,334 @@
 # -*- coding: utf-8 -*-
 # resources/lib/keywords.py
-
 """
-Sistema de Categorias Temáticas com Keywords do TMDb
-OTIMIZADO COM CACHE EM DISCO E MEMÓRIA
+Categorias temáticas — filtro 100% LOCAL via campo 'keywords' do JSON curado.
+
+Sem chamadas de rede. Sem SQLite de cache. Sem threads de resolução.
+Os filmes/séries já têm 'keywords' populados pelo script enrich_keywords.py.
+A busca por tema é um simples SELECT WHERE no banco local.
 """
 
 import xbmc
-import xbmcaddon
-import xbmcvfs
-import requests
-import json
-import time
-import sqlite3
-import os
-from functools import lru_cache
 
-ADDON = xbmcaddon.Addon()
-ADDON_PATH = ADDON.getAddonInfo('path')
-TMDB_API_KEY = ADDON.getSetting("tmdb_api") or "f0b9cd2de131c900f5bb03a0a5776342"
-
-# Caminho para cache SQLite
-CACHE_DB_PATH = xbmcvfs.translatePath(os.path.join(ADDON_PATH, 'resources', 'data', 'keywords_cache.db'))
-
-# Cache em memória (LRU)
-_KEYWORD_CACHE_MEMORY = {}
-_KEYWORD_BATCH_CACHE = {}
-
-def init_cache_db():
-    """Inicializa o banco de cache SQLite"""
-    conn = sqlite3.connect(CACHE_DB_PATH)
-    cursor = conn.cursor()
-    
-    # Tabela para cache de keywords (nome -> id)
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS keyword_cache (
-            keyword_name TEXT PRIMARY KEY,
-            keyword_id INTEGER,
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    # Tabela para cache de categorias temáticas completas
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS theme_cache (
-            theme_slug TEXT PRIMARY KEY,
-            keyword_ids TEXT,  -- JSON array
-            last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )
-    ''')
-    
-    conn.commit()
-    conn.close()
-
-def get_cached_keyword_id(keyword_name):
-    """Busca keyword_id no cache SQLite"""
-    try:
-        conn = sqlite3.connect(CACHE_DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "SELECT keyword_id FROM keyword_cache WHERE keyword_name = ?",
-            (keyword_name,)
-        )
-        result = cursor.fetchone()
-        
-        conn.close()
-        return result[0] if result else None
-    except:
-        return None
-
-def save_keyword_cache(keyword_name, keyword_id):
-    """Salva keyword no cache SQLite"""
-    try:
-        conn = sqlite3.connect(CACHE_DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            """INSERT OR REPLACE INTO keyword_cache 
-               (keyword_name, keyword_id, last_updated) VALUES (?, ?, datetime('now'))""",
-            (keyword_name, keyword_id)
-        )
-        
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        xbmc.log(f"[Keywords] Erro salvando cache: {e}", xbmc.LOGDEBUG)
-
-def get_cached_theme_ids(theme_slug):
-    """Busca IDs de uma categoria no cache SQLite"""
-    try:
-        conn = sqlite3.connect(CACHE_DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            "SELECT keyword_ids FROM theme_cache WHERE theme_slug = ?",
-            (theme_slug,)
-        )
-        result = cursor.fetchone()
-        
-        conn.close()
-        
-        if result and result[0]:
-            return json.loads(result[0])
-        return None
-    except:
-        return None
-
-def save_theme_cache(theme_slug, keyword_ids):
-    """Salva categoria completa no cache SQLite"""
-    try:
-        conn = sqlite3.connect(CACHE_DB_PATH)
-        cursor = conn.cursor()
-        
-        cursor.execute(
-            """INSERT OR REPLACE INTO theme_cache 
-               (theme_slug, keyword_ids, last_updated) VALUES (?, ?, datetime('now'))""",
-            (theme_slug, json.dumps(keyword_ids))
-        )
-        
-        conn.commit()
-        conn.close()
-    except Exception as e:
-        xbmc.log(f"[Keywords] Erro salvando theme cache: {e}", xbmc.LOGDEBUG)
-
-def search_keyword_id_batch(keyword_names):
-    """
-    Busca IDs de múltiplas keywords em uma única requisição
-    Retorna dicionário {keyword_name: keyword_id}
-    """
-    if not keyword_names:
-        return {}
-    
-    # Verifica cache em memória primeiro
-    cached_results = {}
-    remaining = []
-    
-    for name in keyword_names:
-        # Cache em memória
-        if name in _KEYWORD_CACHE_MEMORY:
-            cached_results[name] = _KEYWORD_CACHE_MEMORY[name]
-        # Cache SQLite
-        else:
-            cached_id = get_cached_keyword_id(name)
-            if cached_id:
-                _KEYWORD_CACHE_MEMORY[name] = cached_id
-                cached_results[name] = cached_id
-            else:
-                remaining.append(name)
-    
-    if not remaining:
-        return cached_results
-    
-    # Busca as restantes no TMDB (em batch onde possível)
-    results = cached_results.copy()
-    
-    for name in remaining:
-        try:
-            url = "https://api.themoviedb.org/3/search/keyword"
-            params = {
-                "api_key": TMDB_API_KEY,
-                "query": name,
-                "page": 1
-            }
-            
-            response = requests.get(url, params=params, timeout=3)
-            data = response.json()
-            
-            if data.get('results'):
-                keyword_id = data['results'][0]['id']
-                results[name] = keyword_id
-                
-                # Atualiza caches
-                _KEYWORD_CACHE_MEMORY[name] = keyword_id
-                save_keyword_cache(name, keyword_id)
-                
-                xbmc.log(f"[Keywords] '{name}' → ID {keyword_id}", xbmc.LOGDEBUG)
-            else:
-                results[name] = None
-                xbmc.log(f"[Keywords] Keyword '{name}' não encontrada", xbmc.LOGWARNING)
-                
-        except Exception as e:
-            xbmc.log(f"[Keywords] Erro buscando '{name}': {e}", xbmc.LOGERROR)
-            results[name] = None
-    
-    return results
-
-@lru_cache(maxsize=50)
-def resolve_keywords_cached(keyword_names_tuple):
-    """
-    Versão com cache LRU da função resolve_keywords
-    Aceita tuple para ser cacheable
-    """
-    keyword_names = list(keyword_names_tuple)
-    results = search_keyword_id_batch(keyword_names)
-    return [results[name] for name in keyword_names if results.get(name)]
-
-def resolve_keywords(keyword_names):
-    """
-    Converte lista de nomes em lista de IDs com cache inteligente
-    """
-    # Converte para tuple para usar com lru_cache
-    names_tuple = tuple(keyword_names)
-    return resolve_keywords_cached(names_tuple)
-
-# Mapeamento PT-BR → Keyword Names (inglês)
+# ---------------------------------------------------------------------------
+# MAPA DE TEMAS
+# 'keywords': strings que devem aparecer no campo keywords do JSON/DB
+#             (lowercase, exatamente como o TMDB retorna)
+# 'genres':   genre_ids opcionais para filtro adicional (pode deixar vazio)
+# ---------------------------------------------------------------------------
 KEYWORDS_MAP = {
     # 🌨️ NATUREZA & CLIMA
     "neve": {
-        "keywords": ["snow", "winter"],
         "name": "Neve",
+        "description": "Filmes ambientados na neve e inverno",
+        "keywords": ["snow", "winter"],
         "genres": [],
-        "description": "Filmes ambientados na neve e inverno"
     },
     "praia": {
-        "keywords": ["beach", "summer"],
         "name": "Praia & Verão",
+        "description": "Filmes de verão, praia e oceano",
+        "keywords": ["beach", "summer"],
         "genres": [],
-        "description": "Filmes de verão, praia e oceano"
     },
     "deserto": {
-        "keywords": ["desert"],
         "name": "Deserto",
+        "description": "Ambientados em desertos",
+        "keywords": ["desert"],
         "genres": [],
-        "description": "Ambientados em desertos"
     },
     "floresta": {
-        "keywords": ["jungle", "forest"],
         "name": "Floresta & Selva",
+        "description": "Aventuras em florestas e selvas",
+        "keywords": ["jungle", "forest"],
         "genres": [],
-        "description": "Aventuras em florestas e selvas"
     },
     "oceano": {
-        "keywords": ["ocean", "underwater"],
         "name": "Oceano",
+        "description": "Aventuras submarinas",
+        "keywords": ["ocean", "underwater"],
         "genres": [],
-        "description": "Aventuras submarinas"
     },
     "espacial": {
-        "keywords": ["space", "astronaut"],
         "name": "Espaço Sideral",
+        "description": "Viagens espaciais e universo",
+        "keywords": ["space", "astronaut"],
         "genres": [],
-        "description": "Viagens espaciais e universo"
     },
-    
+
     # 🎮 TECH & GAMES
     "videogame": {
-        "keywords": ["video game", "gamer"],
         "name": "Videogames",
+        "description": "Filmes sobre games e gamers",
+        "keywords": ["video game", "gamer"],
         "genres": [],
-        "description": "Filmes sobre games e gamers"
     },
     "hacker": {
-        "keywords": ["hacker", "cyber"],
         "name": "Hackers & Cyber",
+        "description": "Hackers e tecnologia",
+        "keywords": ["hacker", "cyber"],
         "genres": [],
-        "description": "Hackers e tecnologia"
     },
     "inteligencia_artificial": {
-        "keywords": ["artificial intelligence", "robot"],
         "name": "Inteligência Artificial",
+        "description": "IA e robôs",
+        "keywords": ["artificial intelligence", "robot"],
         "genres": [],
-        "description": "IA e robôs"
     },
     "realidade_virtual": {
-        "keywords": ["virtual reality"],
         "name": "Realidade Virtual",
+        "description": "VR e mundos virtuais",
+        "keywords": ["virtual reality"],
         "genres": [],
-        "description": "VR e mundos virtuais"
     },
-    
+
     # 🧟 CRIATURAS
     "zumbi": {
-        "keywords": ["zombie", "undead"],
         "name": "Apocalipse Zumbi",
+        "description": "Filmes de zumbis",
+        "keywords": ["zombie", "undead"],
         "genres": [],
-        "description": "Filmes de zumbis"
     },
     "vampiro": {
-        "keywords": ["vampire"],
         "name": "Vampiros",
+        "description": "Vampiros e criaturas da noite",
+        "keywords": ["vampire"],
         "genres": [],
-        "description": "Vampiros e criaturas da noite"
     },
     "lobisomem": {
-        "keywords": ["werewolf"],
         "name": "Lobisomens",
+        "description": "Lobisomens e licantropia",
+        "keywords": ["werewolf"],
         "genres": [],
-        "description": "Lobisomens e licantropia"
     },
     "alienigena": {
-        "keywords": ["alien", "extraterrestrial"],
         "name": "Alienígenas",
+        "description": "Invasões e contatos alienígenas",
+        "keywords": ["alien", "extraterrestrial"],
         "genres": [],
-        "description": "Invasões e contatos alienígenas"
     },
     "dinossauro": {
-        "keywords": ["dinosaur"],
         "name": "Dinossauros",
+        "description": "Dinossauros e era pré-histórica",
+        "keywords": ["dinosaur"],
         "genres": [],
-        "description": "Dinossauros e era pré-histórica"
     },
     "dragao": {
-        "keywords": ["dragon"],
         "name": "Dragões",
+        "description": "Dragões e mitologia",
+        "keywords": ["dragon"],
         "genres": [],
-        "description": "Dragões e mitologia"
     },
-    
+
     # 🎯 TEMAS & AÇÕES
     "vinganca": {
-        "keywords": ["revenge", "vengeance"],
         "name": "Vingança",
+        "description": "Filmes de vingança épica",
+        "keywords": ["revenge", "vengeance"],
         "genres": [],
-        "description": "Filmes de vingança épica"
     },
     "assalto": {
-        "keywords": ["heist", "bank robbery"],
         "name": "Assaltos & Heist",
+        "description": "Grandes assaltos e golpes",
+        "keywords": ["heist", "bank robbery"],
         "genres": [],
-        "description": "Grandes assaltos e golpes"
     },
     "sobrevivencia": {
-        "keywords": ["survival"],
         "name": "Sobrevivência",
+        "description": "Luta pela sobrevivência",
+        "keywords": ["survival"],
         "genres": [],
-        "description": "Luta pela sobrevivência"
     },
     "apocalipse": {
-        "keywords": ["apocalypse", "post-apocalyptic"],
         "name": "Apocalipse",
+        "description": "Fim do mundo e pós-apocalipse",
+        "keywords": ["apocalypse", "post-apocalyptic"],
         "genres": [],
-        "description": "Fim do mundo e pós-apocalipse"
     },
     "viagem_tempo": {
-        "keywords": ["time travel"],
         "name": "Viagem no Tempo",
+        "description": "Viagens temporais",
+        "keywords": ["time travel"],
         "genres": [],
-        "description": "Viagens temporais"
     },
     "distopia": {
-        "keywords": ["dystopia"],
         "name": "Distopia",
+        "description": "Futuros distópicos",
+        "keywords": ["dystopia"],
         "genres": [],
-        "description": "Futuros distópicos"
     },
-    
+
     # 👤 PROFISSÕES
     "assassino": {
-        "keywords": ["assassin", "hitman"],
         "name": "Assassinos",
+        "description": "Assassinos profissionais",
+        "keywords": ["assassin", "hitman"],
         "genres": [],
-        "description": "Assassinos profissionais"
     },
     "detetive": {
-        "keywords": ["detective", "investigation"],
         "name": "Detetives",
+        "description": "Investigações e detetives",
+        "keywords": ["detective", "investigation"],
         "genres": [],
-        "description": "Investigações e detetives"
     },
     "policia": {
-        "keywords": ["police", "cop"],
         "name": "Polícia",
+        "description": "Policiais e investigações",
+        "keywords": ["police", "cop"],
         "genres": [],
-        "description": "Policiais e investigações"
     },
     "espia": {
-        "keywords": ["spy", "espionage"],
         "name": "Espiões",
+        "description": "Espiões e missões secretas",
+        "keywords": ["spy", "espionage"],
         "genres": [],
-        "description": "Espiões e missões secretas"
     },
     "pirata": {
-        "keywords": ["pirate"],
         "name": "Piratas",
+        "description": "Piratas e aventuras nos mares",
+        "keywords": ["pirate"],
         "genres": [],
-        "description": "Piratas e aventuras nos mares"
     },
-    
+
     # 🏛️ LUGARES & ÉPOCAS
     "prisao": {
-        "keywords": ["prison", "jail"],
         "name": "Prisão",
+        "description": "Filmes de prisão",
+        "keywords": ["prison", "jail"],
         "genres": [],
-        "description": "Filmes de prisão"
     },
     "escola": {
-        "keywords": ["school", "high school"],
         "name": "Escola",
+        "description": "Ambientados em escolas",
+        "keywords": ["school", "high school"],
         "genres": [],
-        "description": "Ambientados em escolas"
     },
     "hospital": {
-        "keywords": ["hospital", "doctor"],
         "name": "Hospital",
+        "description": "Ambientes hospitalares",
+        "keywords": ["hospital", "doctor"],
         "genres": [],
-        "description": "Ambientes hospitalares"
     },
     "medieval": {
-        "keywords": ["medieval", "middle ages"],
         "name": "Era Medieval",
+        "description": "Cavaleiros e castelos",
+        "keywords": ["medieval", "middle ages"],
         "genres": [],
-        "description": "Cavaleiros e castelos"
     },
-    
+
     # 🎭 ESPECIAIS
     "baseado_fatos": {
-        "keywords": ["based on true story", "true story"],
         "name": "Baseado em Fatos Reais",
+        "description": "Histórias verídicas",
+        "keywords": ["based on true story", "true story"],
         "genres": [],
-        "description": "Histórias verídicas"
     },
     "baseado_livro": {
-        "keywords": ["based on novel", "literary adaptation"],
         "name": "Baseado em Livros",
+        "description": "Adaptações literárias",
+        "keywords": ["based on novel", "literary adaptation"],
         "genres": [],
-        "description": "Adaptações literárias"
     },
     "super_heroi": {
-        "keywords": ["superhero", "comic book"],
         "name": "Super-Heróis",
+        "description": "Heróis e vilões",
+        "keywords": ["superhero", "comic book"],
         "genres": [],
-        "description": "Heróis e vilões"
     },
     "natal": {
-        "keywords": ["christmas", "santa claus"],
         "name": "Natal",
+        "description": "Filmes de Natal",
+        "keywords": ["christmas", "santa claus"],
         "genres": [],
-        "description": "Filmes de Natal"
     },
     "halloween": {
-        "keywords": ["halloween"],
         "name": "Halloween",
+        "description": "Filmes de Halloween",
+        "keywords": ["halloween"],
         "genres": [],
-        "description": "Filmes de Halloween"
     },
-    
+
     # 🎬 ESPORTES
     "futebol": {
-        "keywords": ["football", "soccer"],
         "name": "Futebol",
+        "description": "Filmes de futebol",
+        "keywords": ["football", "soccer"],
         "genres": [],
-        "description": "Filmes de futebol"
     },
     "boxe": {
-        "keywords": ["boxing", "boxer"],
         "name": "Boxe",
+        "description": "Lutas e boxe",
+        "keywords": ["boxing", "boxer"],
         "genres": [],
-        "description": "Lutas e boxe"
     },
     "corrida": {
-        "keywords": ["car racing", "racing"],
         "name": "Corridas",
+        "description": "Corridas e velocidade",
+        "keywords": ["car racing", "racing"],
         "genres": [],
-        "description": "Corridas e velocidade"
     },
     "artes_marciais": {
-        "keywords": ["martial arts", "kung fu"],
         "name": "Artes Marciais",
+        "description": "Kung fu e artes marciais",
+        "keywords": ["martial arts", "kung fu"],
         "genres": [],
-        "description": "Kung fu e artes marciais"
     },
     "danca": {
-        "keywords": ["dance", "dancing"],
         "name": "Dança",
+        "description": "Filmes de dança",
+        "keywords": ["dance", "dancing"],
         "genres": [],
-        "description": "Filmes de dança"
     },
 }
 
+
+# ---------------------------------------------------------------------------
+# API pública — mesma interface de antes
+# ---------------------------------------------------------------------------
+
 def get_all_theme_categories():
-    """Retorna todas as categorias temáticas disponíveis"""
+    """Retorna lista de categorias para exibir no menu."""
     return [
-        {
-            'slug': slug,
-            'name': data['name'],
-            'description': data['description']
-        }
+        {'slug': slug, 'name': data['name'], 'description': data['description']}
         for slug, data in KEYWORDS_MAP.items()
     ]
 
+
 def get_theme_config(theme_slug):
-    """Retorna configuração de uma categoria temática"""
+    """Retorna config completa do tema (name, description, keywords, genres)."""
     return KEYWORDS_MAP.get(theme_slug)
 
-def get_theme_keyword_ids(theme_slug):
+
+def get_theme_keywords(theme_slug):
     """
-    Retorna IDs das keywords de uma categoria
-    COM CACHE INTELIGENTE (SQLite + Memória)
+    Retorna lista de strings de keywords para filtro local no DB.
+    Ex: 'assalto' → ['heist', 'bank robbery']
+
+    Zero chamadas de rede — leitura direta do dict em memória.
     """
-    # Verifica cache SQLite primeiro
-    cached_ids = get_cached_theme_ids(theme_slug)
-    if cached_ids:
-        xbmc.log(f"[Keywords] Cache HIT para tema: {theme_slug}", xbmc.LOGDEBUG)
-        return cached_ids
-    
-    config = KEYWORDS_MAP.get(theme_slug)
-    if not config:
+    cfg = KEYWORDS_MAP.get(theme_slug)
+    if not cfg:
         return []
-    
-    keyword_names = config['keywords']
-    
-    # Busca IDs (com cache LRU)
-    keyword_ids = resolve_keywords(keyword_names)
-    
-    # Filtra None values
-    valid_ids = [kid for kid in keyword_ids if kid is not None]
-    
-    # Salva no cache SQLite
-    if valid_ids:
-        save_theme_cache(theme_slug, valid_ids)
-    
-    return valid_ids
+    kws = cfg.get("keywords", [])
+    return kws
+
+
+# Mantido para compatibilidade com código que ainda chame a versão antiga.
+# Retorna strings (não IDs numéricos) — movies.py e tvshows.py já foram atualizados.
+def get_theme_keyword_ids(theme_slug):
+    return get_theme_keywords(theme_slug)
+
 
 def search_theme_slug(query):
-    """Busca categoria por termo em português"""
-    query_lower = query.lower()
-    
-    # Busca exata
-    if query_lower in KEYWORDS_MAP:
-        return query_lower
-    
-    # Busca parcial no nome
+    """Busca slug pelo nome ou slug parcial."""
+    q = (query or "").lower()
+    if q in KEYWORDS_MAP:
+        return q
     for slug, data in KEYWORDS_MAP.items():
-        if query_lower in slug or query_lower in data['name'].lower():
+        if q in slug or q in data['name'].lower():
             return slug
-    
     return None
 
-def preload_common_themes():
-    """Pré-carrega temas comuns em segundo plano para cache"""
-    common_themes = ["neve", "praia", "zumbi", "vampiro", "natal", "espacial"]
-    
-    for theme in common_themes:
-        get_theme_keyword_ids(theme)  # Isso vai popular o cache
 
-# Inicializa o banco de cache na primeira importação
-try:
-    init_cache_db()
-    xbmc.log("[Keywords] Cache DB inicializado", xbmc.LOGINFO)
-except Exception as e:
-    xbmc.log(f"[Keywords] Erro inicializando cache DB: {e}", xbmc.LOGERROR)
+def preload_common_themes():
+    """Não-op: IDs já estão em memória, nada para pré-carregar."""
+    pass

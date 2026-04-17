@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Em: resources/lib/movies.py - VERSÃO OTIMIZADA E FUNCIONAL
+# Em: resources/lib/movies.py
 
 import json
 import xbmc
@@ -11,11 +11,11 @@ import xbmcplugin
 from urllib.parse import urlencode
 
 from .utils import create_video_item_with_library, with_view_mode
+from .content_filter import get_content_filter
 
 
 # --- Configurações gerais ---
 ADDON = xbmcaddon.Addon()
-HANDLE = int(sys.argv[1])
 BASE_URL = sys.argv[0]
 ADDON_PATH = ADDON.getAddonInfo('path')
 ICON_PATH = os.path.join(ADDON_PATH, 'resources', 'medias', 'icons')
@@ -34,23 +34,56 @@ def get_items_per_page():
     """Retorna número de itens por página baseado no dispositivo"""
     base_pages = int(ADDON.getSetting("pages"))
     if is_slow_device():
-        return min(base_pages, 20)  # Máximo 20 em dispositivos fracos
+        return min(base_pages, 20)
     return base_pages
 
 def get_url(**kwargs):
     """Cria uma URL de plugin para uma ação."""
     return f"{BASE_URL}?{urlencode(kwargs)}"
 
-def _create_movie_item_tuple(movie):
-    """Cria a tupla padrão para todos os dispositivos usando a função completa"""
-    # li já vem com os IDs corretos no setInfo se você atualizou o utils.py
+def _parse_json_field(value, fallback=None):
+    """
+    Garante que campos vindos do SQLite como string JSON sejam convertidos
+    de volta para lista/dict Python.
+
+    O banco armazena genres/streams/providers como json.dumps(...), então ao
+    ler com _execute_query eles chegam como str em algumas consultas (ex:
+    get_movie_by_id) e como list em outras (quando base_db faz o parse).
+    Esta função normaliza os dois casos.
+    """
+    if fallback is None:
+        fallback = []
+    if isinstance(value, (list, dict)):
+        return value
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            return parsed if isinstance(parsed, (list, dict)) else fallback
+        except (ValueError, TypeError):
+            pass
+    return fallback
+
+
+def _create_movie_item_tuple(movie, quality_filter=None, track_on_click=False):
+    """
+    Cria a tupla padrão para todos os dispositivos usando a função completa.
+
+    Args:
+        track_on_click: Quando True (usado em search.py), embute track=1 na URL
+                        para que o router registre o clique no Supabase apenas
+                        quando o usuário escolher um resultado da busca.
+    """
     li = create_video_item_with_library(movie, media_type='movie')
-    
-    # Lógica do Dialog de Detalhes
+
     if ADDON.getSettingBool("movie.enable_details"):
+
+        genres    = _parse_json_field(movie.get('genres'), fallback=[])
+        streams   = _parse_json_field(movie.get('streams'), fallback=[])
+        providers = _parse_json_field(movie.get('providers'), fallback=[])
+
         item_data = {
             "title": movie.get('title', ''),
-            "original_title": movie.get('original_title', ''), # ADICIONADO
+            "original_title": movie.get('original_title', ''),
             "clearlogo": movie.get('clearlogo', ''),
             "poster": movie.get('poster', ''),
             "synopsis": movie.get('synopsis', ''),
@@ -58,19 +91,22 @@ def _create_movie_item_tuple(movie):
             "year": movie.get('year', 0),
             "runtime": movie.get('runtime', 0),
             "collection": movie.get('collection', ''),
-            "rating": float(movie.get('rating', 0)),
-            "genre": ', '.join(movie.get('genres', [])),
+            "certification": movie.get('certification', ''),
+            "rating": float(movie.get('rating', 0) or 0),
+            "genre": ', '.join(str(g) for g in genres),
             "tmdb_id": movie.get('tmdb_id'),
-            "imdb_id": movie.get('imdb_id', ''), # ESSENCIAL
+            "imdb_id": movie.get('imdb_id', ''),
             "media_type": 'movie',
-            "providers": json.dumps(movie.get('providers', [])) if movie.get('providers') else '[]',
-            "streams": movie.get('streams', []),
-            "popularity_updated": movie.get('popularity_updated', '') 
+            "providers": providers,
+            "streams": streams,
+            "popularity_updated": movie.get('popularity_updated', ''),
+            "quality_filter": quality_filter,
         }
-        # Separadores compactos para economizar memória na URL
-        url = get_url(action='show_details', data=json.dumps(item_data, separators=(',', ':')))
+        extra = {"track": "1"} if track_on_click else {}
+        url = get_url(action='show_details', data=json.dumps(item_data, separators=(',', ':')), **extra)
     else:
         # Play direto
+        extra = {"track": "1"} if track_on_click else {}
         url = get_url(
             action='find_sources',
             tmdb_id=str(movie.get('tmdb_id', '')),
@@ -82,9 +118,11 @@ def _create_movie_item_tuple(movie):
             clearlogo=movie.get('clearlogo', ''),
             fanart=movie.get('fanart', ''),
             backdrop=movie.get('backdrop', ''),
-            poster=movie.get('poster', '')
+            poster=movie.get('poster', ''),
+            quality_filter=quality_filter or '',
+            **extra,
         )
-    
+
     return (url, li, False)
 
 
@@ -97,16 +135,19 @@ def _get_cached_listitem(movie):
     
     li = xbmcgui.ListItem(label=movie.get('title', ''))
 
-    # Artes
+    # Artes — aplica qualidade configurada pelo usuário
+    from .utils import get_image_resolutions, scale_tmdb
+    res = get_image_resolutions()
+    _poster   = scale_tmdb(movie.get('poster', ''),   res['poster'])
+    _backdrop = scale_tmdb(movie.get('fanart', movie.get('backdrop', '')), res['backdrop'])
     li.setArt({
-        'thumb': movie.get('poster', '') or '',
-        'fanart': movie.get('fanart', movie.get('backdrop', '')) or '',
+        'thumb':     _poster,
+        'fanart':    _backdrop,
         'clearlogo': movie.get('clearlogo', '') or '',
-        'poster': movie.get('poster', '') or '',
-        'backdrop': movie.get('backdrop', '') or ''
+        'poster':    _poster,
+        'backdrop':  _backdrop
     })
     
-    # Propriedades internas — todas convertidas para str
     li.setProperty('tmdb_id', str(movie.get('tmdb_id', '')))
     li.setProperty('imdb_id', str(movie.get('imdb_id', '')))
     li.setProperty('media_type', str(movie.get('media_type', 'movie')))
@@ -124,7 +165,6 @@ def _get_cached_listitem(movie):
     li.setProperty('providers', ",".join(map(str, movie.get('providers', []))))
     li.setProperty('popularity_updated', str(movie.get('popularity_updated', '')))
 
-    # Salva no cache
     if len(_LISTITEM_CACHE) < _MAX_CACHE_SIZE:
         _LISTITEM_CACHE[cache_key] = li
     
@@ -134,6 +174,7 @@ def _get_cached_listitem(movie):
 
 def show_movies_menu(menu_structure):
     """Cria e exibe o menu da seção 'Filmes'."""
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, 'Filmes')
     for item in menu_structure:
         li = xbmcgui.ListItem(label=item['title'])
@@ -146,7 +187,8 @@ def show_movies_menu(menu_structure):
 
 def add_next_page_item(items_on_current_page, current_page, **kwargs):
     """Adiciona o item 'Próxima Página' a uma lista se houver mais itens."""
-    items_per_page = get_items_per_page()  # ✅ USA função dinâmica
+    HANDLE = int(sys.argv[1])
+    items_per_page = get_items_per_page()
     if len(items_on_current_page) == items_per_page:
         next_icon = os.path.join(ICON_PATH, 'nextpage.png')
         li_next = xbmcgui.ListItem(label="Próxima Página")
@@ -162,6 +204,7 @@ def add_next_page_item(items_on_current_page, current_page, **kwargs):
 def list_genres():
     from .db import db
     """Cria e exibe a lista de Gêneros de Filmes."""
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, 'Gêneros')
     xbmcplugin.setContent(HANDLE, 'genres')
     genres_from_db = db.get_all_unique_genres()
@@ -176,6 +219,7 @@ def list_genres():
 def list_years():
     from .db import db
     """Cria e exibe a lista de Anos disponíveis para filmes."""
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, 'Anos')
     xbmcplugin.setContent(HANDLE, 'years')
     years_from_db = db.get_all_unique_years()
@@ -191,73 +235,72 @@ def list_collections(page=1):
     from .db import db
     from .tmdb_api import get_collection_art
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    
+
     page = int(page)
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, "Coleções")
     xbmcplugin.setContent(HANDLE, 'movies')
-    
+
     items_per_page = get_items_per_page()
     collections_data = db.get_all_collections(page, items_per_page)
-    total_items = len(collections_data)
 
     if not collections_data:
         xbmcplugin.endOfDirectory(HANDLE)
         return
 
-    # Inicia o Diálogo de Progresso em Segundo Plano
+    total_items = len(collections_data)
+
     pDialog = xbmcgui.DialogProgressBG()
     pDialog.create("CR Lite", "Buscando capas das coleções, aguarde...")
 
     def process_collection(col):
-        name = col.get('collection')
+        name   = col.get('collection')
+        poster = col.get('poster', '')
+        fanart = col.get('backdrop', '')
+
         meta = db.get_cached_collection_meta(name)
-        
         if not meta:
             meta = get_collection_art(name)
             if meta:
                 db.save_collection_meta(name, meta['poster'], meta['backdrop'])
-        
-        poster = meta['poster'] if meta and meta['poster'] else col.get('poster')
-        fanart = meta['backdrop'] if meta and meta['backdrop'] else col.get('backdrop')
-        
+
+        poster = meta['poster']   if meta and meta.get('poster')   else poster
+        fanart = meta['backdrop'] if meta and meta.get('backdrop') else fanart
+
         li = xbmcgui.ListItem(label=name)
-        
+
         from .utils import get_image_resolutions, scale_tmdb
         res = get_image_resolutions()
-        
+
         li.setArt({
             'poster': scale_tmdb(poster, res['poster']),
-            'icon': scale_tmdb(poster, res['poster']),
-            'thumb': scale_tmdb(poster, res['poster']),
+            'icon':   scale_tmdb(poster, res['poster']),
+            'thumb':  scale_tmdb(poster, res['poster']),
             'fanart': scale_tmdb(fanart, res['backdrop'])
         })
-        
-        # ✅ ESSENCIAL: Define o tipo como 'set' e adiciona informações da coleção
+
         li.setInfo('video', {
-            'mediatype': 'set',  # Define como coleção/set
-            'title': name,
+            'mediatype': 'set',
+            'title':     name,
             'sorttitle': name,
-            'plot': f'Coleção {name}'  # Descrição opcional
+            'plot':      f'Coleção {name}'
         })
-        
-        # ✅ ESSENCIAL: Propriedades para o Kodi identificar como set
         li.setProperty('IsPlayable', 'false')
-        
+
         url = get_url(action='list_movies_by_collection', collection=name)
         return (url, li, True)
 
     items = []
-    # Usamos as_completed para atualizar a barra de progresso conforme as threads terminam
     with ThreadPoolExecutor(max_workers=5) as executor:
         futures = {executor.submit(process_collection, col): col for col in collections_data}
-        
         for i, future in enumerate(as_completed(futures)):
-            items.append(future.result())
-            # Atualiza a porcentagem (0 a 100)
+            try:
+                items.append(future.result())
+            except Exception as e:
+                xbmc.log(f'[CineRoom] Erro ao processar coleção: {e}', xbmc.LOGWARNING)
             percent = int((i + 1) * 100 / total_items)
             pDialog.update(percent, message=f"Processando: {total_items} coleções...")
 
-    # Fecha o diálogo de progresso
     pDialog.close()
 
     xbmcplugin.addDirectoryItems(HANDLE, items, len(items))
@@ -269,9 +312,15 @@ def list_collections(page=1):
 @with_view_mode('movies')
 def list_movies_by_genre(genre, page=1):
     from .db import db
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, genre)
     xbmcplugin.setContent(HANDLE, 'movies')
-    items_per_page = get_items_per_page()  # ✅ CORREÇÃO
+    items_per_page = get_items_per_page()
     movies = db.get_movies_by_genre(genre, page, items_per_page)
     
     items_to_add = []
@@ -286,9 +335,14 @@ def list_movies_by_genre(genre, page=1):
 @with_view_mode('movies')
 def list_movies_by_year(year, page=1):
     from .db import db
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, str(year))
     xbmcplugin.setContent(HANDLE, 'movies')
-    items_per_page = get_items_per_page()  # ✅ CORREÇÃO
+    items_per_page = get_items_per_page()
     movies = db.get_movies_by_year(year, page, items_per_page)
     
     items_to_add = []
@@ -303,6 +357,8 @@ def list_movies_by_year(year, page=1):
 @with_view_mode('movies')
 def list_movies_by_collection(collection_name, page=1):
     from .db import db
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, collection_name)
     xbmcplugin.setContent(HANDLE, 'movies')
     movies = db.get_movies_by_collection(collection_name)
@@ -319,9 +375,14 @@ def list_movies_by_collection(collection_name, page=1):
 @with_view_mode('movies')
 def list_movies_by_rating(page=1):
     from .db import db
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, "Melhores Avaliações")
     xbmcplugin.setContent(HANDLE, 'movies')
-    items_per_page = get_items_per_page()  # ✅ CORREÇÃO
+    items_per_page = get_items_per_page()
     movies = db.get_movies_by_rating(page, items_per_page)
     
     items_to_add = []
@@ -336,6 +397,12 @@ def list_movies_by_rating(page=1):
 @with_view_mode('movies')
 def list_movies_by_popularity(page=1):
     from .db import db
+    
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, "Mais Populares")
     xbmcplugin.setContent(HANDLE, 'movies')
     
@@ -345,11 +412,10 @@ def list_movies_by_popularity(page=1):
     # 1. Tenta buscar do banco local
     movies = db.get_movies_by_popularity(page, items_per_page)
 
-    # 2. Se o banco estiver vazio (ex: primeira instalação), busca direto da API para não ficar em branco
     if not movies and page == 1:
-        from .tmdb_api import fetch_popular_movies # Supondo que você tenha essa função
+        from .tmdb_api import fetch_popular_movies
         movies = fetch_popular_movies(page)
-        # Opcional: Salva no banco para a próxima vez ser instantâneo
+
         if movies:
             db.add_movies_bulk(movies)
 
@@ -364,14 +430,22 @@ def list_movies_by_popularity(page=1):
 @with_view_mode('movies')
 def list_4k_movies(page=1):
     from .db import db
-    xbmcplugin.setPluginCategory(HANDLE, "Filmes em 4K")
+    
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
+    HANDLE = int(sys.argv[1])
+    xbmcplugin.setPluginCategory(HANDLE, "4K")
     xbmcplugin.setContent(HANDLE, 'movies')
-    items_per_page = get_items_per_page()  # ✅ CORREÇÃO
+    items_per_page = get_items_per_page()
     movies = db.get_4k_movies(page, items_per_page)
+    
+    
     
     items_to_add = []
     for movie in movies:
-        items_to_add.append(_create_movie_item_tuple(movie))
+        items_to_add.append(_create_movie_item_tuple(movie, quality_filter='4k'))
 
     xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
     
@@ -381,9 +455,16 @@ def list_4k_movies(page=1):
 @with_view_mode('movies')
 def list_recently_added_movies(page=1):
     from .db import db
+    
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, "Adicionados Recentemente")
     xbmcplugin.setContent(HANDLE, 'movies')
-    items_per_page = get_items_per_page()  # ✅ CORREÇÃO
+    items_per_page = get_items_per_page()
+    
     movies = db.get_recently_added_movies(page, items_per_page)
 
     items_to_add = []
@@ -398,11 +479,19 @@ def list_recently_added_movies(page=1):
 @with_view_mode('movies')
 def list_movies_by_revenue(page=1):
     from .db import db
+    
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
     """Lista filmes ordenados pelas maiores bilheterias."""
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, "Maiores Bilheterias")
     xbmcplugin.setContent(HANDLE, 'movies')
     items_per_page = get_items_per_page()  # ✅ CORREÇÃO
     movies = db.get_movies_by_revenue(page, items_per_page)
+    
+    
     
     items_to_add = []
     for movie in movies:
@@ -416,11 +505,19 @@ def list_movies_by_revenue(page=1):
 @with_view_mode('movies')
 def list_movies_by_provider(provider, page=1):
     from .db import db
+    
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, f"{provider}")
     xbmcplugin.setContent(HANDLE, 'movies')
 
     items_per_page = get_items_per_page()
     movies = db.get_movies_by_provider(provider, page, items_per_page)
+    
+    
 
     items_to_add = []
     for movie in movies:
@@ -436,6 +533,11 @@ def list_movies_by_provider(provider, page=1):
 def list_trending_movies(page=1):
     from .db import db
     from .tmdb_api import fetch_trending_movies
+    
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter) 
+    
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, "Em Alta")
     xbmcplugin.setContent(HANDLE, 'movies')
     
@@ -457,6 +559,7 @@ def list_movie_themes():
     """Menu de categorias temáticas de filmes"""
     from .keywords import get_all_theme_categories
     
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, 'Temas')
     xbmcplugin.setContent(HANDLE, 'genres')
     
@@ -477,57 +580,180 @@ def list_movie_themes():
 
 @with_view_mode('movies')
 def list_movies_by_theme(theme, page=1):
-    """Lista filmes de uma categoria temática"""
-    from .keywords import get_theme_config, get_theme_keyword_ids
-    from .tmdb_api import fetch_movies_by_keywords
-    
+    """Lista filmes de uma categoria temática — filtro 100% local, zero API."""
+    from .keywords import get_theme_config, get_theme_keywords
+    from .db import db
+
     config = get_theme_config(theme)
-    
     if not config:
         xbmcgui.Dialog().ok("Erro", "Categoria não encontrada")
         return
-    
+
+    HANDLE = int(sys.argv[1])
     xbmcplugin.setPluginCategory(HANDLE, config['name'])
     xbmcplugin.setContent(HANDLE, 'movies')
-    
-    keyword_ids = get_theme_keyword_ids(theme)
-    
-    if not keyword_ids:
-        xbmcgui.Dialog().ok("Erro", f"Não foi possível resolver keywords para '{config['name']}'")
+
+    keyword_list = get_theme_keywords(theme)
+    if not keyword_list:
+        xbmcgui.Dialog().ok("Erro", f"Sem keywords configuradas para '{config['name']}'")
         xbmcplugin.endOfDirectory(HANDLE)
         return
-    
-    movies = fetch_movies_by_keywords(
-        keyword_ids=keyword_ids,
-        genres=config['genres'],
-        page=int(page)
+
+    items_per_page = get_items_per_page()
+    page = int(page)
+    offset = (page - 1) * items_per_page
+
+    movies = db.get_movies_by_keywords(
+        keyword_list,
+        items_per_page,
+        offset,
     )
     
+
     if not movies:
         xbmcgui.Dialog().ok("Aviso", f"Nenhum filme encontrado em '{config['name']}'")
         xbmcplugin.endOfDirectory(HANDLE)
         return
-    
-    items_to_add = []
-    for movie in movies:
-        items_to_add.append(_create_movie_item_tuple(movie))
-    
+
+    items_to_add = [_create_movie_item_tuple(m) for m in movies]
     xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
-    
-    # ✅ VERIFICA SE TEM PRÓXIMA PÁGINA
-    has_next = movies[0].get('_has_next_page', False) if movies else False
-    
-    if has_next:
+
+    if len(movies) == items_per_page:
         next_icon = os.path.join(ICON_PATH, 'nextpage.png')
         li_next = xbmcgui.ListItem(label="Próxima Página")
         li_next.setArt({'thumb': next_icon, 'icon': next_icon})
-        
-        next_url = get_url(
-            action='list_movies_by_theme',
-            theme=theme,
-            page=int(page) + 1
-        )
-        
+        next_url = get_url(action='list_movies_by_theme', theme=theme, page=page + 1)
         xbmcplugin.addDirectoryItem(HANDLE, next_url, li_next, isFolder=True)
+
+    xbmcplugin.endOfDirectory(HANDLE)
+
+
+# Faixas de nota — definição centralizada
+RATING_CATEGORIES = [
+    {'label': 'Obra-prima',  'slug': 'masterpiece', 'min': 9.0, 'max': 10.1, 'plot': 'Filmes com nota 9.0 ou superior.'},
+    {'label': 'Excelente',   'slug': 'excellent',    'min': 8.0, 'max': 9.0,  'plot': 'Filmes com nota entre 8.0 e 8.9.'},
+    {'label': 'Muito Bom',   'slug': 'verygood',     'min': 7.0, 'max': 8.0,  'plot': 'Filmes com nota entre 7.0 e 7.9.'},
+    {'label': 'Regular',     'slug': 'average',      'min': 5.0, 'max': 7.0,  'plot': 'Filmes com nota entre 5.0 e 6.9.'},
+]
+
+@with_view_mode('genres', is_menu=True)
+def list_rating_categories_movies():
+    """Menu de faixas de nota para filmes."""
     
+    HANDLE = int(sys.argv[1])
+    xbmcplugin.setPluginCategory(HANDLE, 'Por Nota')
+    xbmcplugin.setContent(HANDLE, 'genres')
+
+    for cat in RATING_CATEGORIES:
+        li = xbmcgui.ListItem(label=cat['label'])
+        li.setInfo('video', {'plot': cat['plot']})
+        url = get_url(action='list_movies_by_rating_category', slug=cat['slug'])
+        xbmcplugin.addDirectoryItem(HANDLE, url, li, isFolder=True)
+
+    xbmcplugin.endOfDirectory(HANDLE)
+
+
+@with_view_mode('movies')
+def list_movies_by_rating_category(slug, page=1):
+    """Lista filmes de uma faixa de nota específica."""
+    from .db import db
+
+    cat = next((c for c in RATING_CATEGORIES if c['slug'] == slug), None)
+    if not cat:
+        xbmcgui.Dialog().ok('Erro', 'Categoria de nota não encontrada.')
+        return
+
+    content_filter = get_content_filter()
+    db.set_content_filter(content_filter)
+
+    HANDLE = int(sys.argv[1])
+    xbmcplugin.setPluginCategory(HANDLE, cat['label'])
+    xbmcplugin.setContent(HANDLE, 'movies')
+
+    items_per_page = get_items_per_page()
+    movies = db.get_movies_by_rating_range(
+        min_rating=cat['min'],
+        max_rating=cat['max'],
+        min_votes=100,
+        page=int(page),
+        page_size=items_per_page,
+    )
+
+    if not movies:
+        xbmcgui.Dialog().notification(cat['label'], 'Nenhum filme encontrado.', xbmcgui.NOTIFICATION_INFO, 3000)
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+
+    items_to_add = [_create_movie_item_tuple(m) for m in movies]
+    xbmcplugin.addDirectoryItems(HANDLE, items_to_add, len(items_to_add))
+
+    has_next = movies[0].get('_has_next_page', False)
+    if has_next:
+        next_icon = os.path.join(ICON_PATH, 'nextpage.png')
+        li_next = xbmcgui.ListItem(label='Próxima Página')
+        li_next.setArt({'thumb': next_icon, 'icon': next_icon})
+        next_url = get_url(action='list_movies_by_rating_category', slug=slug, page=int(page) + 1)
+        xbmcplugin.addDirectoryItem(HANDLE, next_url, li_next, isFolder=True)
+
+    xbmcplugin.endOfDirectory(HANDLE)
+
+
+@with_view_mode('movies')
+def list_most_searched_movies(page=1):
+    """
+    Lista filmes mais buscados baseado nas queries populares do Supabase.
+    """
+    from .trending_tracker import get_popular_queries_from_supabase
+    from .db.db import db_instance as db
+
+    page = int(page)
+    HANDLE = int(sys.argv[1])
+    xbmcplugin.setPluginCategory(HANDLE, 'Mais Buscados')
+    xbmcplugin.setContent(HANDLE, 'movies')
+
+    popular_clicks = get_popular_queries_from_supabase(limit=50, min_count=2)
+    popular_clicks = [c for c in popular_clicks if c.get('content_type') == 'movie']
+
+    if not popular_clicks:
+        xbmcgui.Dialog().notification(
+            "Mais Buscados",
+            "Nenhum dado disponível ainda",
+            xbmcgui.NOTIFICATION_INFO,
+            3000
+        )
+        xbmcplugin.endOfDirectory(HANDLE)
+        return
+
+    all_movies = []
+    for click in popular_clicks:
+        tmdb_id    = click.get('tmdb_id')
+        view_count = click.get('view_count', 0)
+        try:
+            movie = db.get_movie_by_id(tmdb_id)
+            if movie:
+                all_movies.append((movie, view_count))
+        except Exception:
+            pass
+
+    items_per_page = 20
+    start      = (page - 1) * items_per_page
+    end        = start + items_per_page
+    page_movies = all_movies[start:end]
+
+    items = []
+    for movie_data, search_count in page_movies:
+        try:
+            url, li, is_folder = _create_movie_item_tuple(movie_data)
+            title = movie_data.get('title', '')
+            li.setLabel(f"{title} [{search_count}🔥]")
+            items.append((url, li, is_folder))
+        except Exception:
+            continue
+
+    xbmcplugin.addDirectoryItems(HANDLE, items, len(items))
+
+    # Passa a lista (page_movies), não len() dela
+    if len(all_movies) > end:
+        add_next_page_item(page_movies, page, action='list_most_searched_movies')
+
     xbmcplugin.endOfDirectory(HANDLE)

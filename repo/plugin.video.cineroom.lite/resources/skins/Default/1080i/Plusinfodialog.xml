@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window type="dialog">
+    <defaultcontrol always="true">9201</defaultcontrol>
+    <onback>9202</onback>
+
+    <controls>
+
+        <!-- Fundo escurecido -->
+        <control type="image">
+            <left>0</left>
+            <top>0</top>
+            <width>1920</width>
+            <height>1080</height>
+            <texture colordiffuse="FF000000">white.png</texture>
+            <animation effect="fade" end="85" time="180">WindowOpen</animation>
+            <animation effect="fade" start="85" end="0" time="150">WindowClose</animation>
+        </control>
+
+        <!-- Container principal — 1400x700 -->
+        <control type="group">
+            <centerleft>50%</centerleft>
+            <centertop>50%</centertop>
+            <width>1400</width>
+            <height>700</height>
+
+            <animation effect="fade" end="100" time="220">WindowOpen</animation>
+            <animation effect="zoom" start="94" end="100" center="auto" time="220">WindowOpen</animation>
+            <animation effect="fade" start="100" end="0" time="160">WindowClose</animation>
+
+            <!-- Borda dourada mais grossa -->
+            <control type="image">
+                <left>-4</left>
+                <top>-4</top>
+                <width>1408</width>
+                <height>708</height>
+                <texture colordiffuse="FFFFCC00" border="30">circle.png</texture>
+            </control>
+
+            <!-- Fundo escuro com gradiente -->
+            <control type="image">
+                <left>0</left>
+                <top>0</top>
+                <width>1400</width>
+                <height>700</height>
+                <texture colordiffuse="FF0D0D0D" border="30">circle.png</texture>
+            </control>
+
+            <!-- Gradiente superior (efeito premium) -->
+            <control type="image">
+                <left>0</left>
+                <top>0</top>
+                <width>1400</width>
+                <height>200</height>
+                <texture colordiffuse="22FFCC00" border="30">circle.png</texture>
+            </control>
+
+            <!-- Ícone maior e mais visível -->
+            <control type="image">
+                <left>35</left>
+                <top>30</top>
+                <width>80</width>
+                <height>80</height>
+                <aspectratio>keep</aspectratio>
+                <texture>special://home/addons/plugin.video.cineroom_lite/icon.png</texture>
+                <animation effect="fade" start="0" end="100" time="320" delay="100">WindowOpen</animation>
+            </control>
+
+            <!-- Logo centralizada -->
+            <control type="image">
+                <left>560</left>
+                <top>15</top>
+                <width>280</width>
+                <height>120</height>
+                <texture>special://home/addons/plugin.video.cineroom.lite/resources/skins/Default/media/logo.png</texture>
+                <aspectratio>keep</aspectratio>
+                <animation effect="fade" start="0" end="100" time="380" delay="120">WindowOpen</animation>
+            </control>
+
+            <!-- Linha separadora com glow -->
+            <control type="image">
+                <left>40</left>
+                <top>133</top>
+                <width>1320</width>
+                <height>3</height>
+                <texture colordiffuse="EEFFCC00">white.png</texture>
+            </control>
+
+            <!-- Título maior e mais destacado -->
+            <control type="label">
+                <left>40</left>
+                <top>155</top>
+                <width>1320</width>
+                <height>60</height>
+                <font>font35</font>
+                <textcolor>FFFFDD44</textcolor>
+                <shadowcolor>CC000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <label>[B]★ BENEFÍCIOS PLUS ★[/B]</label>
+                <animation effect="fade" start="0" end="100" time="320" delay="160">WindowOpen</animation>
+            </control>
+
+            <!-- Subtítulo mais visível -->
+            <control type="label">
+                <left>80</left>
+                <top>220</top>
+                <width>1240</width>
+                <height>30</height>
+                <font>font13</font>
+                <textcolor>FFBBBBBB</textcolor>
+                <align>center</align>
+                <label>[B]Clique em cada item[/B] para ver detalhes completos</label>
+                <animation effect="fade" start="0" end="100" time="320" delay="190">WindowOpen</animation>
+            </control>
+
+            <!-- Divisor decorativo -->
+            <control type="image">
+                <left>500</left>
+                <top>262</top>
+                <width>400</width>
+                <height>1</height>
+                <texture colordiffuse="66FFCC00">white.png</texture>
+            </control>
+
+            <!-- ═══════════════════════════════════════ -->
+            <!--  GRID DE BENEFÍCIOS (2x3)              -->
+            <!-- ═══════════════════════════════════════ -->
+
+            <!-- Linha 1: Perfis personalizados -->
+            <control type="button" id="9001">
+                <left>100</left>
+                <top>290</top>
+                <width>580</width>
+                <height>80</height>
+                <font>font18</font>
+                <label>★ Perfis personalizados</label>
+                <texturenofocus colordiffuse="33FFFFFF" border="24">circle.png</texturenofocus>
+                <texturefocus colordiffuse="EEFFCC00" border="24">circle.png</texturefocus>
+                <textcolor>FFFFDD44</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <shadowcolor>BB000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <aligny>center</aligny>
+                <ondown>9003</ondown>
+                <onright>9002</onright>
+                <animation effect="fade" start="0" end="100" time="260" delay="220">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="104" time="120">Focus</animation>
+                <animation effect="zoom" start="104" end="100" time="120">Unfocus</animation>
+            </control>
+
+            <!-- Linha 1: Perfil infantil -->
+            <control type="button" id="9002">
+                <left>720</left>
+                <top>290</top>
+                <width>580</width>
+                <height>80</height>
+                <font>font18</font>
+                <label>★ Perfil infantil</label>
+                <texturenofocus colordiffuse="33FFFFFF" border="24">circle.png</texturenofocus>
+                <texturefocus colordiffuse="EEFFCC00" border="24">circle.png</texturefocus>
+                <textcolor>FFFFDD44</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <shadowcolor>BB000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <aligny>center</aligny>
+                <ondown>9004</ondown>
+                <onleft>9001</onleft>
+                <animation effect="fade" start="0" end="100" time="260" delay="250">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="104" time="120">Focus</animation>
+                <animation effect="zoom" start="104" end="100" time="120">Unfocus</animation>
+            </control>
+
+            <!-- Linha 2: Categorias extras -->
+            <control type="button" id="9003">
+                <left>100</left>
+                <top>385</top>
+                <width>580</width>
+                <height>80</height>
+                <font>font18</font>
+                <label>★ Categorias extras</label>
+                <texturenofocus colordiffuse="33FFFFFF" border="24">circle.png</texturenofocus>
+                <texturefocus colordiffuse="EEFFCC00" border="24">circle.png</texturefocus>
+                <textcolor>FFFFDD44</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <shadowcolor>BB000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <aligny>center</aligny>
+                <onup>9001</onup>
+                <ondown>9005</ondown>
+                <onright>9004</onright>
+                <animation effect="fade" start="0" end="100" time="260" delay="280">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="104" time="120">Focus</animation>
+                <animation effect="zoom" start="104" end="100" time="120">Unfocus</animation>
+            </control>
+
+            <!-- Linha 2: Trakt integrado -->
+            <control type="button" id="9004">
+                <left>720</left>
+                <top>385</top>
+                <width>580</width>
+                <height>80</height>
+                <font>font18</font>
+                <label>★ Trakt integrado</label>
+                <texturenofocus colordiffuse="33FFFFFF" border="24">circle.png</texturenofocus>
+                <texturefocus colordiffuse="EEFFCC00" border="24">circle.png</texturefocus>
+                <textcolor>FFFFDD44</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <shadowcolor>BB000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <aligny>center</aligny>
+                <onup>9002</onup>
+                <ondown>9006</ondown>
+                <onleft>9003</onleft>
+                <animation effect="fade" start="0" end="100" time="260" delay="310">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="104" time="120">Focus</animation>
+                <animation effect="zoom" start="104" end="100" time="120">Unfocus</animation>
+            </control>
+
+            <!-- Linha 3: Biblioteca do Kodi -->
+            <control type="button" id="9005">
+                <left>100</left>
+                <top>480</top>
+                <width>580</width>
+                <height>80</height>
+                <font>font18</font>
+                <label>★ Biblioteca do Kodi</label>
+                <texturenofocus colordiffuse="33FFFFFF" border="24">circle.png</texturenofocus>
+                <texturefocus colordiffuse="EEFFCC00" border="24">circle.png</texturefocus>
+                <textcolor>FFFFDD44</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <shadowcolor>BB000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <aligny>center</aligny>
+                <onup>9003</onup>
+                <ondown>9201</ondown>
+                <onright>9006</onright>
+                <animation effect="fade" start="0" end="100" time="260" delay="340">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="104" time="120">Focus</animation>
+                <animation effect="zoom" start="104" end="100" time="120">Unfocus</animation>
+            </control>
+
+            <!-- Linha 3: Backup automático -->
+            <control type="button" id="9006">
+                <left>720</left>
+                <top>480</top>
+                <width>580</width>
+                <height>80</height>
+                <font>font18</font>
+                <label>★ Backup automático</label>
+                <texturenofocus colordiffuse="33FFFFFF" border="24">circle.png</texturenofocus>
+                <texturefocus colordiffuse="EEFFCC00" border="24">circle.png</texturefocus>
+                <textcolor>FFFFDD44</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <shadowcolor>BB000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <aligny>center</aligny>
+                <onup>9004</onup>
+                <ondown>9202</ondown>
+                <onleft>9005</onleft>
+                <animation effect="fade" start="0" end="100" time="260" delay="370">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="104" time="120">Focus</animation>
+                <animation effect="zoom" start="104" end="100" time="120">Unfocus</animation>
+            </control>
+
+            <!-- Rodapé com ícone -->
+            <control type="label">
+                <left>40</left>
+                <top>575</top>
+                <width>1320</width>
+                <height>25</height>
+                <font>font12</font>
+                <textcolor>FF777777</textcolor>
+                <align>center</align>
+                <label>♥ O PLUS apoia o projeto e mantém o addon ativo</label>
+                <animation effect="fade" start="0" end="100" time="300" delay="370">WindowOpen</animation>
+            </control>
+
+            <!-- Botão FAZER LOGIN (destaque verde) -->
+            <control type="button" id="9201">
+                <left>200</left>
+                <top>610</top>
+                <width>450</width>
+                <height>70</height>
+                <font>font18</font>
+                <label>[B]FAZER LOGIN[/B]</label>
+                <texturefocus colordiffuse="FF2ECC71" border="14">circle.png</texturefocus>
+                <texturenofocus colordiffuse="FF1E7A47" border="14">circle.png</texturenofocus>
+                <textcolor>FFFFFFFF</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <shadowcolor>AA000000</shadowcolor>
+                <shadowoffset>2</shadowoffset>
+                <align>center</align>
+                <aligny>center</aligny>
+                <onup>9005</onup>
+                <onright>9202</onright>
+                <animation effect="fade" start="0" end="100" time="300" delay="400">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="106" time="140">Focus</animation>
+                <animation effect="zoom" start="106" end="100" time="140">Unfocus</animation>
+            </control>
+
+            <!-- Botão CANCELAR -->
+            <control type="button" id="9202">
+                <left>750</left>
+                <top>610</top>
+                <width>450</width>
+                <height>70</height>
+                <font>font14</font>
+                <label>Cancelar</label>
+                <texturefocus colordiffuse="FFFFCC00" border="14">circle.png</texturefocus>
+                <texturenofocus colordiffuse="FF3A3A3A" border="14">circle.png</texturenofocus>
+                <textcolor>FFBBBBBB</textcolor>
+                <focusedcolor>FF000000</focusedcolor>
+                <align>center</align>
+                <aligny>center</aligny>
+                <onup>9006</onup>
+                <onleft>9201</onleft>
+                <animation effect="fade" start="0" end="100" time="300" delay="430">WindowOpen</animation>
+                <animation effect="zoom" start="100" end="103" time="120">Focus</animation>
+                <animation effect="zoom" start="103" end="100" time="120">Unfocus</animation>
+            </control>
+
+        </control>
+    </controls>
+</window>

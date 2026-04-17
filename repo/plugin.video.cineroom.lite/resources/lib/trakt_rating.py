@@ -93,7 +93,6 @@ class TraktRatingDialog(xbmcgui.WindowXMLDialog):
             # Calcula rating (11030 = 1, 11031 = 2, ... 11039 = 10)
             self.rating = controlId - self.CONTROL_BUTTON_1 + 1
             
-            xbmc.log(f"[Rating Dialog] Avaliação selecionada: {self.rating}", xbmc.LOGINFO)
             
             # Fecha diálogo
             self.close()
@@ -102,7 +101,6 @@ class TraktRatingDialog(xbmcgui.WindowXMLDialog):
         """Ações do controle remoto"""
         # ESC, Voltar, etc
         if action.getId() in (9, 10, 92, 216, 247, 257, 275, 61467, 61448):
-            xbmc.log("[Rating Dialog] Cancelado pelo usuário", xbmc.LOGDEBUG)
             self.rating = None
             self.close()
 
@@ -122,11 +120,18 @@ def show_rating_dialog(item_info, progress):
     try:
         ask_rating_enabled = ADDON.getSettingBool('trakt_ask_rating_after_playback')
         min_progress = int(ADDON.getSetting('trakt_rating_min_progress') or 70)
-        show_notifications = ADDON.getSettingBool('trakt_show_notifications')
-    except:
+
+        # Preferir o novo; se não existir ainda, cai no antigo
+        if ADDON.getSetting('trakt_show_rating_notifications') != '':
+            show_notifications = ADDON.getSettingBool('trakt_show_rating_notifications')
+        else:
+            show_notifications = ADDON.getSettingBool('trakt_show_notifications')
+
+    except Exception:
         ask_rating_enabled = True
         min_progress = 70
         show_notifications = True
+
     
     # Verifica se feature está habilitada
     if not ask_rating_enabled:
@@ -136,12 +141,12 @@ def show_rating_dialog(item_info, progress):
     from resources.lib.trakt.trakt_sync import get_trakt_settings, refresh_trakt_token
     
     settings = get_trakt_settings()
-    if not settings.get('access_token') or not refresh_trakt_token():
+    if not settings.get('access_token'):
         return False
+
     
     # Só exibe se assistiu significativamente
     if progress < min_progress:
-        xbmc.log(f"[Rating] Progresso insuficiente: {progress:.1f}% < {min_progress}%", xbmc.LOGDEBUG)
         return False
     
     try:
@@ -163,11 +168,18 @@ def show_rating_dialog(item_info, progress):
         rating = dialog.rating
         del dialog
         
-        # Usuário cancelou
         if rating is None:
-            xbmc.log("[Rating] Usuário não avaliou", xbmc.LOGDEBUG)
             return False
-        
+
+        if not refresh_trakt_token():
+            xbmcgui.Dialog().notification(
+                "Trakt",
+                "Falha na autenticação (token expirado)",
+                xbmcgui.NOTIFICATION_ERROR,
+                3000
+            )
+            return False
+
         # Envia avaliação
         success = _send_rating_to_trakt(item_info, rating)
         
@@ -313,12 +325,10 @@ def _send_rating_to_trakt(item_info, rating):
             return False
         
         # Envia para Trakt
-        xbmc.log(f"[Rating] Enviando avaliação {rating}/10 para Trakt", xbmc.LOGINFO)
         
         response = trakt_request('POST', '/sync/ratings', payload)
         
         if response:
-            xbmc.log("[Rating] ✓ Avaliação enviada com sucesso", xbmc.LOGINFO)
             return True
         else:
             xbmc.log("[Rating] ✗ Falha ao enviar avaliação", xbmc.LOGERROR)
@@ -331,7 +341,7 @@ def _send_rating_to_trakt(item_info, rating):
         return False
 
 
-def ask_rating_after_playback(item_info, progress, delay=3):
+def ask_rating_after_playback(item_info, progress, delay=1):
     """
     Agenda pergunta de avaliação com delay
     (não-bloqueante, executa em thread separada)
@@ -347,7 +357,6 @@ def ask_rating_after_playback(item_info, progress, delay=3):
         # Verifica se usuário não iniciou outro playback
         player = xbmc.Player()
         if player.isPlaying():
-            xbmc.log("[Rating] Outro playback iniciado, cancelando diálogo", xbmc.LOGDEBUG)
             return
         
         # Exibe diálogo
@@ -381,9 +390,10 @@ def rate_item_from_context_menu(tmdb_id, media_type, season=None, episode=None, 
     
     # Verifica autenticação
     settings = get_trakt_settings()
-    if not settings.get('access_token') or not refresh_trakt_token():
+    if not settings.get('access_token'):
         xbmcgui.Dialog().ok("Trakt", "Você precisa estar autenticado no Trakt.")
         return False
+
     
     # Monta item_info mínimo
     item_info = {
@@ -403,7 +413,6 @@ def rate_item_from_context_menu(tmdb_id, media_type, season=None, episode=None, 
             if episode_details:
                 item_info['episode_title'] = episode_details.get('name', '')
         except Exception as e:
-            xbmc.log(f"[Rating Context] Erro buscando detalhes do episódio: {e}", xbmc.LOGDEBUG)
+            pass
     
-    # Exibe diálogo com progresso forçado (100% = assistido completo)
-    return show_rating_dialog(item_info, progress=100)
+    return show_rating_dialog(item_info, progress=75)

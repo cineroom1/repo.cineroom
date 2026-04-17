@@ -1,7 +1,11 @@
-[B][COLOR yellow]1.3.8[/COLOR][/B]
+[B][COLOR yellow]1.4.0[/COLOR][/B]
 
 ────────────────────────────────────
 [B][COLOR blue]Melhorias[/COLOR][/B]
-• Ajuste com sincronização dos favoritos no trakt
-• Melhoria na UI dos detalhes extras
+
+- Sistema de perfis
+- Separação dos scrapers em módulo Burst
+- Reorganização da estrutura interna
+- Melhorias de performance
+
 

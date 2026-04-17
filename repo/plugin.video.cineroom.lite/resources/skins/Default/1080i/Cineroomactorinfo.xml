@@ -1,0 +1,214 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<window type="dialog">
+    <defaultcontrol always="true">9002</defaultcontrol>
+    <onback>Close</onback>
+
+    <!-- OTIMIZADO: apenas fade no open (removido zoom simultâneo que pesava em TVs fracas) -->
+    <animation effect="fade" start="0" end="100" time="250">WindowOpen</animation>
+    <animation effect="fade" start="100" end="0" time="200">WindowClose</animation>
+    <animation effect="zoom" start="100,100" end="105,105" center="960,540" time="200" tween="cubic" easing="in">WindowClose</animation>
+
+    <controls>
+
+        <!-- ══ FUNDO PRETO BASE ══ -->
+        <control type="image">
+            <width>1920</width>
+            <height>1080</height>
+            <texture colordiffuse="FF000000">AddonWindow/white.png</texture>
+        </control>
+
+        <!-- ══ FOTO DO ATOR COMO BACKDROP (muito escurecida) ══ -->
+        <control type="image">
+            <left>0</left><top>0</top>
+            <width>1920</width><height>1080</height>
+            <aspectratio>scale</aspectratio>
+            <texture>$INFO[Window.Property(actor.profile)]</texture>
+            <colordiffuse>1AFFFFFF</colordiffuse>
+        </control>
+
+        <!-- ══ GRADIENTE ESQUERDO ══ -->
+        <control type="image">
+            <left>0</left><top>0</top>
+            <width>1400</width><height>1080</height>
+            <texture>common/gradient_left.png</texture>
+        </control>
+
+        <!-- ══ GRADIENTE INFERIOR ══ -->
+        <control type="image">
+            <left>0</left><top>0</top>
+            <width>1920</width><height>1080</height>
+            <texture>common/gradient_bottom.png</texture>
+        </control>
+
+        <!-- ══════════════════════════════════════════
+             FOTO DO ATOR
+        ══════════════════════════════════════════ -->
+        <control type="image">
+            <left>60</left>
+            <top>50</top>
+            <width>260</width>
+            <height>390</height>
+            <aspectratio>keep</aspectratio>
+            <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[Window.Property(actor.profile)]</texture>
+        </control>
+
+        <!-- ══════════════════════════════════════════
+             INFO — Nome, dept, nascimento, bio
+        ══════════════════════════════════════════ -->
+
+        <!-- Nome -->
+        <control type="label">
+            <left>350</left><top>50</top>
+            <width>1400</width><height>72</height>
+            <font>font60_title</font>
+            <textcolor>FFFFFFFF</textcolor>
+            <shadowcolor>AA000000</shadowcolor>
+            <align>left</align>
+            <aligny>center</aligny>
+            <label>$INFO[Window.Property(actor.name)]</label>
+        </control>
+
+        <!-- Dept • Nascimento • Local -->
+        <control type="label">
+            <left>350</left><top>130</top>
+            <width>1400</width><height>36</height>
+            <font>font14</font>
+            <textcolor>FFCCCCCC</textcolor>
+            <shadowcolor>88000000</shadowcolor>
+            <label>$INFO[Window.Property(actor.known_for)]  •  $INFO[Window.Property(actor.birthday)]  •  $INFO[Window.Property(actor.birthplace)]</label>
+        </control>
+
+        <!-- Label BIOGRAFIA -->
+        <control type="label">
+            <left>350</left><top>180</top>
+            <width>300</width><height>24</height>
+            <font>font10</font>
+            <textcolor>88FFFFFF</textcolor>
+            <label>[B]BIOGRAFIA[/B]</label>
+        </control>
+
+        <!-- Bio — autoscroll com time maior para suavizar reflow em dispositivos fracos -->
+        <control type="textbox">
+            <left>350</left><top>210</top>
+            <width>1510</width><height>230</height>
+            <font>font12</font>
+            <textcolor>FFB8B8B8</textcolor>
+            <shadowcolor>44000000</shadowcolor>
+            <align>left</align>
+            <autoscroll delay="5000" time="12000" repeat="15000">true</autoscroll>
+            <label>$INFO[Window.Property(actor.biography)]</label>
+        </control>
+
+        <!-- ══════════════════════════════════════════
+             LABEL FILMOGRAFIA
+        ══════════════════════════════════════════ -->
+        <control type="label">
+            <left>60</left><top>475</top>
+            <width>500</width><height>24</height>
+            <font>font10</font>
+            <textcolor>88FFFFFF</textcolor>
+            <label>[B]FILMOGRAFIA[/B]</label>
+            <visible>!Control.HasFocus(9002)</visible>
+        </control>
+        <control type="label">
+            <left>60</left><top>475</top>
+            <width>1600</width><height>24</height>
+            <font>font10</font>
+            <textcolor>CCFFFFFF</textcolor>
+            <label>FILMOGRAFIA  [COLOR 44FFFFFF]•[/COLOR]  $INFO[Container(9002).ListItem.Label]  [COLOR 66FFFFFF]$INFO[Container(9002).ListItem.Property(character)][/COLOR]</label>
+            <visible>Control.HasFocus(9002)</visible>
+        </control>
+
+        <!-- Contador -->
+        <control type="label">
+            <left>60</left><top>496</top>
+            <width>400</width><height>24</height>
+            <font>font10</font>
+            <textcolor>44FFFFFF</textcolor>
+            <label>$INFO[Window.Property(actor.credits_count)] títulos</label>
+        </control>
+
+        <!-- ══════════════════════════════════════════
+             FIXEDLIST HORIZONTAL
+        ══════════════════════════════════════════ -->
+        <control type="fixedlist" id="9002">
+            <left>60</left>
+            <top>545</top>
+            <width>1800</width>
+            <height>360</height>
+            <orientation>horizontal</orientation>
+            <scrolltime tween="sine">400</scrolltime>
+            <focusposition>0</focusposition>
+            <movement>1</movement>
+            <onup>9999</onup>
+            <ondown>9999</ondown>
+
+            <itemlayout width="236" height="360">
+                <control type="image">
+                    <left>8</left><top>8</top>
+                    <height max="344">auto</height>
+                    <width max="220">auto</width>
+                    <aspectratio>keep</aspectratio>
+                    <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                </control>
+            </itemlayout>
+
+            <!-- OTIMIZADO: removido <visible> condicional dentro do focusedlayout
+                 (já é o layout ativo quando item tem foco — avaliação redundante a cada frame) -->
+            <focusedlayout width="236" height="360">
+                <control type="image">
+                    <left>0</left><top>5</top>
+                    <height>350</height><width>236</width>
+                    <texture colordiffuse="FFE50914">cineroom_diffuse/poster-50.png</texture>
+                </control>
+                <control type="image">
+                    <left>8</left><top>8</top>
+                    <height max="344">auto</height>
+                    <width max="220">auto</width>
+                    <aspectratio>keep</aspectratio>
+                    <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                </control>
+            </focusedlayout>
+        </control>
+
+        <!-- Setas de navegação -->
+        <control type="image">
+            <top>700</top><left>60</left>
+            <width>25</width><height>25</height>
+            <texture colordiffuse="BBFFFFFF" background="true">arrow_left.png</texture>
+            <visible>Control.HasFocus(9002) + Container(9002).HasPrevious</visible>
+        </control>
+        <control type="image">
+            <top>700</top><left>1835</left>
+            <width>25</width><height>25</height>
+            <texture colordiffuse="BBFFFFFF" background="true" flipx="true">arrow_left.png</texture>
+            <visible>Control.HasFocus(9002) + Container(9002).HasNext</visible>
+        </control>
+
+        <!-- ══ BOTÃO FECHAR ══ -->
+        <control type="button" id="9999">
+            <top>30</top><left>1830</left>
+            <width>60</width><height>60</height>
+            <texturefocus colordiffuse="FFFFFFFF">Button/close.png</texturefocus>
+            <texturenofocus colordiffuse="80FFFFFF">Button/close.png</texturenofocus>
+            <onclick>Action(close)</onclick>
+            <onup>9002</onup>
+            <ondown>9002</ondown>
+            <onleft>9999</onleft>
+            <onright>9999</onright>
+            <animation effect="zoom" start="100" end="110" center="auto" time="150">Focus</animation>
+            <animation effect="zoom" start="110" end="100" center="auto" time="150">UnFocus</animation>
+        </control>
+
+        <!-- ══ DICA VOLTAR ══ -->
+        <control type="label">
+            <left>0</left><top>1048</top>
+            <width>1920</width><height>20</height>
+            <font>font10</font>
+            <textcolor>44FFFFFF</textcolor>
+            <align>center</align>
+            <label>Pressione [COLOR 88FFFFFF]VOLTAR[/COLOR] para fechar</label>
+        </control>
+
+    </controls>
+</window>
