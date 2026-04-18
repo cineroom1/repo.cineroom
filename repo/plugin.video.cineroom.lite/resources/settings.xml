@@ -174,13 +174,13 @@
 
     <!-- ================ SISTEMA ================ -->
     <category label="Sistema">
-        <setting label="[B]Backup do Histórico (VIP)[/B]" type="lsep"/>
+        <setting label="[B]Backup do Histórico[/B]" type="lsep"/>
         <setting type="action" label="Exportar Histórico agora" action="RunPlugin(plugin://plugin.video.cineroom.lite/?action=backup_export)" />
         <setting type="action" label="Importar / Restaurar Histórico" action="RunPlugin(plugin://plugin.video.cineroom.lite/?action=backup_import)" />
         <setting type="action" label="Alterar pasta padrão de backup" action="RunPlugin(plugin://plugin.video.cineroom.lite/?action=backup_configure)" />
 
-        <setting id="backup.auto_enabled" type="bool" label="Backup automático (VIP)" default="false">
-            <description>Quando ativado, o serviço salva um backup automaticamente a cada 24h. Requer pasta configurada e conta VIP.</description>
+        <setting id="backup.auto_enabled" type="bool" label="Backup automático" default="false">
+            <description>Quando ativado, o serviço salva um backup automaticamente a cada 24h. Requer pasta configurada .</description>
         </setting>
         <setting id="backup.folder" type="folder" label="Pasta padrão de backup" default="">
             <description>Pasta onde os backups automáticos e manuais serão salvos. Suporta rede (SMB, NFS) e armazenamento local.</description>
