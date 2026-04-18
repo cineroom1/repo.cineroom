@@ -3,7 +3,7 @@
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests"/>
-    <import addon="script.cineroom.burst" optional="true"/>
+    <import addon="script.cineroom.burst" version="2.1.0"/>
   </requires>
 
   <extension point="xbmc.python.pluginsource" library="main.py">
