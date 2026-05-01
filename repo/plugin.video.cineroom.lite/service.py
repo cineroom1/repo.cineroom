@@ -19,6 +19,32 @@ def _parse_interval_setting(setting_value):
     }
     return value_map.get(setting_value, 0)
 
+def _parse_last_update(last_update_str):
+    """
+    Parseia o valor de last_update_check de forma robusta.
+    Suporta o formato salvo atualmente ('YYYY-MM-DDTHH:MM:SS'),
+    timestamps Unix legados, e strings ISO com offset/Z que possam
+    ter sido gravadas por versões antigas do serviço.
+    Retorna datetime UTC ou None se não for possível parsear.
+    """
+    if not last_update_str:
+        return None
+    # Formato padrão atual: 'YYYY-MM-DDTHH:MM:SS' (sem offset)
+    try:
+        return datetime.strptime(
+            last_update_str[:19], '%Y-%m-%dT%H:%M:%S'
+        ).replace(tzinfo=timezone.utc)
+    except Exception:
+        pass
+    # Fallback: timestamp Unix (legado)
+    try:
+        return datetime.fromtimestamp(
+            int(float(last_update_str)), tz=timezone.utc
+        )
+    except Exception:
+        pass
+    return None
+
 
 # ========================================
 # UPDATE CHECK (conteúdo)
@@ -76,7 +102,6 @@ def run_update_check():
             except Exception:
                 pass
 
-        
         try:
             from resources.lib.trending_tracker import get_trending_content_from_supabase
             for content_type in ('movie', 'tv'):
@@ -85,13 +110,15 @@ def run_update_check():
         except Exception as e_trending:
             log(f'Erro ao renovar cache de trending: {e_trending}')
 
-        # Flush de tracking junto com o update check
-        run_flush_pending_tracks()
-
         # Backup automático (VIP — silencioso, só roda se configurado)
         run_auto_backup()
 
-        ADDON.setSetting('last_update_check', datetime.now(timezone.utc).isoformat())
+        # Salva sem offset (+00:00) para garantir compatibilidade com
+        # datetime.strptime no Python 3.6/3.7 usado em Android TV (Kodi 19/20).
+        ADDON.setSetting(
+            'last_update_check',
+            datetime.utcnow().strftime('%Y-%m-%dT%H:%M:%S')
+        )
         log('Verificação concluída com sucesso.')
 
     except Exception as e:
@@ -101,7 +128,6 @@ def run_update_check():
 # ========================================
 # WARMUP DE CACHE DE PESQUISA
 # ========================================
-
 
 def run_search_cache_warmup():
     """Warmup desativado — tracking de queries foi removido do search.py."""
@@ -191,27 +217,16 @@ if __name__ == '__main__':
             last_update_str = ADDON.getSetting('last_update_check')
             should_run_now = False
 
-            if not last_update_str:
-                # Nunca rodou antes → roda agora
+            last_update_dt = _parse_last_update(last_update_str)
+            if last_update_dt is None:
+                # Nunca rodou antes ou valor corrompido → roda agora
                 should_run_now = True
             else:
-                try:
-                    try:
-                        last_update_dt = datetime.fromisoformat(
-                            last_update_str.replace('Z', '+00:00')
-                        )
-                    except Exception:
-                        last_update_dt = datetime.fromtimestamp(
-                            int(float(last_update_str)), tz=timezone.utc
-                        )
-                    elapsed = (datetime.now(timezone.utc) - last_update_dt).total_seconds()
-                    if elapsed >= (interval * 3600):
-                        should_run_now = True
-                    else:
-                        log(f'Boot: último check há {elapsed/3600:.1f}h, intervalo é {interval}h — pulando.')
-                except Exception as e:
-                    log(f'Boot: erro ao checar last_update_check ({e}), rodando por segurança.')
+                elapsed = (datetime.now(timezone.utc) - last_update_dt).total_seconds()
+                if elapsed >= (interval * 3600):
                     should_run_now = True
+                else:
+                    log(f'Boot: último check há {elapsed/3600:.1f}h, intervalo é {interval}h — pulando.')
 
             if should_run_now:
                 run_update_check()
@@ -235,23 +250,17 @@ if __name__ == '__main__':
             current_time_dt = datetime.now(timezone.utc)
 
             try:
-                if not last_update_str:
-                    last_update_dt = datetime(2000, 1, 1, tzinfo=timezone.utc)
-                else:
-                    try:
-                        last_update_dt = datetime.fromisoformat(
-                            last_update_str.replace('Z', '+00:00')
-                        )
-                    except Exception:
-                        last_update_dt = datetime.fromtimestamp(
-                            int(float(last_update_str)), tz=timezone.utc
-                        )
+                last_update_dt = _parse_last_update(last_update_str) \
+                    or datetime(2000, 1, 1, tzinfo=timezone.utc)
 
                 if (current_time_dt - last_update_dt).total_seconds() >= (interval_hours * 3600):
                     run_update_check()
 
             except Exception as e:
                 log(f"Erro no loop de tempo (update): {e}")
+
+        # Envia tracks pendentes a cada 30 min (independente do update check)
+        run_flush_pending_tracks()
 
         # Verifica notificações a cada 30 min (função tem cache interno de 6h)
         run_notification_check()

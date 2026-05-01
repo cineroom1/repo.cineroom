@@ -142,7 +142,7 @@ def _fetch_streams(url):
         response = requests.get(
             url, 
             headers={'User-Agent': USER_AGENT}, 
-            timeout=30  # Reduzido de 15s para 10s
+            timeout=60  # Reduzido de 15s para 10s
         )
         response.raise_for_status()
         

@@ -280,6 +280,16 @@ class AnimeZeyScraper:
                 queries.append(f"{clean} - {self.abs_ep:03d}")
                 queries.append(f"{dots}.{self.abs_ep:02d}")
                 queries.append(f"{dots}.{self.abs_ep:03d}")
+                
+        # ── 2b. Anime season > 1 sem abs_ep: usa episode como número flat
+        # Cobre casos como One Piece S17E693 onde o ep já é o absoluto
+        if is_anime and self.season > 1 and self.abs_ep is None:
+            for name in top_names:
+                clean, dots = _variants(name)
+                queries.append(f"{clean} - {self.episode:03d}")
+                queries.append(f"{clean} - {self.episode:02d}")
+                queries.append(f"{dots}.{self.episode:03d}")
+                queries.append(f"{dots}.{self.episode:02d}")        
 
         # ── 3. Flat " - 01" — só para anime season 1
         if is_anime and self.season == 1:
@@ -348,22 +358,18 @@ class AnimeZeyScraper:
             if code.lower() in filename_ascii_lower:
                 return True
 
-        if self._is_anime() and self.season == 1:
-            flat_patterns = [
+        # ── Anime season > 1 sem abs_ep: valida episode como número flat
+        if self._is_anime() and self.season > 1 and self.abs_ep is None:
+            ep_patterns = [
                 f" - {self.episode:02d}",
                 f" - {self.episode:03d}",
                 f"- {self.episode:02d}",
                 f"- {self.episode:03d}",
-                f" - {self.episode:02d} ",
-                f" - {self.episode:03d} ",
-                f" {self.episode:02d}.",
                 f" {self.episode:03d}.",
-                f"[{self.episode:02d}]",
+                f" {self.episode:03d} ",
                 f"[{self.episode:03d}]",
-                f"({self.episode:02d})",
-                f"({self.episode:03d})",
             ]
-            for p in flat_patterns:
+            for p in ep_patterns:
                 if p in filename_ascii_lower:
                     return True
 
@@ -422,24 +428,71 @@ class AnimeZeyScraper:
         s = re.sub(r'[\[\]()\{\}]', ' ', s)
         return re.sub(r'\s+', ' ', s).strip()
 
+    # Palavras de conteúdo que, se aparecerem ANTES do título no filename,
+    # indicam que é um título diferente (ex: "fear" em "fear the walking dead").
+    _IGNORABLE_PREFIX_WORDS = frozenset({
+        'the', 'a', 'an', 'o', 'a', 'os', 'as', 'de', 'do', 'da', 'dos', 'das',
+        'em', 'no', 'na', 'nos', 'nas', 'um', 'uma',
+    })
+
     def _title_match(self, title, filename):
-        """Word-boundary match: o que vem após o título deve ser separador/código."""
+        """Word-boundary match: o que vem ANTES do título no filename deve ser
+        apenas separadores / metadados — não palavras de conteúdo.
+        Isso evita que 'The Walking Dead' dê match em 'Fear The Walking Dead'."""
         title_n = self._normalize_fn(title)
         fn_n    = self._normalize_fn(filename)
 
         if not title_n:
             return False
 
-        # Não consome o separador no lookahead — deixa o _TITLE_END_RE avaliar
         pattern = r'(?<![a-z0-9])' + re.escape(title_n) + r'(?=[^a-z0-9]|$)'
         for m in re.finditer(pattern, fn_n):
+            # ── Verifica o que vem DEPOIS
             after = fn_n[m.end():].strip()
-            if not after:
+            after_ok = (
+                not after
+                or self._TITLE_END_RE.match(after)
+                or re.match(r'^[\-\u2013\u2014]?\s*\d', after)
+            )
+            if not after_ok:
+                continue
+
+            # ── Verifica o que vem ANTES
+            before = fn_n[:m.start()].strip()
+            if not before:
+                return True  # título no início — match perfeito
+
+            # Remove tokens que são apenas metadados/separadores do final do prefix
+            # ex: "1080p", "2024", "bluray" antes do título são ok
+            before_words = before.split()
+            # Filtra palavras que são puramente metadados (ano, qualidade, codec…)
+            content_words = [
+                w for w in before_words
+                if not re.fullmatch(
+                    r'\d{4}|[a-z0-9]+'
+                    r'(?:p|k)|bluray|bdrip|webrip|web|hdtv|x264|x265|hevc'
+                    r'|aac|mkv|mp4|avi|wmv|mov|hdr|sdr|remux'
+                    # plataformas de streaming / distribuidoras
+                    r'|hbo|max|hbomax|netflix|disney|disneyplus|amazon|prime'
+                    r'|paramount|peacock|hulu|apple|appletv|star|globoplay'
+                    r'|telecine|crunchyroll|funimation|youtube|vix|pluto'
+                    # prefixos de arquivo comuns
+                    r'|copia|copy|sample|extras?',
+                    w, re.IGNORECASE
+                )
+                and w not in self._IGNORABLE_PREFIX_WORDS
+            ]
+
+            if not content_words:
+                # Só metadados antes — ainda ok
                 return True
-            if self._TITLE_END_RE.match(after):
-                return True
-            if re.match(r'^[\-\u2013\u2014]?\s*\d', after):
-                return True
+
+            # Há palavras de conteúdo antes → é um título diferente, rejeita este match
+            xbmc.log(
+                f"{self.log_prefix} ⚠️ Falso positivo bloqueado: "
+                f"'{title_n}' em '{fn_n[:80]}' (prefix: {content_words})",
+                xbmc.LOGDEBUG,
+            )
 
         return False
 
@@ -605,14 +658,12 @@ class AnimeZeyScraper:
 
         for name in base_names:
             name_ascii = self._remove_accents(name)
-            name_lower = name_ascii.lower()
             name_norm  = normalize_for_compare(name_ascii)
 
+            # Usa apenas _title_match (com guarda de prefixo) para evitar
+            # falsos positivos do tipo "Fear The Walking Dead" -> "The Walking Dead"
             matched = (
-                name_lower in fn_lower
-                or name_norm in fn_norm
-                or name_lower.replace(' ', '.') in fn_lower
-                or self._title_match(name_ascii, fn_lower)   # mantém como fallback
+                self._title_match(name_ascii, fn_lower)
                 or self._title_match(name_norm, fn_norm)
             )
 
@@ -665,6 +716,7 @@ class AnimeZeyScraper:
                 'User-Agent':      USER_AGENT,
                 'Accept':          'text/html,application/xhtml+xml',
                 'Accept-Language': 'pt-BR,pt;q=0.9',
+                'Referer':         f'https://{self.base_domain}/',
             }
             response = requests.get(view_url, headers=headers,
                                     timeout=ScraperConfig.REQUEST_TIMEOUT)

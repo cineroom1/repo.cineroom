@@ -41,28 +41,20 @@ PROVIDERS = {
         "priority_setting_id": "provider.fenixflix.priority",
         "type": "direct"
     },
-    "CloutStream": {
-        "url": "https://cloutstream.onrender.com",
+    "FrostStream": {
+        "url": "https://froststream.onrender.com",
         "configurable": False,
         "default_priority": 2,
-        "setting_id": "provider.cloutstream.enabled",
-        "priority_setting_id": "provider.cloutstream.priority",
+        "setting_id": "provider.froststream.enabled",
+        "priority_setting_id": "provider.froststream.priority",
         "type": "direct"
     },
-    "AnimeSup": {
-        "url": "https://www.animesup.info",
+    "NebulaStreams": {
+        "url": "https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjIxNjBwLDEwODBwLDcyMHAiLCJzb3J0IjoiZGVzYyJ9",
         "configurable": False,
-        "default_priority": 1,
-        "setting_id": "provider.animesup.enabled",
-        "priority_setting_id": "provider.animesup.priority",
-        "type": "direct"
-    },
-    "Assistirfilme": {
-        "url": "https://assistirfilme.net",
-        "configurable": False,
-        "default_priority": 1,
-        "setting_id": "provider.assistirfilme.enabled",
-        "priority_setting_id": "provider.assistirfilme.priority",
+        "default_priority": 2,
+        "setting_id": "provider.nebulastreams.enabled",
+        "priority_setting_id": "provider.nebulastreams.priority",
         "type": "direct"
     },
     "AnimeZey": {

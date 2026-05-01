@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom.lite" version="2.0.1" name="Cineroom Lite" provider-name="Gael">
+<addon id="plugin.video.cineroom.lite" version="2.0.2" name="Cineroom [COLOR gold]Lite[/COLOR]" provider-name="Gael">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests"/>
@@ -51,7 +51,7 @@
   </extension>
 </addon>
 <addon id="script.cineroom.burst" 
-       version="2.1.0" 
+       version="2.1.2" 
        name="Cineroom [COLOR cyan]Burst[/COLOR]" 
        provider-name="Gael">
   <requires>

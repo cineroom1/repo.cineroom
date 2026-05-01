@@ -21,7 +21,15 @@ except Exception as e: # Captura qualquer OUTRO erro
 
 
 # --- Constantes de Rede ---
-USER_AGENT = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+_IS_ANDROID = bool(xbmc.getCondVisibility('System.Platform.Android'))
+
+USER_AGENT = (
+    'Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36'
+    if _IS_ANDROID else
+    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+    '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
+)
 
 HTML_HEADERS = {
     'User-Agent': USER_AGENT,

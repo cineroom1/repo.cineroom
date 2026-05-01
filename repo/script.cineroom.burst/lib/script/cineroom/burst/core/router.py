@@ -64,7 +64,7 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
             )    
 
         # ── STREMIO (link direto) ────────────────────────────────────────────
-        elif provider_name in ("Brazuca", "Torrentio", "Fenixflix", "Mico-Leão", "CloutStream"):
+        elif provider_name in ("Brazuca", "Torrentio", "Fenixflix", "Mico-Leão", "FrostStream", "NebulaStreams"):
             from ..scrapers import stremio
             sources = stremio.scrape(
                 provider_url=provider_data.get('url'),

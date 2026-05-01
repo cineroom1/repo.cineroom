@@ -1,25 +1,21 @@
 <?xml version="1.0" encoding="UTF-8"?>
-
 <window>
     <defaultcontrol always="true">301</defaultcontrol>
     <onback>Close</onback>
 
-    <!-- OTIMIZADO: só fade no open — zoom+fade simultâneos travavam TVs fracas -->
     <animation effect="fade" start="0" end="100" time="250">WindowOpen</animation>
     <animation effect="fade" start="100" end="0" time="200">WindowClose</animation>
     <animation effect="zoom" start="100,100" end="105,105" center="960,540" time="200" tween="cubic" easing="in">WindowClose</animation>
-    <onload>SetProperty(active_tab,extras)</onload>
+    <onload>SetProperty(active_tab,recomendados)</onload>
 
     <controls>
 
-        <!-- ══ FUNDO PRETO BASE ══ -->
         <control type="image">
             <width>1920</width>
             <height>1080</height>
             <texture colordiffuse="FF000000">AddonWindow/white.png</texture>
         </control>
 
-        <!-- ══ BACKDROP ══ -->
         <control type="image">
             <aspectratio>scale</aspectratio>
             <width>1920</width>
@@ -28,10 +24,9 @@
             <colordiffuse>FFFFFFFF</colordiffuse>
         </control>
 
-        <!-- ══ GRADIENTES ══ -->
         <control type="image">
             <left>0</left><top>0</top>
-            <width>1400</width><height>1080</height>
+            <width>1600</width><height>1080</height>
             <texture>common/gradient_left.png</texture>
         </control>
         <control type="image">
@@ -40,7 +35,6 @@
             <texture>common/gradient_bottom.png</texture>
         </control>
 
-        <!-- ══ CLEARLOGO — posicionado absolutamente, não empurra conteúdo ══ -->
         <control type="image">
             <left>90</left><top>18</top>
             <width>640</width><height>170</height>
@@ -49,17 +43,12 @@
             <visible>!IsEmpty(Window.Property(clearlogo))</visible>
         </control>
 
-        <!-- ══════════════════════════════════════════
-             BLOCO PRINCIPAL — título, meta, sinopse, botões
-             top=200 fixo: dá espaço ao clearlogo acima e respira abaixo
-        ══════════════════════════════════════════ -->
         <control type="group">
             <left>90</left>
             <top>200</top>
             <width>1740</width>
             <height>460</height>
 
-            <!-- Título (só aparece se não tiver clearlogo) -->
             <control type="label">
                 <left>0</left><top>0</top>
                 <width>860</width><height>72</height>
@@ -71,10 +60,9 @@
                 <visible>IsEmpty(Window.Property(clearlogo))</visible>
             </control>
 
-            <!-- Metadados: ano, duração, nota, certificação, gêneros -->
             <control type="grouplist" id="400">
                 <left>0</left><top>62</top>
-                <width>1050</width><height>55</height>
+                <width>1200</width><height>55</height>
                 <orientation>horizontal</orientation>
                 <itemgap>8</itemgap>
                 <aligny>center</aligny>
@@ -125,8 +113,6 @@
                     <texturefocus border="0" colordiffuse="FFFFFFFF">panel.png</texturefocus>
                     <texturenofocus border="0" colordiffuse="33FFFFFF">panel.png</texturenofocus>
                     <textcolor>FFB3B3B3</textcolor><focusedcolor>FF000000</focusedcolor>
-                    <animation effect="zoom" start="100" end="105" center="auto" time="150" tween="sine" easing="out">Focus</animation>
-                    <animation effect="zoom" start="105" end="100" center="auto" time="150" tween="sine" easing="in">UnFocus</animation>
                 </control>
                 <control type="button" id="402">
                     <visible>!String.IsEmpty(Window.Property(Genre.2.Label))</visible>
@@ -136,8 +122,6 @@
                     <texturefocus border="0" colordiffuse="FFFFFFFF">panel.png</texturefocus>
                     <texturenofocus border="0" colordiffuse="33FFFFFF">panel.png</texturenofocus>
                     <textcolor>FFB3B3B3</textcolor><focusedcolor>FF000000</focusedcolor>
-                    <animation effect="zoom" start="100" end="105" center="auto" time="150" tween="sine" easing="out">Focus</animation>
-                    <animation effect="zoom" start="105" end="100" center="auto" time="150" tween="sine" easing="in">UnFocus</animation>
                 </control>
                 <control type="button" id="403">
                     <visible>!String.IsEmpty(Window.Property(Genre.3.Label))</visible>
@@ -147,30 +131,24 @@
                     <texturefocus border="0" colordiffuse="FFFFFFFF">panel.png</texturefocus>
                     <texturenofocus border="0" colordiffuse="33FFFFFF">panel.png</texturenofocus>
                     <textcolor>FFB3B3B3</textcolor><focusedcolor>FF000000</focusedcolor>
-                    <animation effect="zoom" start="100" end="105" center="auto" time="150" tween="sine" easing="out">Focus</animation>
-                    <animation effect="zoom" start="105" end="100" center="auto" time="150" tween="sine" easing="in">UnFocus</animation>
                 </control>
             </control>
 
-            <!-- Sinopse — mais alta para respirar -->
             <control type="textbox">
                 <left>0</left><top>130</top>
-                <width>860</width><height>140</height>
+                <width>1100</width><height>240</height>
                 <font>font12</font>
                 <textcolor>FFB8B8B8</textcolor>
                 <shadowcolor>44000000</shadowcolor>
-                <align>left</align>
-                <!-- autoscroll com time maior — reduz reflow em TVs fracas -->
+                <align>justify</align>
                 <autoscroll delay="5000" time="12000" repeat="15000">true</autoscroll>
                 <label>$INFO[Window.Property(plot)]</label>
             </control>
 
-            <!-- Botões principais: Reproduzir + Favorito -->
             <control type="group">
-                <left>0</left><top>285</top>
+                <left>0</left><top>370</top>
                 <width>400</width><height>100</height>
 
-                <!-- Reproduzir / Navegar -->
                 <control type="group">
                     <left>0</left><top>0</top>
                     <width>230</width><height>100</height>
@@ -179,30 +157,23 @@
                         <width>230</width><height>90</height>
                         <label></label>
                         <texturefocus border="0" colordiffuse="FFE50914">panel.png</texturefocus>
-                        <texturenofocus border="0" colordiffuse="FFE50914">panel.png</texturenofocus>
+                        <texturenofocus border="0" colordiffuse="FF2A2A2A">panel.png</texturenofocus>
                         <onup>400</onup>
-                        <ondown>510</ondown>
-                        <onleft>302</onleft>
+                        <ondown>5000</ondown> <onleft>302</onleft>
                         <onright>302</onright>
                         <animation effect="zoom" start="100" end="103" center="auto" time="120">Focus</animation>
                         <animation effect="zoom" start="103" end="100" center="auto" time="120">UnFocus</animation>
                     </control>
-                    <control type="image">
-                        <left>17</left><top>25</top>
-                        <width>35</width><height>45</height>
-                        <aspectratio>keep</aspectratio>
-                        <texture>arrow_right.png</texture>
-                    </control>
                     <control type="label">
-                        <left>53</left><top>20</top>
+                        <left>83</left><top>17</top>
                         <width>180</width><height>64</height>
-                        <label>Reproduzir</label>
+                        <label>Play</label>
                         <font>font16_title</font><textcolor>FFFFFFFF</textcolor>
                         <align>left</align><aligny>center</aligny>
                         <visible>String.IsEqual(Window.Property(media_type),movie)</visible>
                     </control>
                     <control type="label">
-                        <left>60</left><top>20</top>
+                        <left>50</left><top>20</top>
                         <width>180</width><height>64</height>
                         <label> Navegar</label>
                         <font>font16_title</font><textcolor>FFFFFFFF</textcolor>
@@ -211,7 +182,6 @@
                     </control>
                 </control>
 
-                <!-- Favorito -->
                 <control type="group">
                     <left>255</left><top>5</top>
                     <width>90</width><height>90</height>
@@ -219,97 +189,90 @@
                         <left>0</left><top>0</top>
                         <width>90</width><height>90</height>
                         <label></label>
-                        <texturenofocus border="8" colordiffuse="FF2A2A2A">panel.png</texturenofocus>
-                        <texturefocus border="8" colordiffuse="55FFFFFF">panel.png</texturefocus>
+                        <texturenofocus border="8" colordiffuse="FF2A2A2A">focus.png</texturenofocus>
+                        <texturefocus border="8" colordiffuse="55FFFFFF">focus.png</texturefocus>
                         <onup>400</onup>
-                        <ondown>510</ondown>
+                        <ondown>5000</ondown>
                         <onleft>301</onleft>
-                        <onright>301</onright>
+                        <onright>306</onright>
                         <animation effect="zoom" start="100" end="110" center="auto" time="120">Focus</animation>
                         <animation effect="zoom" start="110" end="100" center="auto" time="120">UnFocus</animation>
                     </control>
                     <control type="image">
-                        <left>24</left><top>24</top>
-                        <width>42</width><height>42</height>
+                        <left>14</left><top>12</top>
+                        <width>65</width><height>65</height>
                         <aspectratio>keep</aspectratio>
-                        <texture colordiffuse="99FFFFFF">heart_empty.png</texture>
+                        <texture colordiffuse="99FFFFFF">badges/heart.png</texture>
                         <visible>String.IsEqual(Window.Property(FavoriteLabel),Minha Lista)</visible>
                     </control>
                     <control type="image">
-                        <left>24</left><top>24</top>
-                        <width>42</width><height>42</height>
+                        <left>14</left><top>12</top>
+                        <width>65</width><height>65</height>
                         <aspectratio>keep</aspectratio>
-                        <texture colordiffuse="FFE50914">heart_full.png</texture>
+                        <texture colordiffuse="FFE50914">badges/heart_full.png</texture>
                         <visible>String.IsEqual(Window.Property(FavoriteLabel),Remover)</visible>
                     </control>
                 </control>
-            </control>
 
-            <!-- Providers -->
-            <control type="group">
-                <left>0</left><top>395</top>
-                <width>600</width><height>68</height>
-                <visible>String.IsEqual(Window.Property(HasProviders),true)</visible>
-
-                <control type="label">
-                    <left>0</left><top>0</top>
-                    <width>190</width><height>22</height>
-                    <font>font10</font>
-                    <textcolor>88FFFFFF</textcolor>
-                    <label>DISPONÍVEL EM</label>
+                <!-- Botão Biblioteca (306) -->
+                <control type="group">
+                    <left>360</left><top>5</top>
+                    <width>90</width><height>90</height>
+                    <control type="button" id="306">
+                        <left>0</left><top>0</top>
+                        <width>90</width><height>90</height>
+                        <label></label>
+                        <texturenofocus border="8" colordiffuse="FF2A2A2A">focus.png</texturenofocus>
+                        <texturefocus border="8" colordiffuse="55FFFFFF">focus.png</texturefocus>
+                        <onup>400</onup>
+                        <ondown>5000</ondown>
+                        <onleft>302</onleft>
+                        <onright>301</onright>
+                        <animation effect="zoom" start="100" end="110" center="auto" time="120">Focus</animation>
+                        <animation effect="zoom" start="110" end="100" center="auto" time="120">UnFocus</animation>
+                    </control>
+                    <!-- Ícone: fora da biblioteca (bookmark vazio) -->
+                    <control type="image">
+                        <left>14</left><top>12</top>
+                        <width>65</width><height>65</height>
+                        <aspectratio>keep</aspectratio>
+                        <texture colordiffuse="99FFFFFF">badges/bookmark.png</texture>
+                        <visible>String.IsEqual(Window.Property(InLibrary),false)</visible>
+                    </control>
+                    <!-- Ícone: já na biblioteca (bookmark cheio / azul) -->
+                    <control type="image">
+                        <left>14</left><top>12</top>
+                        <width>65</width><height>65</height>
+                        <aspectratio>keep</aspectratio>
+                        <texture colordiffuse="FF4A90D9">badges/bookmark_true.png</texture>
+                        <visible>String.IsEqual(Window.Property(InLibrary),true)</visible>
+                    </control>
                 </control>
 
-                <control type="panel" id="510">
-                    <left>0</left><top>28</top>
-                    <width>280</width><height>58</height>
-                    <onup>301</onup>
-                    <ondown>22</ondown>
-                    <onleft>510</onleft>
-                    <onright>510</onright>
-                    <itemlayout width="65" height="58">
-                        <control type="image">
-                            <left>6</left><top>4</top>
-                            <width>53</width><height>53</height>
-                            <aspectratio>keep</aspectratio>
-                            <texture>$INFO[ListItem.Art(thumb)]</texture>
-                        </control>
-                    </itemlayout>
-                    <focusedlayout width="65" height="58">
-                        <control type="image">
-                            <left>6</left><top>4</top>
-                            <width>55</width><height>55</height>
-                            <texture>focus_provider.png</texture>
-                        </control>
-                        <control type="image">
-                            <left>6</left><top>4</top>
-                            <width>53</width><height>53</height>
-                            <aspectratio>keep</aspectratio>
-                            <texture>$INFO[ListItem.Art(thumb)]</texture>
-                        </control>
-                    </focusedlayout>
-                    <animation effect="zoom" start="100" end="110" center="29,29" time="120">Focus</animation>
-                    <animation effect="zoom" start="108" end="100" center="29,29" time="120">UnFocus</animation>
+                <!-- Badge "Assistido" — deslocado para não colidir com botão biblioteca -->
+                <control type="group">
+                    <left>465</left><top>5</top>
+                    <width>90</width><height>90</height>
+                    <visible>String.IsEqual(Window.Property(IsWatched),true)</visible>
+                    <!-- Ícone check -->
+                    <control type="image">
+                        <left>12</left><top>12</top>
+                        <width>70</width><height>70</height>
+                        <aspectratio>keep</aspectratio>
+                        <texture colordiffuse="FFFFFFFF">badges/watched.png</texture>
+                    </control>
                 </control>
             </control>
-
-        </control><!-- fim bloco principal -->
-
-        <!-- ══════════════════════════════════════════
-             TABS — Extras / Elenco
-             top=660 com providers | sobe 68px sem providers
-        ══════════════════════════════════════════ -->
-        <control type="group">
-            <left>90</left><top>690</top>
-            <width>400</width><height>50</height>
-            <animation effect="slide" start="0,0" end="0,-68" condition="!String.IsEqual(Window.Property(HasProviders),true)">Conditional</animation>
+        </control><control type="grouplist" id="5000">
+            <left>90</left><top>680</top>
+            <width>1740</width><height>50</height>
+            <orientation>horizontal</orientation>
+            <itemgap>15</itemgap>
+            <onup>301</onup>
 
             <control type="button" id="21">
-                <left>170</left><top>0</top>
                 <width>160</width><height>48</height>
                 <onfocus>SetProperty(active_tab,elenco)</onfocus>
-                <onleft>22</onleft>
-                <onright>22</onright>
-                <onup>510</onup>
                 <ondown>800</ondown>
                 <label>Elenco</label>
                 <font>font13</font>
@@ -322,14 +285,58 @@
                 <animation effect="zoom" start="105" end="100" center="auto" time="120">UnFocus</animation>
             </control>
 
+            <control type="button" id="24">
+                <visible>Integer.IsGreater(Container(600).NumItems,0)</visible>
+                <width>230</width><height>48</height>
+                <onfocus>SetProperty(active_tab,recomendados)</onfocus>
+                <ondown>600</ondown>
+                <label>Recomendados</label>
+                <font>font13</font>
+                <textcolor>FF888888</textcolor>
+                <focusedcolor>FFFFFFFF</focusedcolor>
+                <texturefocus colordiffuse="FFE50914" border="0,0,0,3">panel.png</texturefocus>
+                <texturenofocus colordiffuse="00000000">panel.png</texturenofocus>
+                <align>center</align><aligny>center</aligny>
+                <animation effect="zoom" start="100" end="105" center="auto" time="120">Focus</animation>
+                <animation effect="zoom" start="105" end="100" center="auto" time="120">UnFocus</animation>
+            </control>
+
+            <control type="button" id="23">
+                <visible>Integer.IsGreater(Container(700).NumItems,0)</visible>
+                <width>160</width><height>48</height>
+                <onfocus>SetProperty(active_tab,colecao)</onfocus>
+                <ondown>700</ondown>
+                <label>Coleção</label>
+                <font>font13</font>
+                <textcolor>FF888888</textcolor>
+                <focusedcolor>FFFFFFFF</focusedcolor>
+                <texturefocus colordiffuse="FFE50914" border="0,0,0,3">panel.png</texturefocus>
+                <texturenofocus colordiffuse="00000000">panel.png</texturenofocus>
+                <align>center</align><aligny>center</aligny>
+                <animation effect="zoom" start="100" end="105" center="auto" time="120">Focus</animation>
+                <animation effect="zoom" start="105" end="100" center="auto" time="120">UnFocus</animation>
+            </control>
+
+            <control type="button" id="25">
+                <visible>String.IsEqual(Window.Property(HasProviders),true)</visible>
+                <width>180</width><height>48</height>
+                <onfocus>SetProperty(active_tab,providers)</onfocus>
+                <ondown>510</ondown>
+                <label>Provedores</label>
+                <font>font13</font>
+                <textcolor>FF888888</textcolor>
+                <focusedcolor>FFFFFFFF</focusedcolor>
+                <texturefocus colordiffuse="FFE50914" border="0,0,0,3">panel.png</texturefocus>
+                <texturenofocus colordiffuse="00000000">panel.png</texturenofocus>
+                <align>center</align><aligny>center</aligny>
+                <animation effect="zoom" start="100" end="105" center="auto" time="120">Focus</animation>
+                <animation effect="zoom" start="105" end="100" center="auto" time="120">UnFocus</animation>
+            </control>
+
             <control type="button" id="22">
-                <left>0</left><top>0</top>
                 <width>160</width><height>48</height>
                 <onfocus>SetProperty(active_tab,extras)</onfocus>
-                <onleft>21</onleft>
-                <onright>21</onright>
-                <onup>510</onup>
-                <ondown>700</ondown>
+                <ondown>900</ondown>
                 <label>Extras</label>
                 <font>font13</font>
                 <textcolor>FF888888</textcolor>
@@ -342,248 +349,205 @@
             </control>
         </control>
 
-        <!-- ══════════════════════════════════════════
-             TAB ELENCO
-        ══════════════════════════════════════════ -->
         <control type="group">
-            <left>90</left><top>735</top>
-            <width>1740</width><height>370</height>
-            <visible>String.IsEqual(Window.Property(active_tab),elenco)</visible>
-            <animation effect="fade" start="0" end="100" time="200">Visible</animation>
-            <animation effect="slide" start="0,0" end="0,-68" condition="!String.IsEqual(Window.Property(HasProviders),true)">Conditional</animation>
+            <left>90</left><top>740</top>
+            <width>1740</width><height>340</height>
 
-            <control type="label">
-                <left>0</left><top>0</top>
-                <width>900</width><height>24</height>
-                <font>font10</font><textcolor>CCFFFFFF</textcolor>
-                <label>$INFO[Container(800).ListItem.Label] : [COLOR yellow]$INFO[Container(800).ListItem.Property(character)][/COLOR]</label>
-                <visible>Control.HasFocus(800)</visible>
-            </control>
-            <control type="label">
-                <left>0</left><top>0</top>
-                <width>600</width><height>24</height>
-                <font>font10</font><textcolor>44FFFFFF</textcolor>
-                <label>Selecione um ator para ver a filmografia</label>
-                <visible>!Control.HasFocus(800)</visible>
-            </control>
-
-            <control type="fixedlist" id="800">
-                <left>0</left><top>30</top>
-                <width>1649</width><height>330</height>
-                <orientation>horizontal</orientation>
-                <scrolltime tween="sine">400</scrolltime>
-                <focusposition>1</focusposition>
-                <movement>2</movement>
-                <onup>21</onup>
-                <ondown>999</ondown>
-
-                <itemlayout width="200" height="330">
-                    <control type="image">
-                        <left>8</left><top>8</top>
-                        <width>184</width><height>276</height>
-                        <aspectratio>scale</aspectratio>
-                        <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
-                    </control>
-                </itemlayout>
-
-                <!-- OTIMIZADO: removido <visible>Control.HasFocus(800)</visible> dentro do focusedlayout -->
-                <focusedlayout width="200" height="330">
-                    <control type="image">
-                        <left>0</left><top>5</top>
-                        <width>200</width><height>290</height>
-                        <texture colordiffuse="FFE50914">cineroom_diffuse/poster-50.png</texture>
-                    </control>
-                    <control type="image">
-                        <left>8</left><top>8</top>
-                        <width>184</width><height>276</height>
-                        <aspectratio>scale</aspectratio>
-                        <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
-                    </control>
-                </focusedlayout>
-            </control>
-
-            <control type="image">
-                <top>180</top><left>5</left>
-                <width>25</width><height>25</height>
-                <texture colordiffuse="BBFFFFFF" background="true">arrow_left.png</texture>
-                <visible>Control.HasFocus(800) + Container(800).HasPrevious</visible>
-            </control>
-            <control type="image">
-                <top>180</top><left>1370</left>
-                <width>25</width><height>25</height>
-                <texture colordiffuse="BBFFFFFF" background="true" flipx="true">arrow_left.png</texture>
-                <visible>Control.HasFocus(800) + Container(800).HasNext</visible>
-            </control>
-        </control>
-
-        <!-- ══════════════════════════════════════════
-             TAB EXTRAS (Coleção + Recomendados)
-        ══════════════════════════════════════════ -->
-        <control type="group">
-            <left>90</left><top>737</top>
-            <width>1740</width><height>370</height>
-            <visible>String.IsEqual(Window.Property(active_tab),extras)</visible>
-            <animation effect="fade" start="0" end="100" time="200">Visible</animation>
-            <animation effect="slide" start="0,0" end="0,-68" condition="!String.IsEqual(Window.Property(HasProviders),true)">Conditional</animation>
-
-            <control type="grouplist">
-                <left>0</left><top>0</top>
-                <width>1740</width><height>370</height>
-                <orientation>vertical</orientation>
-                <scrolltime tween="sine">400</scrolltime>
-                <itemgap>20</itemgap>
-
-                <!-- Coleção -->
-                <control type="group">
-                    <width>1740</width><height>360</height>
-                    <visible>Integer.IsGreater(Container(700).NumItems,0)</visible>
-                    <animation effect="fade" start="0" end="100" time="400" delay="100">WindowOpen</animation>
-
-                    <control type="label">
-                        <left>0</left><top>0</top>
-                        <width>900</width><height>24</height>
-                        <font>font10</font><textcolor>88FFFFFF</textcolor>
-                        <label>[B]COLEÇÃO[/B]  [COLOR 44FFFFFF]•[/COLOR]  $INFO[Window.Property(Collection.Label)]</label>
-                        <visible>!Control.HasFocus(700)</visible>
-                    </control>
-                    <control type="label">
-                        <left>0</left><top>0</top>
-                        <width>900</width><height>24</height>
-                        <font>font10</font><textcolor>CCFFFFFF</textcolor>
-                        <label>COLEÇÃO  [COLOR 44FFFFFF]•[/COLOR]  $INFO[Container(700).ListItem.Label]</label>
-                        <visible>Control.HasFocus(700)</visible>
-                    </control>
-
-                    <control type="fixedlist" id="700">
-                        <left>0</left><top>28</top>
-                        <width>1649</width><height>330</height>
-                        <orientation>horizontal</orientation>
-                        <scrolltime tween="sine">400</scrolltime>
-                        <focusposition>0</focusposition>
-                        <movement>1</movement>
-                        <onup>22</onup>
-                        <ondown>600</ondown>
-
-                        <itemlayout width="200" height="330">
-                            <control type="image">
-                                <left>8</left><top>8</top>
-                                <height max="314">auto</height>
-                                <width max="184">auto</width>
-                                <aspectratio>keep</aspectratio>
-                                <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
-                            </control>
-                        </itemlayout>
-                        <!-- OTIMIZADO: sem <visible> condicional dentro do focusedlayout -->
-                        <focusedlayout width="200" height="330">
-                            <control type="image">
-                                <left>0</left><top>5</top>
-                                <height>320</height><width>200</width>
-                                <texture colordiffuse="FFE50914">cineroom_diffuse/poster-50.png</texture>
-                            </control>
-                            <control type="image">
-                                <left>8</left><top>8</top>
-                                <height max="314">auto</height>
-                                <width max="184">auto</width>
-                                <aspectratio>keep</aspectratio>
-                                <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
-                            </control>
-                        </focusedlayout>
-                    </control>
-
-                    <control type="image">
-                        <top>180</top><left>5</left>
-                        <width>25</width><height>25</height>
-                        <texture colordiffuse="BBFFFFFF" background="true">arrow_left.png</texture>
-                        <visible>Control.HasFocus(700) + Container(700).HasPrevious</visible>
-                    </control>
-                    <control type="image">
-                        <top>180</top><left>1370</left>
-                        <width>25</width><height>25</height>
-                        <texture colordiffuse="BBFFFFFF" background="true" flipx="true">arrow_left.png</texture>
-                        <visible>Control.HasFocus(700) + Container(700).HasNext</visible>
-                    </control>
+            <control type="group">
+                <visible>String.IsEqual(Window.Property(active_tab),elenco)</visible>
+                <animation effect="fade" start="0" end="100" time="200">Visible</animation>
+                <control type="label">
+                    <left>0</left><top>0</top>
+                    <width>900</width><height>24</height>
+                    <font>font10</font><textcolor>CCFFFFFF</textcolor>
+                    <label>$INFO[Container(800).ListItem.Label] : [COLOR yellow]$INFO[Container(800).ListItem.Property(character)][/COLOR]</label>
+                    <visible>Control.HasFocus(800)</visible>
                 </control>
-
-                <!-- Recomendados -->
-                <control type="group">
-                    <width>1740</width><height>360</height>
-                    <visible>Integer.IsGreater(Container(600).NumItems,0)</visible>
-                    <animation effect="fade" start="0" end="100" time="400" delay="200">WindowOpen</animation>
-
-                    <control type="label">
-                        <left>0</left><top>0</top>
-                        <width>400</width><height>24</height>
-                        <font>font10</font><textcolor>88FFFFFF</textcolor>
-                        <label>[B]RECOMENDADOS[/B]</label>
-                        <visible>!Control.HasFocus(600)</visible>
-                    </control>
-                    <control type="label">
-                        <left>0</left><top>0</top>
-                        <width>900</width><height>24</height>
-                        <font>font10</font><textcolor>CCFFFFFF</textcolor>
-                        <label>RECOMENDADOS  [COLOR 44FFFFFF]•[/COLOR]  $INFO[Container(600).ListItem.Label]</label>
-                        <visible>Control.HasFocus(600)</visible>
-                    </control>
-
-                    <control type="fixedlist" id="600">
-                        <left>0</left><top>28</top>
-                        <width>1649</width><height>330</height>
-                        <orientation>horizontal</orientation>
-                        <scrolltime tween="sine">400</scrolltime>
-                        <focusposition>1</focusposition>
-                        <movement>2</movement>
-                        <onup>700</onup>
-                        <ondown>999</ondown>
-
-                        <itemlayout width="200" height="330">
-                            <control type="image">
-                                <left>8</left><top>8</top>
-                                <height max="314">auto</height>
-                                <width max="184">auto</width>
-                                <aspectratio>keep</aspectratio>
-                                <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
-                            </control>
-                        </itemlayout>
-                        <!-- OTIMIZADO: sem <visible> condicional + animação de bounce no focusedlayout -->
-                        <focusedlayout width="200" height="330">
-                            <control type="image">
-                                <animation type="Focus" reversible="false">
-                                    <effect type="zoom" end="105" time="75" tween="sine" easing="out" center="auto" />
-                                    <effect type="zoom" end="95" time="225" tween="sine" delay="100" easing="out" center="auto" />
-                                </animation>
-                                <left>0</left><top>5</top>
-                                <height>320</height><width>200</width>
-                                <texture colordiffuse="FFE50914">cineroom_diffuse/poster-50.png</texture>
-                            </control>
-                            <control type="image">
-                                <left>8</left><top>8</top>
-                                <height max="314">auto</height>
-                                <width max="184">auto</width>
-                                <aspectratio>keep</aspectratio>
-                                <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
-                            </control>
-                        </focusedlayout>
-                    </control>
-
-                    <control type="image">
-                        <top>180</top><left>5</left>
-                        <width>25</width><height>25</height>
-                        <texture colordiffuse="BBFFFFFF" background="true">arrow_left.png</texture>
-                        <visible>Control.HasFocus(600) + Container(600).HasPrevious</visible>
-                    </control>
-                    <control type="image">
-                        <top>180</top><left>1370</left>
-                        <width>25</width><height>25</height>
-                        <texture colordiffuse="BBFFFFFF" background="true" flipx="true">arrow_left.png</texture>
-                        <visible>Control.HasFocus(600) + Container(600).HasNext</visible>
-                    </control>
+                <control type="label">
+                    <left>0</left><top>0</top>
+                    <width>600</width><height>24</height>
+                    <font>font10</font><textcolor>44FFFFFF</textcolor>
+                    <label>Selecione um ator para ver a filmografia</label>
+                    <visible>!Control.HasFocus(800)</visible>
                 </control>
-
+                <control type="fixedlist" id="800">
+                    <left>0</left><top>30</top>
+                    <width>1649</width><height>300</height>
+                    <orientation>horizontal</orientation>
+                    <scrolltime tween="sine">400</scrolltime>
+                    <focusposition>1</focusposition>
+                    <movement>2</movement>
+                    <onup>21</onup>
+                    <itemlayout width="200" height="300">
+                        <control type="image">
+                            <left>8</left><top>8</top><width>184</width><height>276</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </itemlayout>
+                    <focusedlayout width="200" height="300">
+                        <control type="image">
+                            <left>0</left><top>5</top><width>200</width><height>290</height>
+                            <texture colordiffuse="FFE50914">cineroom_diffuse/poster-50.png</texture>
+                        </control>
+                        <control type="image">
+                            <left>8</left><top>8</top><width>184</width><height>276</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </focusedlayout>
+                </control>
             </control>
-        </control><!-- fim tab extras -->
 
-        <!-- ══ BOTÃO FECHAR ══ -->
-        <control type="button" id="999">
+            <control type="group">
+                <visible>String.IsEqual(Window.Property(active_tab),recomendados)</visible>
+                <animation effect="fade" start="0" end="100" time="200">Visible</animation>
+                <control type="label">
+                    <left>0</left><top>0</top>
+                    <width>900</width><height>24</height>
+                    <font>font10</font><textcolor>CCFFFFFF</textcolor>
+                    <label>RECOMENDADOS  [COLOR 44FFFFFF]•[/COLOR]  $INFO[Container(600).ListItem.Label]</label>
+                </control>
+                <control type="fixedlist" id="600">
+                    <left>0</left><top>30</top>
+                    <width>1649</width><height>300</height>
+                    <orientation>horizontal</orientation>
+                    <scrolltime tween="sine">400</scrolltime>
+                    <focusposition>1</focusposition>
+                    <movement>2</movement>
+                    <onup>24</onup>
+                    <itemlayout width="200" height="300">
+                        <control type="image">
+                            <left>8</left><top>8</top><width>184</width><height>276</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </itemlayout>
+                    <focusedlayout width="200" height="300">
+                        <control type="image">
+                            <left>0</left><top>5</top><height>290</height><width>200</width>
+                            <texture colordiffuse="FFE50914">cineroom_diffuse/poster-50.png</texture>
+                        </control>
+                        <control type="image">
+                            <left>8</left><top>8</top><width>184</width><height>276</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </focusedlayout>
+                </control>
+            </control>
+
+            <control type="group">
+                <visible>String.IsEqual(Window.Property(active_tab),colecao)</visible>
+                <animation effect="fade" start="0" end="100" time="200">Visible</animation>
+                <control type="label">
+                    <left>0</left><top>0</top>
+                    <width>900</width><height>24</height>
+                    <font>font10</font><textcolor>CCFFFFFF</textcolor>
+                    <label>$INFO[Window.Property(Collection.Label)]  [COLOR 44FFFFFF]•[/COLOR]  $INFO[Container(700).ListItem.Label]</label>
+                </control>
+                <control type="fixedlist" id="700">
+                    <left>0</left><top>30</top>
+                    <width>1649</width><height>300</height>
+                    <orientation>horizontal</orientation>
+                    <scrolltime tween="sine">400</scrolltime>
+                    <focusposition>0</focusposition>
+                    <movement>1</movement>
+                    <onup>23</onup>
+                    <itemlayout width="200" height="300">
+                        <control type="image">
+                            <left>8</left><top>8</top><width>184</width><height>276</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </itemlayout>
+                    <focusedlayout width="200" height="300">
+                        <control type="image">
+                            <left>0</left><top>5</top><height>290</height><width>200</width>
+                            <texture colordiffuse="FFE50914">cineroom_diffuse/poster-50.png</texture>
+                        </control>
+                        <control type="image">
+                            <left>8</left><top>8</top><width>184</width><height>276</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture diffuse="cineroom_diffuse/poster-50.png" background="true">$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </focusedlayout>
+                </control>
+            </control>
+
+            <control type="group">
+                <visible>String.IsEqual(Window.Property(active_tab),providers)</visible>
+                <animation effect="fade" start="0" end="100" time="200">Visible</animation>
+                <control type="label">
+                    <left>0</left><top>0</top>
+                    <width>400</width><height>24</height>
+                    <font>font10</font><textcolor>CCFFFFFF</textcolor>
+                    <label>Assinaturas e Aluguéis disponíveis</label>
+                </control>
+                <control type="panel" id="510">
+                    <left>0</left><top>40</top>
+                    <width>1600</width><height>200</height>
+                    <onup>25</onup>
+                    <orientation>horizontal</orientation>
+                    <itemlayout width="120" height="120">
+                        <control type="image">
+                            <left>10</left><top>10</top><width>100</width><height>100</height>
+                            <aspectratio>keep</aspectratio>
+                            <texture>$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </itemlayout>
+                    <focusedlayout width="120" height="120">
+                        <control type="image">
+                            <left>5</left><top>5</top><width>110</width><height>110</height>
+                            <texture>focus_provider.png</texture> </control>
+                        <control type="image">
+                            <left>10</left><top>10</top><width>100</width><height>100</height>
+                            <aspectratio>keep</aspectratio>
+                            <texture>$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </focusedlayout>
+                </control>
+            </control>
+
+            <control type="group">
+                <visible>String.IsEqual(Window.Property(active_tab),extras)</visible>
+                <animation effect="fade" start="0" end="100" time="200">Visible</animation>
+                <control type="label">
+                    <left>0</left><top>0</top>
+                    <width>900</width><height>24</height>
+                    <font>font10</font><textcolor>CCFFFFFF</textcolor>
+                    <label>MATERIAL BÔNUS  [COLOR 44FFFFFF]•[/COLOR]  $INFO[Container(900).ListItem.Label]</label>
+                </control>
+                <control type="fixedlist" id="900">
+                    <left>0</left><top>30</top>
+                    <width>1649</width><height>300</height>
+                    <orientation>horizontal</orientation>
+                    <scrolltime tween="sine">400</scrolltime>
+                    <focusposition>1</focusposition>
+                    <movement>2</movement>
+                    <onup>22</onup>
+                    <itemlayout width="280" height="180">
+                        <control type="image">
+                            <left>10</left><top>10</top><width>260</width><height>146</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture>$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </itemlayout>
+                    <focusedlayout width="280" height="180">
+                        <control type="image">
+                            <left>0</left><top>0</top><width>280</width><height>166</height>
+                            <texture colordiffuse="FFE50914">common/border.png</texture>
+                        </control>
+                        <control type="image">
+                            <left>10</left><top>10</top><width>260</width><height>146</height>
+                            <aspectratio>scale</aspectratio>
+                            <texture>$INFO[ListItem.Art(thumb)]</texture>
+                        </control>
+                    </focusedlayout>
+                </control>
+            </control>
+            
+        </control><control type="button" id="999">
             <top>30</top><left>1830</left>
             <width>60</width><height>60</height>
             <texturefocus colordiffuse="FFFFFFFF">Button/close.png</texturefocus>
@@ -597,7 +561,6 @@
             <animation effect="zoom" start="110" end="100" center="auto" time="150">UnFocus</animation>
         </control>
 
-        <!-- ══ DICA VOLTAR ══ -->
         <control type="label">
             <left>0</left><top>1048</top>
             <width>1920</width><height>20</height>

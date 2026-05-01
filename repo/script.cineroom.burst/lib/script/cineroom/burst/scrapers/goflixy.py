@@ -18,14 +18,10 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 WEBSITE   = 'GoFlixy'
 from .scraper_config import get_url
+from .session import USER_AGENT, _IS_ANDROID
 
 BASE_URL  = get_url('goflixy', fallback='https://goflixy.lol')
 FEMBED    = get_url('goflixy', key='fembed', fallback='https://fembed.sx')
-USER_AGENT = (
-    'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
-    'AppleWebKit/537.36 (KHTML, like Gecko) '
-    'Chrome/130.0.0.0 Safari/537.36'
-)
 
 _session = requests.Session()
 _session.verify = False
@@ -454,8 +450,10 @@ def _build_stream(stream_url, parsed_player):
     h = {
         'User-Agent': USER_AGENT,
         'Referer':    origin + '/',
-        'Origin':     origin,
     }
+    # Origin causa bloqueio CORS em alguns CDNs no Android
+    if not _IS_ANDROID:
+        h['Origin'] = origin
     header_str = '&'.join(f'{k}={quote(v)}' for k, v in h.items())
     return f'{stream_url}|{header_str}'
 
