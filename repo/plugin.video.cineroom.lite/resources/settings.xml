@@ -4,7 +4,7 @@
     <!-- ================ CATEGORIAS PRINCIPAIS ================ -->
     <category label="Geral">
         <setting id="pages" type="labelenum" label="Itens por Página" values="15|20|25|30|35|40|50|75|100" default="25" />
-        <setting id="view_mode" type="labelenum" label="Visualização de Conteúdo" values="infowall|shift|wall|list" default="infowall" />
+        <setting id="view_mode" type="labelenum" label="Visualização de Conteúdo" values="infowall|shift|wall|list" default="wall" />
         <setting id="menu_view_mode" type="string" label="Visualização de Menu" default="list" visible="false"/>
         <setting id="image_quality" type="labelenum" label="Qualidade das imagens" values="low|medium|high|original" default="high" />
         <setting id="last_donation_popup" type="string" default="" visible="false" />
@@ -448,7 +448,7 @@
     <!-- ================ LEGENDAS ================ -->
     <category label="Legendas">
         <setting label="[B]OpenSubtitles PRO[/B]" type="lsep"/>
-        <setting id="opensubtitles.enabled" type="bool" label="Ativar busca de legendas" default="false" />
+        <setting id="opensubtitles.enabled" type="bool" label="Ativar busca de legendas" default="true" />
         <setting id="opensubtitles.only_leg" type="bool" label="Legendas apenas em conteúdo LEGENDADO" default="true"/>
         <setting id="opensubtitles.token" type="text" label="Token de configuração"
             default="eyJsYW5ncyI6WyJwb3J0dWd1ZXNlLWJyIiwicG9ydHVndWVzZSJdLCJzb3VyY2UiOiJhbGwiLCJhaVRyYW5zbGF0ZWQiOnRydWUsImF1dG9BZGp1c3RtZW50IjpmYWxzZX0"
