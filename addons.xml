@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom.lite" version="2.0.3" name="Cineroom [COLOR gold]Lite[/COLOR]" provider-name="Gael">
+<addon id="plugin.video.cineroom.lite" version="2.0.5" name="Cineroom [COLOR gold]Lite[/COLOR]" provider-name="Gael">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests"/>
@@ -19,13 +19,10 @@
     <disclaimer lang="pt_BR">OBRIGADO PELA PREFERÊNCIA S2</disclaimer>
     <platform>all</platform>
     <license>GPL-3.0-only</license>
-    <source>https://cineroom1.github.io</source>
+    <source>https://cineroom2.github.io</source>
     <email>cineroom.ofc@gmail.com</email>
     <assets>
       <icon>resources/images/icon.png</icon>
-      <screenshot>resources/images/screenshot01.jpg</screenshot>
-      <screenshot>resources/images/screenshot02.jpg</screenshot>
-      <screenshot>resources/images/screenshot03.jpg</screenshot>
     </assets>
   </extension>
 </addon>
@@ -51,7 +48,7 @@
   </extension>
 </addon>
 <addon id="script.cineroom.burst" 
-       version="2.1.2" 
+       version="2.1.4" 
        name="Cineroom [COLOR cyan]Burst[/COLOR]" 
        provider-name="Gael">
   <requires>

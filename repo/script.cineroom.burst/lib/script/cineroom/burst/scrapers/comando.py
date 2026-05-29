@@ -76,7 +76,7 @@ def scrape(provider_url, item_data, season=None, episode=None):
         headers = {'User-Agent': 'Mozilla/5.0'}
         response = requests.get(post_url, headers=headers, timeout=10)
         # Extrai os magnets filtrando pelo episódio se houver
-        return extract_magnets(response.content, title, target_episode=episode, season=season, media_type=media_type)
+        return extract_magnets(response.content, title, target_episode=episode, season=season, media_type=media_type, provider_name="ComandoTop")
 
     return []
 

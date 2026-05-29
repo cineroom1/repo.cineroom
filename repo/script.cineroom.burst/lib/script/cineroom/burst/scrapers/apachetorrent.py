@@ -11,12 +11,12 @@ from .scraper_config import get_url
 
 _APACHE_BASE = get_url('apachetorrent', fallback='https://apachetorrent.com')
 
-def normalize_text_partial(text):
-    if not text:
-        return ""
-    return text.lower().strip()
+# -------------------------------------------------------------------
+# NORMALIZAÇÃO DE TEXTO
+# -------------------------------------------------------------------
 
 def normalize_for_compare(text):
+    """Normaliza texto para comparação: minusculo, sem acentos, sem pontuação."""
     if not text:
         return ""
     
@@ -32,7 +32,33 @@ def normalize_for_compare(text):
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 
+
+# Mapa de palavras numéricas PT/EN → algarismos
+_NUM_WORDS_PT = {
+    r'\bum\b': '1', r'\buma\b': '1',
+    r'\bdois\b': '2', r'\bduas\b': '2',
+    r'\btres\b': '3', r'\bquatro\b': '4',
+    r'\bcinco\b': '5', r'\bseis\b': '6',
+    r'\bsete\b': '7', r'\boito\b': '8',
+    r'\bnove\b': '9', r'\bdez\b': '10',
+    r'\bone\b': '1', r'\btwo\b': '2',
+    r'\bthree\b': '3', r'\bfour\b': '4',
+    r'\bfive\b': '5', r'\bsix\b': '6',
+    r'\bseven\b': '7', r'\beight\b': '8',
+    r'\bnine\b': '9', r'\bten\b': '10',
+}
+
+
+def normalize_title_for_search(title):
+    """Converte palavras numéricas para algarismos e limpa o título."""
+    t = title.lower()
+    for pattern, num in _NUM_WORDS_PT.items():
+        t = re.sub(pattern, num, t, flags=re.IGNORECASE)
+    return t.strip()
+
+
 def clean_query(query):
+    """Limpa a query para URL de busca."""
     if not query:
         return ""
     
@@ -47,10 +73,13 @@ def clean_query(query):
     query = re.sub(r"\s+", "+", query)
     return query.strip()
 
+
+# -------------------------------------------------------------------
+# BUSCA E PARSE
+# -------------------------------------------------------------------
+
 def search_apache_torrent(query):
-    """
-    Busca otimizada para o ApacheTorrent.
-    """
+    """Busca no ApacheTorrent."""
     query_clean = clean_query(query)
     search_url = f"https://apachetorrent.com/index.php?s={query_clean}"
     
@@ -68,7 +97,6 @@ def search_apache_torrent(query):
         xbmc.log(f"[apachetorrent] Status: {response.status_code}", xbmc.LOGINFO)
         
         if response.status_code == 200:
-            # Força encoding UTF-8
             response.encoding = 'utf-8'
             return response.content
         else:
@@ -79,15 +107,16 @@ def search_apache_torrent(query):
     
     return None
 
+
 def parse_search_results(html):
-    """
-    Parseia os resultados da busca.
-    """
+    """Parseia os resultados da busca."""
     if not html:
         return []
     
     try:
         soup = BeautifulSoup(html, 'html.parser')
+        
+        # Seletor principal: div.capaname
         results = soup.find_all("div", class_="capaname")
         
         if results:
@@ -101,10 +130,9 @@ def parse_search_results(html):
     
     return []
 
-def find_apache_post_url(html, title, season=None, media_type="movie"):
-    """
-    Encontra o link do post correspondente.
-    """
+
+def find_apache_post_url(html, title):
+    """Encontra o link do post correspondente ao título."""
     if not html:
         return None
     
@@ -113,34 +141,34 @@ def find_apache_post_url(html, title, season=None, media_type="movie"):
     if not results:
         return None
     
-    title_norm = normalize_for_compare(title)
+    title_norm = normalize_title_for_search(title)
+    title_norm = normalize_for_compare(title_norm)
+    
     xbmc.log(f"[apachetorrent] Buscando: '{title}' -> '{title_norm}'", xbmc.LOGINFO)
     
     for idx, result in enumerate(results):
-        # Encontra o link
         link_tag = result.find("a", href=True)
         if not link_tag:
             continue
             
         href = link_tag.get("href", "")
+        post_title = link_tag.get("title", "") or ""
         
-        # Extrai título do h2
-        h2_tag = result.find("h2")
-        if not h2_tag:
-            continue
-            
-        post_title = h2_tag.get_text(strip=True)
-        
-        # Limpa o título
-        post_title = re.sub(r'\s*\(.*?\)', '', post_title)  # Remove (Filme de 2025)
-        post_title = re.sub(r'\s*Torrent.*', '', post_title)
+        # Limpeza do título do post
+        post_title = re.sub(r'\s*Torrent.*', '', post_title, flags=re.IGNORECASE)
+        post_title = re.sub(r'\s*Download.*', '', post_title, flags=re.IGNORECASE)
+        post_title = re.sub(r'\s*Dublad[oa].*', '', post_title, flags=re.IGNORECASE)
+        post_title = re.sub(r'\s*Legendad[oa].*', '', post_title, flags=re.IGNORECASE)
+        post_title = re.sub(r'\s*Dual.*', '', post_title, flags=re.IGNORECASE)
+        post_title = re.sub(r'\s*\(.*?\)', '', post_title)
         post_title = post_title.strip()
         
-        post_norm = normalize_for_compare(post_title)
+        post_norm = normalize_title_for_search(post_title)
+        post_norm = normalize_for_compare(post_norm)
         
-        xbmc.log(f"[apachetorrent] Resultado {idx}: '{post_title}' -> '{post_norm}'", xbmc.LOGDEBUG)
+        xbmc.log(f"[apachetorrent] Resultado {idx}: '{post_title}' -> '{post_norm}'", xbmc.LOGINFO)
         
-        # Verifica correspondência
+        # Correspondência bidirecional
         if title_norm in post_norm or post_norm in title_norm:
             xbmc.log(f"[apachetorrent] CORRESPONDÊNCIA ENCONTRADA: {post_title}", xbmc.LOGINFO)
             return href
@@ -148,84 +176,90 @@ def find_apache_post_url(html, title, season=None, media_type="movie"):
     xbmc.log("[apachetorrent] Nenhuma correspondência encontrada", xbmc.LOGWARNING)
     return None
 
+
+# -------------------------------------------------------------------
+# SCRAPER PRINCIPAL (APENAS FILMES)
+# -------------------------------------------------------------------
+
 def scrape_apache(provider_url, item_data, season=None, episode=None):
     """
-    Scraper principal do ApacheTorrent - VERSÃO FUNCIONAL.
+    Scraper do ApacheTorrent - EXCLUSIVO PARA FILMES.
     """
     title = item_data.get("title", "")
     media_type = item_data.get("media_type", "movie")
     year = item_data.get("year", "")
+
+    # ═══ IGNORA SÉRIES ═══
+    if media_type != "movie":
+        return []
+
+    title_search = normalize_title_for_search(title)
+
+    # Queries para filmes: com ano → sem ano → primeira palavra
+    queries = []
+    if year:
+        queries.append(f"{title_search} {year}")
+    queries.append(title_search)
     
-    xbmc.log(f"[apachetorrent] === SCRAPER INICIADO ===", xbmc.LOGINFO)
-    xbmc.log(f"[apachetorrent] Título: {title}", xbmc.LOGINFO)
-    xbmc.log(f"[apachetorrent] Tipo: {media_type}", xbmc.LOGINFO)
-    xbmc.log(f"[apachetorrent] Ano: {year}", xbmc.LOGINFO)
-    
-    # Monta a query de busca
-    query = title
-    if year and media_type == "movie":
-        query = f"{title} {year}"
-    
-    xbmc.log(f"[apachetorrent] Query: '{query}'", xbmc.LOGINFO)
-    
+    first_word = title_search.split()[0] if title_search.split() else title_search
+    if first_word != title_search:
+        queries.append(first_word)
+
     # Busca
-    html = search_apache_torrent(query)
+    html = None
+    for q in queries:
+        xbmc.log(f"[apachetorrent] Tentando query: '{q}'", xbmc.LOGINFO)
+        candidate = search_apache_torrent(q)
+        if candidate and parse_search_results(candidate):
+            html = candidate
+            xbmc.log(f"[apachetorrent] Query '{q}' retornou resultados", xbmc.LOGINFO)
+            break
+        xbmc.log(f"[apachetorrent] Query '{q}' sem resultados", xbmc.LOGINFO)
+
     if not html:
-        # Tenta sem o ano se não encontrar
-        if year and query != title:
-            xbmc.log(f"[apachetorrent] Tentando sem ano...", xbmc.LOGINFO)
-            html = search_apache_torrent(title)
-        
-        if not html:
-            xbmc.log(f"[apachetorrent] Nenhum resultado na busca", xbmc.LOGWARNING)
-            return []
-    
-    # Encontra o link do post
-    post_url = find_apache_post_url(html, title, season, media_type)
-    
+        xbmc.log(f"[apachetorrent] Nenhum resultado", xbmc.LOGWARNING)
+        return []
+
+    # Encontra o post
+    post_url = find_apache_post_url(html, title)
+
     if not post_url:
         xbmc.log(f"[apachetorrent] Nenhum post encontrado", xbmc.LOGWARNING)
         return []
-    
-    # Completa a URL se necessário
+
+    # Corrige URL relativa
     if not post_url.startswith('http'):
-        if post_url.startswith('/'):
-            post_url = _APACHE_BASE + post_url
-        else:
-            post_url = f'{_APACHE_BASE}/{post_url}'
-    
+        post_url = _APACHE_BASE + (post_url if post_url.startswith('/') else f'/{post_url}')
+
     xbmc.log(f"[apachetorrent] Acessando post: {post_url}", xbmc.LOGINFO)
-    
+
     # Acessa o post
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
         'Referer': _APACHE_BASE + '/'
     }
-    
+
     try:
         response = requests.get(post_url, headers=headers, timeout=15)
-        xbmc.log(f"[apachetorrent] Status do post: {response.status_code}", xbmc.LOGINFO)
-        
         if response.status_code != 200:
             xbmc.log(f"[apachetorrent] Erro ao acessar post: {response.status_code}", xbmc.LOGWARNING)
             return []
-        
-        # Extrai os magnets
+
         magnets = extract_magnets(
-            response.content,
-            title,
-            target_episode=episode,
-            season=season,
-            media_type=media_type
+            response.content, title,
+            target_episode=episode, season=season, media_type=media_type,
+            provider_name="ApacheTorrent"
         )
-        
+
         if magnets:
-            xbmc.log(f"[apachetorrent] Sucesso! {len(magnets)} magnets encontrados", xbmc.LOGINFO)
-            return magnets
+            dual_count = sum(1 for m in magnets if m.get('languages') == 'DUAL')
+            leg_count = sum(1 for m in magnets if m.get('languages') == 'LEG')
+            xbmc.log(f"[apachetorrent] Sucesso! {len(magnets)} magnets (DUAL: {dual_count}, LEG: {leg_count})", xbmc.LOGINFO)
         else:
-            xbmc.log(f"[apachetorrent] Nenhum magnet encontrado no post", xbmc.LOGWARNING)
-            return []
-            
+            xbmc.log(f"[apachetorrent] Nenhum magnet encontrado", xbmc.LOGWARNING)
+        
+        return magnets or []
+
     except Exception as e:
         xbmc.log(f"[apachetorrent] Erro ao acessar post: {str(e)}", xbmc.LOGERROR)
         return []

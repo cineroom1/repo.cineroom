@@ -1,14 +1,12 @@
-[B][COLOR yellow]2.0.2[/COLOR][/B]
+[B][COLOR yellow]2.0.4[/COLOR][/B]
 
 ────────────────────────────────────
 [B][COLOR blue]Melhorias[/COLOR][/B]
 
-- Ajustes nas fontes
-- Melhorias na UI de detalhes
-- Menus mais organizados
-- Backup Adicionado
-- Poster Customizados
-- Janelas extras
-- Compatibilidade apenas com Kodi 20+
-
+- Melhorias no detalhes
+- Melhorias na categoria "Em Andamento"
+- Melhorias na categoria "Mais Buscados"
+- Categoria "TAGS" agora busca via TMDB
+- Opção "Modo Leve" nas configurações
+- Ajustes de fontes
 

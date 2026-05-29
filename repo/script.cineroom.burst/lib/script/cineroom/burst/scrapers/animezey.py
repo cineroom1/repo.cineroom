@@ -167,7 +167,6 @@ class AnimeZeyScraper:
             elif self.media_type == 'tvshow':
                 return self._search_episodes()
             else:
-                xbmc.log(f"{self.log_prefix} ⚠️ Tipo desconhecido: {self.media_type}", xbmc.LOGWARNING)
                 return []
         except Exception as e:
             xbmc.log(f"{self.log_prefix} ❌ Erro: {e}\n{traceback.format_exc()}", xbmc.LOGERROR)
@@ -178,17 +177,14 @@ class AnimeZeyScraper:
     # ------------------------------------------------------------------
 
     def _search_episodes(self):
-        xbmc.log(f"{self.log_prefix} 📺 Buscando S{self.season:02d}E{self.episode:02d}", xbmc.LOGINFO)
 
         episodes  = []
         seen_ids  = set()
         queries   = self._generate_episode_queries()[:10]
 
         if not queries:
-            xbmc.log(f"{self.log_prefix} ⚠️ Nenhuma query gerada", xbmc.LOGWARNING)
             return []
 
-        xbmc.log(f"{self.log_prefix} 🔍 Testando {len(queries)} queries", xbmc.LOGINFO)
         search_url = f"https://{self.base_domain}/1:search"
 
         for query in queries:
@@ -211,21 +207,16 @@ class AnimeZeyScraper:
                     name = item.get('name', '')
                     if self._is_correct_episode(name):
                         episodes.append(item)
-                        xbmc.log(f"{self.log_prefix}   ✅ {name[:60]}", xbmc.LOGINFO)
 
                         if len(episodes) >= ScraperConfig.MAX_RESULTS:
-                            xbmc.log(f"{self.log_prefix} 🎯 {len(episodes)} resultados — suficiente", xbmc.LOGINFO)
                             return self._process_results(episodes)
 
             except Exception as e:
-                xbmc.log(f"{self.log_prefix} ⚠️ Erro query '{query}': {e}", xbmc.LOGDEBUG)
                 continue
 
         if episodes:
-            xbmc.log(f"{self.log_prefix} ✅ Total: {len(episodes)} episódio(s)", xbmc.LOGINFO)
             return self._process_results(episodes)
 
-        xbmc.log(f"{self.log_prefix} ❌ Nenhum episódio encontrado", xbmc.LOGINFO)
         return []
 
     # ------------------------------------------------------------------
@@ -331,7 +322,6 @@ class AnimeZeyScraper:
                 seen.add(q)
                 unique.append(q)
 
-        xbmc.log(f"{self.log_prefix} 📋 {len(unique)} queries: {unique[:8]}", xbmc.LOGINFO)
         return unique
 
     # ------------------------------------------------------------------
@@ -339,13 +329,17 @@ class AnimeZeyScraper:
     # ------------------------------------------------------------------
 
     def _is_correct_episode(self, filename):
-        # Normaliza o filename também para comparar sem acentos
-        filename_lower      = filename.lower()
+        filename_lower       = filename.lower()
         filename_ascii_lower = self._remove_accents(filename_lower)
 
         if not self._matches_series_in_filename(filename_lower):
             return False
 
+        # ── Detecta se o filename já tem padrão SxxExx explícito
+        # Se tiver, ele é a fonte da verdade — nenhum outro match é aceito
+        sxey_present = re.search(r's\d{2}e\d{2}|\d+x\d{2}', filename_ascii_lower)
+
+        # ── 1. SxxExx — verifica o match correto primeiro
         sxey_patterns = [
             f"s{self.season:02d}e{self.episode:02d}",
             f"{self.season}x{self.episode:02d}",
@@ -354,11 +348,18 @@ class AnimeZeyScraper:
             if p in filename_ascii_lower:
                 return True
 
+        # Se filename tem SxxExx mas não bateu acima → episódio errado, rejeita imediatamente
+        if sxey_present:
+            return False
+
+        # A partir daqui: filename NÃO tem padrão SxxExx — podemos usar outros critérios
+
+        # ── 2. Códigos do utils (ex: "1x03", "103", "e03")
         for code in get_anime_search_codes(self.season, self.episode):
             if code.lower() in filename_ascii_lower:
                 return True
 
-        # ── Anime season > 1 sem abs_ep: valida episode como número flat
+        # ── 3. Anime season > 1 sem abs_ep: valida episode como número flat
         if self._is_anime() and self.season > 1 and self.abs_ep is None:
             ep_patterns = [
                 f" - {self.episode:02d}",
@@ -373,6 +374,7 @@ class AnimeZeyScraper:
                 if p in filename_ascii_lower:
                     return True
 
+        # ── 4. Absoluto para anime
         if self._is_anime() and self.abs_ep is not None:
             abs_patterns = [
                 f" - {self.abs_ep:02d}",
@@ -388,13 +390,9 @@ class AnimeZeyScraper:
             ]
             for p in abs_patterns:
                 if p in filename_ascii_lower:
-                    xbmc.log(
-                        f"{self.log_prefix} ✅ Match absoluto '{p}' em '{filename[:60]}'",
-                        xbmc.LOGDEBUG,
-                    )
                     return True
 
-        # ── Flat para novelas brasileiras (season 1, não-anime): "- 001", "[001]", etc.
+        # ── 5. Flat para novelas brasileiras (season 1, não-anime)
         if self._is_flat_series():
             flat_novela = [
                 f" - {self.episode:03d}",
@@ -410,10 +408,6 @@ class AnimeZeyScraper:
             ]
             for p in flat_novela:
                 if p in filename_ascii_lower:
-                    xbmc.log(
-                        f"{self.log_prefix} ✅ Match novela '{p}' em '{filename[:60]}'",
-                        xbmc.LOGDEBUG,
-                    )
                     return True
 
         return False
@@ -473,7 +467,7 @@ class AnimeZeyScraper:
                     r'(?:p|k)|bluray|bdrip|webrip|web|hdtv|x264|x265|hevc'
                     r'|aac|mkv|mp4|avi|wmv|mov|hdr|sdr|remux'
                     # plataformas de streaming / distribuidoras
-                    r'|hbo|max|hbomax|netflix|disney|disneyplus|amazon|prime'
+                    r' |Anitsu|hbo|max|hbomax|netflix|disney|disneyplus|amazon|prime'
                     r'|paramount|peacock|hulu|apple|appletv|star|globoplay'
                     r'|telecine|crunchyroll|funimation|youtube|vix|pluto'
                     # prefixos de arquivo comuns
@@ -486,13 +480,6 @@ class AnimeZeyScraper:
             if not content_words:
                 # Só metadados antes — ainda ok
                 return True
-
-            # Há palavras de conteúdo antes → é um título diferente, rejeita este match
-            xbmc.log(
-                f"{self.log_prefix} ⚠️ Falso positivo bloqueado: "
-                f"'{title_n}' em '{fn_n[:80]}' (prefix: {content_words})",
-                xbmc.LOGDEBUG,
-            )
 
         return False
 
@@ -512,18 +499,10 @@ class AnimeZeyScraper:
                     or self._title_match(normalize_for_compare(p), fn_norm)
                     for p in parts
                 ):
-                    xbmc.log(
-                        f"{self.log_prefix} ✅ Match completo: '{name}' em '{filename_lower[:80]}'",
-                        xbmc.LOGDEBUG,
-                    )
                     return True
             else:
                 if (self._title_match(name_ascii, filename_lower)
                         or self._title_match(name_norm, fn_norm)):
-                    xbmc.log(
-                        f"{self.log_prefix} ✅ Match: '{name}' em '{filename_lower[:80]}'",
-                        xbmc.LOGDEBUG,
-                    )
                     return True
 
         return False
@@ -582,7 +561,6 @@ class AnimeZeyScraper:
     # ------------------------------------------------------------------
 
     def _search_movies(self):
-        xbmc.log(f"{self.log_prefix} 🎬 Buscando filme", xbmc.LOGINFO)
 
         movies    = []
         seen_ids  = set()
@@ -603,7 +581,6 @@ class AnimeZeyScraper:
 
                     if self._is_video_file(item) and self._is_correct_movie(item.get('name', '')):
                         movies.append(item)
-                        xbmc.log(f"{self.log_prefix}   ✅ {item.get('name', '')[:60]}", xbmc.LOGINFO)
 
                         if len(movies) >= 5:
                             return self._process_results(movies)
@@ -613,10 +590,8 @@ class AnimeZeyScraper:
                 continue
 
         if movies:
-            xbmc.log(f"{self.log_prefix} ✅ {len(movies)} filme(s) encontrado(s)", xbmc.LOGINFO)
             return self._process_results(movies)
-
-        xbmc.log(f"{self.log_prefix} ❌ Nenhum filme encontrado", xbmc.LOGINFO)
+        
         return []
 
     def _generate_movie_queries(self):
@@ -705,12 +680,16 @@ class AnimeZeyScraper:
         try:
             link_part = item.get('link', '')
             if not link_part:
-                xbmc.log(f"{self.log_prefix} ⚠️ Item sem link", xbmc.LOGDEBUG)
                 return None
 
+            # /download.aspx já é o link final — não tem página HTML para parsear
+            if '/download.aspx' in link_part:
+                return self._build_download_link(link_part)
+
             view_url = f"https://{self.base_domain}{link_part}"
-            if '?a=' not in view_url:
-                view_url += '?a=view'
+            if 'a=view' not in view_url:
+                sep = '&' if '?' in view_url else '?'
+                view_url += f'{sep}a=view'
 
             headers = {
                 'User-Agent':      USER_AGENT,
@@ -719,18 +698,14 @@ class AnimeZeyScraper:
                 'Referer':         f'https://{self.base_domain}/',
             }
             response = requests.get(view_url, headers=headers,
-                                    timeout=ScraperConfig.REQUEST_TIMEOUT)
+                                timeout=ScraperConfig.REQUEST_TIMEOUT)
             response.raise_for_status()
 
-            soup       = BeautifulSoup(response.text, 'html.parser')
+            soup = BeautifulSoup(response.text, 'html.parser')
             source_tag = soup.find('source', {'src': True})
-
             if source_tag:
-                player_url = source_tag['src']
-                xbmc.log(f"{self.log_prefix} ✅ URL player: {player_url[:120]}", xbmc.LOGINFO)
-                return player_url
+                return source_tag['src']
 
-            xbmc.log(f"{self.log_prefix} ⚠️ <source> não encontrada — usando fallback", xbmc.LOGWARNING)
             return self._build_download_link(link_part)
 
         except Exception as e:
@@ -772,6 +747,7 @@ class AnimeZeyScraper:
             language = 'LEG'
         else:
             language = 'PT-BR'
+            
 
         return {
             'url':           download_url,

@@ -64,7 +64,7 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
             )    
 
         # ── STREMIO (link direto) ────────────────────────────────────────────
-        elif provider_name in ("Brazuca", "Torrentio", "Fenixflix", "Mico-Leão", "FrostStream", "NebulaStreams"):
+        elif provider_name in ("Brazuca", "Torrentio", "Fenixflix", "Mico-Leão", "FrostStream", "NebulaStreams", "KOD"):
             from ..scrapers import stremio
             sources = stremio.scrape(
                 provider_url=provider_data.get('url'),
@@ -220,14 +220,8 @@ def scrape_all_sources(item_data, progress_callback=None, max_workers=None):
             completed += 1
             name, data = futures[future]
 
-            if progress_callback:
-                try:
-                    progress_callback(completed, total, name)
-                except Exception:
-                    pass
-
             try:
-                sources = future.result(timeout=timeout + 10)  # margem para encerrar a thread
+                sources = future.result(timeout=timeout + 10)
                 results[name] = {
                     "sources":  sources or [],
                     "priority": data.get('priority', 999)
@@ -238,7 +232,14 @@ def scrape_all_sources(item_data, progress_callback=None, max_workers=None):
 
             except Exception as e:
                 xbmc.log(f"[Burst] ❌ {name}: {e}", xbmc.LOGERROR)
+                sources = []
                 results[name] = {"sources": [], "priority": data.get('priority', 999)}
+
+            if progress_callback:
+                try:
+                    progress_callback(completed, total, name, sources)
+                except Exception:
+                    pass
 
     success = sum(1 for v in results.values() if v["sources"])
     xbmc.log(f"[Burst] Concluído: {success}/{total} providers com fontes", xbmc.LOGINFO)

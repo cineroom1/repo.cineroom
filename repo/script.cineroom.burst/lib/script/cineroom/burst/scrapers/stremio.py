@@ -134,35 +134,55 @@ def _build_endpoints(media_type, imdb_id, season, episode):
 def _fetch_streams(url):
     """
     Faz request e retorna lista de streams.
-    
+
     Returns:
         list: Streams encontrados ou lista vazia
     """
     try:
         response = requests.get(
-            url, 
-            headers={'User-Agent': USER_AGENT}, 
-            timeout=60  # Reduzido de 15s para 10s
+            url,
+            headers={'User-Agent': USER_AGENT},
+            timeout=60
         )
         response.raise_for_status()
-        
+
         data = response.json()
         streams = data.get('streams', [])
-        
+
+        # sanitiza campos com \n (ex: FrostStream)
+        for stream in streams:
+            for field in ('title', 'name', 'description'):
+                value = stream.get(field)
+
+                if value and '\n' in value:
+                    lines = value.split('\n')
+
+                    stream[field] = lines[0]
+
+                    if field == 'title' and len(lines) >= 3:
+                        lang_line = lines[2].strip()
+                        stream['_lang_hint'] = lang_line
+
         if streams:
-            xbmc.log(f"[Stremio] ✓ {len(streams)} em {url.split('/')[-1]}", xbmc.LOGDEBUG)
-        
+            xbmc.log(
+                f"[Stremio] ✓ {len(streams)} em {url.split('/')[-1]}",
+                xbmc.LOGDEBUG
+            )
+
         return streams
-        
+
     except requests.Timeout:
         xbmc.log(f"[Stremio] Timeout: {url}", xbmc.LOGWARNING)
+
     except requests.RequestException as e:
         xbmc.log(f"[Stremio] Erro HTTP: {e}", xbmc.LOGDEBUG)
+
     except ValueError:
         xbmc.log(f"[Stremio] JSON inválido: {url}", xbmc.LOGWARNING)
+
     except Exception as e:
         xbmc.log(f"[Stremio] Erro inesperado: {e}", xbmc.LOGERROR)
-    
+
     return []
 
 

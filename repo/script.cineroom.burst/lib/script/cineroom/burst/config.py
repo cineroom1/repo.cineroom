@@ -7,6 +7,7 @@ Prioridade, timeout e max_workers são todos configuráveis via settings.xml.
 """
 
 import xbmcaddon
+from .scrapers.scraper_config import get_url
 
 ADDON = xbmcaddon.Addon('script.cineroom.burst')
 
@@ -34,7 +35,7 @@ PROVIDERS = {
         "type": "direct"
     },
     "Fenixflix": {
-        "url": "https://fenixflix-ur9u.onrender.com",
+        "url": get_url('fenixflix', fallback='https://fenixflix-ur9u.onrender.com'),
         "configurable": False,
         "default_priority": 3,
         "setting_id": "provider.fenixflix.enabled",
@@ -42,7 +43,7 @@ PROVIDERS = {
         "type": "direct"
     },
     "FrostStream": {
-        "url": "https://froststream.onrender.com",
+        "url": get_url('froststream', fallback='https://froststream.cloutteam.com'),
         "configurable": False,
         "default_priority": 2,
         "setting_id": "provider.froststream.enabled",
@@ -50,7 +51,7 @@ PROVIDERS = {
         "type": "direct"
     },
     "NebulaStreams": {
-        "url": "https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjIxNjBwLDEwODBwLDcyMHAiLCJzb3J0IjoiZGVzYyJ9",
+        "url": get_url('nebulastreams', fallback='https://hdhub.thevolecitor.qzz.io/eyJ0b3Jib3giOiJ1bnNldCIsInF1YWxpdGllcyI6IjIxNjBwLDEwODBwLDcyMHAiLCJzb3J0IjoiZGVzYyJ9'),
         "configurable": False,
         "default_priority": 2,
         "setting_id": "provider.nebulastreams.enabled",
@@ -67,7 +68,7 @@ PROVIDERS = {
     },
     # --- Torrent ---
     "Brazuca": {
-        "url": "https://94c8cb9f702d-brazuca-torrents.baby-beamup.club",
+        "url": get_url('brazuca', fallback='https://94c8cb9f702d-brazuca-torrents.baby-beamup.club'),
         "configurable": False,
         "default_priority": 3,
         "setting_id": "provider.brazuca.enabled",
@@ -75,15 +76,23 @@ PROVIDERS = {
         "type": "torrent"
     },
     "Torrentio": {
-        "url": "https://torrentio.strem.fun/providers=comando,bludv,micoleaodublado,yts,nyaasi,1337x%7Clanguage=portuguese,english,japanese",
+        "url": get_url('torrentio', fallback='https://torrentio.strem.fun/providers=comando,bludv,micoleaodublado,yts,nyaasi,1337x%7Clanguage=portuguese,english,japanese'),
         "configurable": False,
         "default_priority": 2,
         "setting_id": "provider.torrentio.enabled",
         "priority_setting_id": "provider.torrentio.priority",
         "type": "torrent"
     },
+    "KOD": {
+        "url": get_url('kod', fallback='stremio://kod-three.vercel.app/eyJwcm92aWRlcnMiOlsieXRzIiwiZXp0diIsInRwYiIsInRneCIsIjEzMzd4IiwibnlhYSIsInNvbGlkdG9ycmVudHMiLCJydXRvciIsImtpY2thc3MiLCJtYWduZXRkbCIsImtuYWJlbiIsInRoZXJhcmJnIiwibGltZXRvcnJlbnRzIiwiYml0c2VhcmNoIiwiYnQ0ZyIsInRvcmxvY2siLCJ0b3JyZW50ZG93bmxvYWRzIiwiaWRvcGUiLCJ6b29xbGUiLCJ0b3JyZW50ejIiLCJ0b3JyZW50ZnVuayIsImJ0ZGlnIiwidG9ycmVudHNkYiIsInJ1dHJhY2tlciIsImFuaW1ldG9zaG8iLCJzdWJzcGxlYXNlIiwiamFja2V0dCIsInByb3dsYXJyIiwiemlsZWFuIl0sInF1YWxpdHlGaWx0ZXIiOlsiNGsiLCIxMDgwcCIsIjcyMHAiXSwibWluU2VlZGVycyI6Miwic29ydE9yZGVyIjoic2VlZGVycyJ9'),
+        "configurable": False,
+        "default_priority": 2,
+        "setting_id": "provider.kod.enabled",
+        "priority_setting_id": "provider.kod.priority",
+        "type": "torrent"
+    },
     "Mico-Leão": {
-        "url": "https://27a5b2bfe3c0-stremio-brazilian-addon.baby-beamup.club",
+        "url": get_url('mico-leao', fallback='https://27a5b2bfe3c0-stremio-brazilian-addon.baby-beamup.club'),
         "configurable": False,
         "default_priority": 5,
         "setting_id": "provider.mico-leao.enabled",
@@ -91,7 +100,7 @@ PROVIDERS = {
         "type": "torrent"
     },
     "StarckFilmes": {
-        "url": "https://www.starckfilmes-v11.com",
+        "url": "https://www.starckfilmes-v15.com",
         "configurable": False,
         "default_priority": 1,
         "setting_id": "provider.starckfilmes.enabled",

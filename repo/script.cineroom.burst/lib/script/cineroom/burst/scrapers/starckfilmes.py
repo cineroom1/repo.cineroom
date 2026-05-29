@@ -62,19 +62,71 @@ def _titulo_parece_serie(texto):
     return bool(_SERIE_PATTERNS.search(texto or ''))
 
 
+def _normalizar_titulo(texto):
+    """Remove acentos, artigos, pontuação e lowercases para comparação."""
+    import unicodedata
+    nfkd = unicodedata.normalize('NFKD', texto or '')
+    s = ''.join(c for c in nfkd if not unicodedata.combining(c))
+    s = s.lower()
+    s = re.sub(r"[',\.\-_:]", ' ', s)
+    s = re.sub(r'\b(the|a|an|o|a|os|as|de|do|da|um|uma)\b', '', s)
+    return re.sub(r'\s+', ' ', s).strip()
+
+
 def _titulo_compativel(titulo_pagina, titulo_busca, is_serie=False):
-    """
-    Valida se o título da página é compatível com o que foi buscado.
-    - is_serie=False (filme): rejeita se o título contiver padrões de série
-    - is_serie=True  (série): rejeita se o título não contiver padrão de temporada
-      correspondente à temporada buscada (verificação mais fina feita depois)
-    """
     if not is_serie and _titulo_parece_serie(titulo_pagina):
+        return False
+
+    # ── Validação de similaridade de título
+    norm_pagina = _normalizar_titulo(titulo_pagina)
+    norm_busca  = _normalizar_titulo(titulo_busca)
+
+    if not norm_busca:
+        return True
+
+    # O título buscado deve estar no início do título da página
+    # "dark" deve bater "dark" mas NÃO "dark matter" ou "fear the walking dead"
+    # Usa word boundary para não aceitar prefixo parcial
+    pattern = r'^' + re.escape(norm_busca) + r'(\s|$)'
+    if re.match(pattern, norm_pagina):
+        return True
+
+    # Fallback: todos os tokens do título buscado presentes E
+    # a proporção de match é alta (evita títulos muito diferentes)
+    tokens_busca  = norm_busca.split()
+    tokens_pagina = norm_pagina.split()
+
+    if not tokens_busca:
+        return True
+
+    matches = sum(1 for t in tokens_busca if t in tokens_pagina)
+    ratio   = matches / len(tokens_busca)
+
+    # Exige 100% dos tokens se título curto (≤ 2 palavras), 85% se maior
+    threshold = 1.0 if len(tokens_busca) <= 2 else 0.85
+    if ratio < threshold:
         xbmc.log(
-            f"[Starck] Rejeitado (série detectada em busca de filme): {titulo_pagina}",
+            f"[Starck] Rejeitado (título incompatível): '{titulo_pagina}' vs '{titulo_busca}' "
+            f"(ratio={ratio:.2f})",
             xbmc.LOGDEBUG
         )
         return False
+
+    # Verifica que não há palavras de conteúdo ANTES do título buscado na página
+    # Ex: "fear the walking dead" rejeitado para "the walking dead"
+    idx = norm_pagina.find(norm_busca)
+    if idx > 0:
+        prefix_words = [
+            w for w in norm_pagina[:idx].split()
+            if w not in {'the', 'a', 'an', 'o', 'os', 'as', 'de', 'do', 'da'}
+        ]
+        if prefix_words:
+            xbmc.log(
+                f"[Starck] Rejeitado (palavras antes do título): {prefix_words} em '{titulo_pagina}'",
+                xbmc.LOGDEBUG
+            )
+            return False
+
     return True
 
 

@@ -109,7 +109,7 @@ def format_size(size_bytes):
     
 
 
-def extract_magnets(html, title, target_episode=None, season=None, media_type="movie"):
+def extract_magnets(html, title, target_episode=None, season=None, media_type="movie", provider_name="Torrent"):
     """
     Extrai magnet links de uma página HTML.
     Compartilhado por ComandoTop, ApacheTorrent e FilmesMaster.
@@ -127,40 +127,85 @@ def extract_magnets(html, title, target_episode=None, season=None, media_type="m
         parent_text = parent.get_text() if parent else ""
         container_text = parent_text.lower()
 
+        # ── Determina áudio e legenda pela CLASSE do botão ──
+        link_classes = link.get('class', [])
+        
+        if 'btn-success' in link_classes:
+            # Botão verde = Dual Áudio
+            audio = "DUAL"
+            subtitle = "DUAL"
+        elif 'btn-danger' in link_classes:
+            # Botão vermelho = Legendado
+            audio = "LEG"
+            subtitle = "LEG"
+        else:
+            # Fallback para outros sites/situações
+            if "dual" in container_text:
+                audio = "DUAL"
+                subtitle = "DUAL"
+            elif "legendad" in container_text:
+                audio = "LEG"
+                subtitle = "LEG"
+            elif "dublado" in container_text:
+                audio = "DUB"
+                subtitle = "DUB"
+            else:
+                audio = "LEG"
+                subtitle = "LEG"
+
+        # ── Extrai nome do release ──
         dn_match = re.search(r'dn=([^&]+)', url)
         release_name = urllib.parse.unquote(dn_match.group(1)).replace('.', ' ') if dn_match else title
 
-        quality = "4K" if "2160p" in container_text else "1080p" if "1080p" in container_text else "720p" if "720p" in container_text else "HD"
-        audio = "Dual" if "dual" in container_text else "Dublado"
-        subtitle = "Legendado" if "legendado" in container_text else "Sem legendas"
-        type_label = "EP" if not any(x in container_text for x in ["volume", "completa"]) else "PACK"
+        # ── Qualidade ──
+        if "2160p" in container_text or "4k" in container_text:
+            quality = "4K"
+        elif "1080p" in container_text:
+            quality = "1080p"
+        elif "720p" in container_text:
+            quality = "720p"
+        else:
+            quality = "HD"
 
+        # ── Tipo (EP ou PACK) ──
+        if any(x in container_text for x in ["volume", "completa", "temporada"]):
+            type_label = "PACK"
+        else:
+            type_label = "EP"
+
+        # ── Seeds ──
         seeds = 0
         seed_match = re.search(r'(\d+)\s*SEEDS', parent_text, re.IGNORECASE)
         if seed_match:
             seeds = int(seed_match.group(1))
 
+        # ── Tamanho ──
         size = "N/A"
         size_match = re.search(r'(\d+(?:\.\d+)?\s*(?:GB|MB))', parent_text, re.IGNORECASE)
         if size_match:
             size = size_match.group(1)
 
+        # ── Código do episódio ──
         ep_number = ""
         if season and target_episode:
             ep_number = f"S{int(season):02d}E{int(target_episode):02d}"
+
+        # ── Label formatado ──
+        label = f"Torrent: {quality} | {audio} | {subtitle} [{type_label}] (S:{seeds})"
 
         magnets.append({
             "url": url,
             "quality": quality,
             "type": "torrent",
-            "provider": "Torrent",
+            "provider": provider_name,
             "release_title": release_name,
-            "label": f"Torrent: {quality} | {audio} | {subtitle} [{type_label}] (S:{seeds})",
+            "label": label,
             "seeds": seeds,
             "size": size,
             "subtitle": subtitle,
+            "languages": audio,
             "episode_code": ep_number,
             "media_type": media_type,
         })
 
-    return magnets    
+    return magnets
