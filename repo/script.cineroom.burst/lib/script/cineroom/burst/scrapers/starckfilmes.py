@@ -103,7 +103,7 @@ def _titulo_compativel(titulo_pagina, titulo_busca, is_serie=False):
     ratio   = matches / len(tokens_busca)
 
     # Exige 100% dos tokens se título curto (≤ 2 palavras), 85% se maior
-    threshold = 1.0 if len(tokens_busca) <= 2 else 0.85
+    threshold = 1.0 if len(tokens_busca) <= 3 else 0.90
     if ratio < threshold:
         xbmc.log(
             f"[Starck] Rejeitado (título incompatível): '{titulo_pagina}' vs '{titulo_busca}' "
@@ -118,7 +118,8 @@ def _titulo_compativel(titulo_pagina, titulo_busca, is_serie=False):
     if idx > 0:
         prefix_words = [
             w for w in norm_pagina[:idx].split()
-            if w not in {'the', 'a', 'an', 'o', 'os', 'as', 'de', 'do', 'da'}
+            if w not in {'the', 'a', 'an', 'o', 'os', 'as', 'de', 'do', 'da',
+                 'in', 'of', 'and', 'em', 'no', 'na', 'nos', 'nas', 'e'}
         ]
         if prefix_words:
             xbmc.log(
@@ -247,7 +248,7 @@ def _parse_btn_down(btn, qualidade_fallback='HD', tamanho_fallback='N/A'):
 # Busca no site
 # ---------------------------------------------------------------------------
 
-def _buscar_paginas(query, max_results=5):
+def _buscar_paginas(query, max_results=5, titulo_busca=''):
     search_url = SEARCH_URL.format(query=requests.utils.quote(query))
     try:
         r = requests.get(search_url, headers=HEADERS, timeout=10)
@@ -259,13 +260,36 @@ def _buscar_paginas(query, max_results=5):
     soup  = BeautifulSoup(r.text, 'html.parser')
     itens = []
     for card in soup.select('.sub-item'):
-        a = card.select_one('a.title') or card.find('a', href=re.compile(r'/catalog/'))
-        if not a:
+        # título vem do atributo title do <a> pai — mais confiável que o texto
+        a_pai = card.find('a', href=re.compile(r'/catalog/'))
+        if not a_pai:
             continue
-        url    = a.get('href', '')
-        titulo = a.get_text(strip=True)
-        if url:
-            itens.append((titulo, url))
+        url    = a_pai.get('href', '')
+        titulo = a_pai.get('title', '') or a_pai.get_text(strip=True)
+        if not url or not titulo:
+            continue
+
+        # ── Filtro no card: rejeita antes de abrir qualquer URL
+        if titulo_busca:
+            norm_card  = _normalizar_titulo(titulo)
+            norm_busca = _normalizar_titulo(titulo_busca)
+            tokens_busca = norm_busca.split()
+            tokens_card  = norm_card.split()
+            if not tokens_busca:
+                pass
+            else:
+                matches = sum(1 for t in tokens_busca if t in tokens_card)
+                ratio   = matches / len(tokens_busca)
+                # Exige todos os tokens do título buscado presentes no card
+                if ratio < 1.0:
+                    xbmc.log(
+                        f"[Starck] Card descartado: '{titulo}' vs '{titulo_busca}' "
+                        f"(ratio={ratio:.2f})",
+                        xbmc.LOGDEBUG
+                    )
+                    continue
+
+        itens.append((titulo, url))
         if len(itens) >= max_results:
             break
 
@@ -310,7 +334,7 @@ def buscar_filme(item_data):
     sources = []
 
     for query in queries:
-        for _titulo_card, url in _buscar_paginas(query):
+        for _titulo_card, url in _buscar_paginas(query, titulo_busca=titulo):
             soup = _fetch_pagina(url)
             if not soup or not _ano_ok(soup, ano):
                 continue
@@ -370,7 +394,7 @@ def buscar_serie(item_data, season, episode):
     sources = []
 
     for query in queries:
-        for _titulo_card, url in _buscar_paginas(query, max_results=8):
+        for _titulo_card, url in _buscar_paginas(query, max_results=8, titulo_busca=titulo):
             soup = _fetch_pagina(url)
             if not soup:
                 continue
@@ -398,6 +422,10 @@ def buscar_serie(item_data, season, episode):
                 qualidade = _get_qualidade(soup)
                 tamanho   = _get_tamanho(soup)
                 titulo_limpo = _get_titulo_limpo(soup) or titulo
+                if not _titulo_compativel(titulo_limpo, titulo, is_serie=True):
+                    xbmc.log(f"[Starck] Série rejeitada (título): '{titulo_limpo}' vs '{titulo}'", xbmc.LOGDEBUG)
+                    continue
+                epsodios_div = soup.find('div', class_='epsodios')
 
                 for p in epsodios_div.find_all('p'):
                     strong = p.find('strong')

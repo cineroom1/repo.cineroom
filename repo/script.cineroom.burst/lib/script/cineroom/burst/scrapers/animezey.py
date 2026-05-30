@@ -356,7 +356,7 @@ class AnimeZeyScraper:
 
         # ── 2. Códigos do utils (ex: "1x03", "103", "e03")
         for code in get_anime_search_codes(self.season, self.episode):
-            if code.lower() in filename_ascii_lower:
+            if re.search(r'(?<!\d)' + re.escape(code.lower()) + r'(?!\d)', filename_ascii_lower):
                 return True
 
         # ── 3. Anime season > 1 sem abs_ep: valida episode como número flat
@@ -374,40 +374,40 @@ class AnimeZeyScraper:
                 if p in filename_ascii_lower:
                     return True
 
-        # ── 4. Absoluto para anime
+        # Bloco ── 4. Absoluto para anime
         if self._is_anime() and self.abs_ep is not None:
             abs_patterns = [
-                f" - {self.abs_ep:02d}",
-                f" - {self.abs_ep:03d}",
-                f"- {self.abs_ep:02d}",
-                f"- {self.abs_ep:03d}",
-                f" {self.abs_ep:02d} ",
-                f" {self.abs_ep:03d} ",
-                f" {self.abs_ep:02d}.",
-                f" {self.abs_ep:03d}.",
-                f"[{self.abs_ep:02d}]",
-                f"[{self.abs_ep:03d}]",
+                rf' - {self.abs_ep:02d}(?!\d)',
+                rf' - {self.abs_ep:03d}(?!\d)',
+                rf'- {self.abs_ep:02d}(?!\d)',
+                rf'- {self.abs_ep:03d}(?!\d)',
+                rf' {self.abs_ep:02d} ',
+                rf' {self.abs_ep:03d} ',
+                rf' {self.abs_ep:02d}\.',
+                rf' {self.abs_ep:03d}\.',
+                rf'\[{self.abs_ep:02d}\]',
+                rf'\[{self.abs_ep:03d}\]',
             ]
             for p in abs_patterns:
-                if p in filename_ascii_lower:
+                if re.search(p, filename_ascii_lower):
                     return True
 
         # ── 5. Flat para novelas brasileiras (season 1, não-anime)
         if self._is_flat_series():
             flat_novela = [
-                f" - {self.episode:03d}",
-                f" - {self.episode:02d}",
-                f"- {self.episode:03d}",
-                f"- {self.episode:02d}",
-                f"[{self.episode:03d}]",
-                f"[{self.episode:02d}]",
-                f" {self.episode:03d}.",
-                f" {self.episode:02d}.",
-                f" {self.episode:03d} ",
-                f" {self.episode:02d} ",
+                rf' - {self.episode:03d}(?!\d)',   # " - 001" não bate em " - 0010"
+                rf' - {self.episode:02d}(?!\d)',   # " - 01"  não bate em " - 010"
+                rf'- {self.episode:03d}(?!\d)',
+                rf'- {self.episode:02d}(?!\d)',
+                rf'\[{self.episode:03d}\]',
+                rf'\[{self.episode:02d}\]',
+                rf' {self.episode:03d}\.',
+                rf' {self.episode:02d}\.',
+                rf' {self.episode:03d} ',
+                rf' {self.episode:02d} ',
             ]
             for p in flat_novela:
-                if p in filename_ascii_lower:
+                if re.search(p, filename_ascii_lower):
                     return True
 
         return False

@@ -84,7 +84,7 @@ PROVIDERS = {
         "type": "torrent"
     },
     "KOD": {
-        "url": get_url('kod', fallback='stremio://kod-three.vercel.app/eyJwcm92aWRlcnMiOlsieXRzIiwiZXp0diIsInRwYiIsInRneCIsIjEzMzd4IiwibnlhYSIsInNvbGlkdG9ycmVudHMiLCJydXRvciIsImtpY2thc3MiLCJtYWduZXRkbCIsImtuYWJlbiIsInRoZXJhcmJnIiwibGltZXRvcnJlbnRzIiwiYml0c2VhcmNoIiwiYnQ0ZyIsInRvcmxvY2siLCJ0b3JyZW50ZG93bmxvYWRzIiwiaWRvcGUiLCJ6b29xbGUiLCJ0b3JyZW50ejIiLCJ0b3JyZW50ZnVuayIsImJ0ZGlnIiwidG9ycmVudHNkYiIsInJ1dHJhY2tlciIsImFuaW1ldG9zaG8iLCJzdWJzcGxlYXNlIiwiamFja2V0dCIsInByb3dsYXJyIiwiemlsZWFuIl0sInF1YWxpdHlGaWx0ZXIiOlsiNGsiLCIxMDgwcCIsIjcyMHAiXSwibWluU2VlZGVycyI6Miwic29ydE9yZGVyIjoic2VlZGVycyJ9'),
+        "url": get_url('kod', fallback='https://kod-three.vercel.app/eyJwcm92aWRlcnMiOlsieXRzIiwiZXp0diIsInRwYiIsInRneCIsIjEzMzd4IiwibnlhYSIsInNvbGlkdG9ycmVudHMiLCJydXRvciIsImtpY2thc3MiLCJtYWduZXRkbCIsImtuYWJlbiIsInRoZXJhcmJnIiwibGltZXRvcnJlbnRzIiwiYml0c2VhcmNoIiwiYnQ0ZyIsInRvcmxvY2siLCJ0b3JyZW50ZG93bmxvYWRzIiwiaWRvcGUiLCJ6b29xbGUiLCJ0b3JyZW50ejIiLCJ0b3JyZW50ZnVuayIsImJ0ZGlnIiwidG9ycmVudHNkYiIsInJ1dHJhY2tlciIsImFuaW1ldG9zaG8iLCJzdWJzcGxlYXNlIiwiamFja2V0dCIsInByb3dsYXJyIiwiemlsZWFuIl0sInF1YWxpdHlGaWx0ZXIiOlsiNGsiLCIxMDgwcCIsIjcyMHAiXSwibWluU2VlZGVycyI6Miwic29ydE9yZGVyIjoic2VlZGVycyJ9'),
         "configurable": False,
         "default_priority": 2,
         "setting_id": "provider.kod.enabled",
