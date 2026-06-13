@@ -30,9 +30,8 @@
         </control>
 
         <!-- ══════════════════════════════════════════
-             GRADIENT OVERLAY (escurece topo e base)
+             GRADIENT OVERLAY
         ══════════════════════════════════════════ -->
-        <!-- overlay base escura -->
         <control type="image">
             <left>0</left>
             <top>0</top>
@@ -41,8 +40,6 @@
             <texture colordiffuse="CC000000">AddonWindow/black.png</texture>
             <animation effect="fade" start="0" end="100" time="500">WindowOpen</animation>
         </control>
-
-
 
         <!-- ══════════════════════════════════════════
              ADDON LOGO (canto superior esquerdo)
@@ -88,26 +85,169 @@
 
 
         <!-- ══════════════════════════════════════════
-             QUALITY COUNTERS  (4K | 1080p | 720p | SD)
+             QUALITY BADGES  (4K | 1080p | 720p | SD)
+
+             Largura total: 4×90 + 3×50 = 510px
+             Start X = (1920 - 510) / 2 = 705
+             Cada badge: left 705 / 845 / 985 / 1125
+
+             Cada badge:
+               - circle.png com alpha BAIXO (22 ≈ 13%) como fundo escuro
+               - rótulo colorido centralizado no topo
+               - número branco grande centralizado embaixo
+               - ambos com shadowcolor forte para legibilidade
+        ══════════════════════════════════════════ -->
+
+        <!-- ── 4K (dourado) ── -->
+        <control type="group">
+            <left>705</left>
+            <top>590</top>
+            <animation effect="fade" start="0" end="100" time="500" delay="200">WindowOpen</animation>
+            <!-- fundo: disco escuro quase transparente -->
+            <control type="image">
+                <left>0</left><top>0</top>
+                <width>90</width><height>90</height>
+                <aspectratio>keep</aspectratio>
+                <texture colordiffuse="22000000">circle.png</texture>
+            </control>
+            <!-- rótulo "4K" -->
+            <control type="label">
+                <left>0</left><top>10</top>
+                <width>90</width><height>26</height>
+                <align>center</align>
+                <font>font18</font>
+                <textcolor>FFFFD700</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>4K</label>
+            </control>
+            <!-- número -->
+            <control type="label">
+                <left>0</left><top>43</top>
+                <width>90</width><height>46</height>
+                <align>center</align>
+                <font>font28</font>
+                <textcolor>FFFFD700</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>$INFO[Window().Property(search.count_4k)]</label>
+            </control>
+        </control>
+
+        <!-- ── 1080p (verde-teal) ── -->
+        <control type="group">
+            <left>845</left>
+            <top>590</top>
+            <animation effect="fade" start="0" end="100" time="500" delay="300">WindowOpen</animation>
+            <control type="image">
+                <left>0</left><top>0</top>
+                <width>90</width><height>90</height>
+                <aspectratio>keep</aspectratio>
+                <texture colordiffuse="22000000">circle.png</texture>
+            </control>
+            <control type="label">
+                <left>0</left><top>10</top>
+                <width>90</width><height>26</height>
+                <align>center</align>
+                <font>font18</font>
+                <textcolor>FF4CAF83</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>1080P</label>
+            </control>
+            <control type="label">
+                <left>0</left><top>43</top>
+                <width>90</width><height>46</height>
+                <align>center</align>
+                <font>font28</font>
+                <textcolor>FF4CAF83</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>$INFO[Window().Property(search.count_1080)]</label>
+            </control>
+        </control>
+
+        <!-- ── 720p (azul-slate) ── -->
+        <control type="group">
+            <left>985</left>
+            <top>590</top>
+            <animation effect="fade" start="0" end="100" time="500" delay="400">WindowOpen</animation>
+            <control type="image">
+                <left>0</left><top>0</top>
+                <width>90</width><height>90</height>
+                <aspectratio>keep</aspectratio>
+                <texture colordiffuse="22000000">circle.png</texture>
+            </control>
+            <control type="label">
+                <left>0</left><top>10</top>
+                <width>90</width><height>26</height>
+                <align>center</align>
+                <font>font18</font>
+                <textcolor>FF6495ED</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>720P</label>
+            </control>
+            <control type="label">
+                <left>0</left><top>43</top>
+                <width>90</width><height>46</height>
+                <align>center</align>
+                <font>font28</font>
+                <textcolor>FF6495ED</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>$INFO[Window().Property(search.count_720)]</label>
+            </control>
+        </control>
+
+        <!-- ── SD (cinza) ── -->
+        <control type="group">
+            <left>1125</left>
+            <top>590</top>
+            <animation effect="fade" start="0" end="100" time="500" delay="500">WindowOpen</animation>
+            <control type="image">
+                <left>0</left><top>0</top>
+                <width>90</width><height>90</height>
+                <aspectratio>keep</aspectratio>
+                <texture colordiffuse="22000000">circle.png</texture>
+            </control>
+            <control type="label">
+                <left>0</left><top>10</top>
+                <width>90</width><height>26</height>
+                <align>center</align>
+                <font>font18</font>
+                <textcolor>FFAAAAAA</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>SD</label>
+            </control>
+            <control type="label">
+                <left>0</left><top>43</top>
+                <width>90</width><height>46</height>
+                <align>center</align>
+                <font>font28</font>
+                <textcolor>FFAAAAAA</textcolor>
+                <shadowcolor>FF000000</shadowcolor>
+                <label>$INFO[Window().Property(search.count_sd)]</label>
+            </control>
+        </control>
+
+
+        <!-- ══════════════════════════════════════════
+             ELAPSED TIME
         ══════════════════════════════════════════ -->
         <control type="label">
             <centerleft>960</centerleft>
-            <top>620</top>
-            <width>1400</width>
-            <height>36</height>
+            <top>696</top>
+            <width>400</width>
+            <height>28</height>
             <align>center</align>
-            <font>font22</font>
+            <font>font18</font>
+            <textcolor>AAFFFFFF</textcolor>
             <shadowcolor>CC000000</shadowcolor>
-            <label>$INFO[Window().Property(search.quality_line)]</label>
+            <label>$INFO[Window().Property(search.elapsed)]</label>
+            <visible>!String.IsEmpty(Window().Property(search.elapsed))</visible>
         </control>
-
 
         <!-- ══════════════════════════════════════════
              REMAINING PROVIDERS
         ══════════════════════════════════════════ -->
         <control type="label">
             <centerleft>960</centerleft>
-            <top>676</top>
+            <top>730</top>
             <width>1400</width>
             <height>30</height>
             <align>center</align>
@@ -119,40 +259,25 @@
             <animation effect="fade" start="0" end="100" time="500" delay="350">WindowOpen</animation>
         </control>
 
-        <control type="label">
-            <centerleft>960</centerleft>
-            <top>668</top>
-            <width>400</width>
-            <height>28</height>
-            <align>center</align>
-            <font>font18</font>
-            <textcolor>AAFFFFFF</textcolor>
-            <shadowcolor>CC000000</shadowcolor>
-            <label>$INFO[Window().Property(search.elapsed)]</label>
-            <visible>!String.IsEmpty(Window().Property(search.elapsed))</visible>
-        </control>
-
-<!-- ==================== SPINNER ==================== -->
+        <!-- ══════════════════════════════════════════
+             SPINNER
+        ══════════════════════════════════════════ -->
         <control type="image">
             <centerleft>960</centerleft>
-            <centertop>750</centertop>
+            <centertop>810</centertop>
             <width>55</width>
             <height>55</height>
             <aspectratio>keep</aspectratio>
             <texture>spinner.png</texture>
-
             <animation effect="fade" start="0" end="100" time="400" delay="600">WindowOpen</animation>
-
             <animation effect="rotate"
                        start="0"
                        end="360"
-                       center="960,750"
+                       center="960,810"
                        time="1000"
                        loop="true"
                        condition="true">Conditional</animation>
         </control>
-
-
 
     </controls>
 </window>

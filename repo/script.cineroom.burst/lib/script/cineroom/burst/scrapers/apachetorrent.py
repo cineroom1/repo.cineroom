@@ -83,7 +83,6 @@ def search_apache_torrent(query):
     query_clean = clean_query(query)
     search_url = f"https://apachetorrent.com/index.php?s={query_clean}"
     
-    xbmc.log(f"[apachetorrent] Buscando: '{query}'", xbmc.LOGINFO)
 
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
@@ -94,13 +93,11 @@ def search_apache_torrent(query):
 
     try:
         response = requests.get(search_url, headers=headers, timeout=15)
-        xbmc.log(f"[apachetorrent] Status: {response.status_code}", xbmc.LOGINFO)
         
         if response.status_code == 200:
             response.encoding = 'utf-8'
             return response.content
-        else:
-            xbmc.log(f"[apachetorrent] Status não OK: {response.status_code}", xbmc.LOGWARNING)
+
             
     except Exception as e:
         xbmc.log(f"[apachetorrent] Erro na busca: {str(e)}", xbmc.LOGERROR)
@@ -119,11 +116,6 @@ def parse_search_results(html):
         # Seletor principal: div.capaname
         results = soup.find_all("div", class_="capaname")
         
-        if results:
-            xbmc.log(f"[apachetorrent] Encontrados {len(results)} resultados", xbmc.LOGINFO)
-            return results
-        else:
-            xbmc.log("[apachetorrent] Nenhum resultado encontrado", xbmc.LOGWARNING)
             
     except Exception as e:
         xbmc.log(f"[apachetorrent] Erro ao parsear HTML: {str(e)}", xbmc.LOGERROR)
@@ -143,8 +135,6 @@ def find_apache_post_url(html, title):
     
     title_norm = normalize_title_for_search(title)
     title_norm = normalize_for_compare(title_norm)
-    
-    xbmc.log(f"[apachetorrent] Buscando: '{title}' -> '{title_norm}'", xbmc.LOGINFO)
     
     for idx, result in enumerate(results):
         link_tag = result.find("a", href=True)
@@ -166,14 +156,11 @@ def find_apache_post_url(html, title):
         post_norm = normalize_title_for_search(post_title)
         post_norm = normalize_for_compare(post_norm)
         
-        xbmc.log(f"[apachetorrent] Resultado {idx}: '{post_title}' -> '{post_norm}'", xbmc.LOGINFO)
-        
         # Correspondência bidirecional
         if title_norm in post_norm or post_norm in title_norm:
             xbmc.log(f"[apachetorrent] CORRESPONDÊNCIA ENCONTRADA: {post_title}", xbmc.LOGINFO)
             return href
     
-    xbmc.log("[apachetorrent] Nenhuma correspondência encontrada", xbmc.LOGWARNING)
     return None
 
 
@@ -208,13 +195,10 @@ def scrape_apache(provider_url, item_data, season=None, episode=None):
     # Busca
     html = None
     for q in queries:
-        xbmc.log(f"[apachetorrent] Tentando query: '{q}'", xbmc.LOGINFO)
         candidate = search_apache_torrent(q)
         if candidate and parse_search_results(candidate):
             html = candidate
-            xbmc.log(f"[apachetorrent] Query '{q}' retornou resultados", xbmc.LOGINFO)
             break
-        xbmc.log(f"[apachetorrent] Query '{q}' sem resultados", xbmc.LOGINFO)
 
     if not html:
         xbmc.log(f"[apachetorrent] Nenhum resultado", xbmc.LOGWARNING)
@@ -231,7 +215,6 @@ def scrape_apache(provider_url, item_data, season=None, episode=None):
     if not post_url.startswith('http'):
         post_url = _APACHE_BASE + (post_url if post_url.startswith('/') else f'/{post_url}')
 
-    xbmc.log(f"[apachetorrent] Acessando post: {post_url}", xbmc.LOGINFO)
 
     # Acessa o post
     headers = {
@@ -254,7 +237,6 @@ def scrape_apache(provider_url, item_data, season=None, episode=None):
         if magnets:
             dual_count = sum(1 for m in magnets if m.get('languages') == 'DUAL')
             leg_count = sum(1 for m in magnets if m.get('languages') == 'LEG')
-            xbmc.log(f"[apachetorrent] Sucesso! {len(magnets)} magnets (DUAL: {dual_count}, LEG: {leg_count})", xbmc.LOGINFO)
         else:
             xbmc.log(f"[apachetorrent] Nenhum magnet encontrado", xbmc.LOGWARNING)
         

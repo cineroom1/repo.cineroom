@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom.lite" version="2.0.7" name="Cineroom [COLOR gold]Lite[/COLOR]" provider-name="Gael">
+<addon id="plugin.video.cineroom.lite" version="2.1.0" name="Cineroom [COLOR gold]Lite[/COLOR]" provider-name="Gael">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests"/>
-    <import addon="script.cineroom.burst" version="2.1.0"/>
+    <import addon="script.cineroom.burst" version="2.1.5" optional="true"/>
   </requires>
 
   <extension point="xbmc.python.pluginsource" library="main.py">
@@ -48,7 +48,7 @@
   </extension>
 </addon>
 <addon id="script.cineroom.burst" 
-       version="2.1.5" 
+       version="2.1.6" 
        name="Cineroom [COLOR cyan]Burst[/COLOR]" 
        provider-name="Gael">
   <requires>
@@ -57,17 +57,15 @@
     <import addon="script.module.beautifulsoup4"/>
   </requires>
   
-  <!-- MÓDULO: Para importar via Python -->
   <extension point="xbmc.python.module" library="lib"/>
-  
-  <!-- SCRIPT: Para executar/testar -->
+
   <extension point="xbmc.python.script" library="default.py">
     <provides>executable</provides>
   </extension>
   
   <extension point="xbmc.addon.metadata">
     <summary lang="pt_BR">Módulo de scrapers para streaming</summary>
-    <description lang="pt_BR">Biblioteca de scrapers profissional para addons de streaming. Suporta Stremio, AnimeZey, Comando, StarckFilmes e outros.</description>
+    <description lang="pt_BR">Biblioteca de scrapers profissional para addons de streaming.</description>
     <platform>all</platform>
     <license>GPL-3.0-only</license>
     <assets>

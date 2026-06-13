@@ -203,6 +203,7 @@ class AnimeZeyScraper:
 
                     if not self._is_video_file(item):
                         continue
+                    
 
                     name = item.get('name', '')
                     if self._is_correct_episode(name):
@@ -239,19 +240,24 @@ class AnimeZeyScraper:
             clean = re.sub(r'\s*-\s*', ' ', clean)                      # hífen → espaço
             clean = clean.strip()
             dots  = clean.replace(' ', '.')
-            return clean, dots
+            raw      = re.sub(r"[',\\.:]", "", name)
+            raw      = re.sub(r'\s*-\s*', ' ', raw).strip()
+            dots_raw = raw.replace(' ', '.')
+            return clean, dots, raw, dots_raw
 
         # ── 1. SxxExx
         sxey = f"S{self.season:02d}E{self.episode:02d}"
         for name in top_names:
-            clean, dots = _variants(name)
+            clean, dots, raw, dots_raw = _variants(name)
+            queries.append(f"{dots_raw}.{sxey}")   # com acento — prioritário
             queries.append(f"{dots}.{sxey}")
+            queries.append(f"{raw} {sxey}")
             queries.append(f"{clean} {sxey}")
 
         # ── 1b. Flat "- NNN" para novelas/séries brasileiras (season 1, não-anime)
         if self._is_flat_series():
             for name in top_names:
-                clean, dots = _variants(name)
+                clean, dots, raw, dots_raw = _variants(name)
                 queries.append(f"{clean} - {self.episode:03d}")   # "Avenida Brasil - 001"
                 queries.append(f"{clean} - {self.episode:02d}")   # "Avenida Brasil - 01"
                 queries.append(f"{dots}.{self.episode:03d}")       # "Avenida.Brasil.001"
@@ -266,7 +272,7 @@ class AnimeZeyScraper:
         )
         if use_absolute:
             for name in top_names:
-                clean, dots = _variants(name)
+                clean, dots, raw, dots_raw = _variants(name)
                 queries.append(f"{clean} - {self.abs_ep:02d}")
                 queries.append(f"{clean} - {self.abs_ep:03d}")
                 queries.append(f"{dots}.{self.abs_ep:02d}")
@@ -276,7 +282,7 @@ class AnimeZeyScraper:
         # Cobre casos como One Piece S17E693 onde o ep já é o absoluto
         if is_anime and self.season > 1 and self.abs_ep is None:
             for name in top_names:
-                clean, dots = _variants(name)
+                clean, dots, raw, dots_raw = _variants(name)
                 queries.append(f"{clean} - {self.episode:03d}")
                 queries.append(f"{clean} - {self.episode:02d}")
                 queries.append(f"{dots}.{self.episode:03d}")
@@ -285,7 +291,7 @@ class AnimeZeyScraper:
         # ── 3. Flat " - 01" — só para anime season 1
         if is_anime and self.season == 1:
             for name in top_names:
-                clean, dots = _variants(name)
+                clean, dots, raw, dots_raw = _variants(name)
                 queries.append(f"{clean} - {self.episode:02d}")
                 queries.append(f"{clean} - {self.episode:03d}")
                 queries.append(f"{dots} - {self.episode:02d}")
@@ -293,7 +299,7 @@ class AnimeZeyScraper:
 
         # ── 4. Códigos do utils
         for name in top_names:
-            clean, dots = _variants(name)
+            clean, dots, raw, dots_raw = _variants(name)
             if is_anime and self.season == 1:
                 codes = [c for c in search_codes if c.isdigit()]
             else:
@@ -307,7 +313,7 @@ class AnimeZeyScraper:
         # ── 5. Com ano (fallback)
         if self.year and self.year > 1900:
             for name in top_names[:2]:
-                clean, dots = _variants(name)
+                clean, dots, raw, dots_raw = _variants(name)
                 for code in search_codes[:2]:
                     queries.append(f"{dots}.{self.year}.{code}")
                 if is_anime and self.season == 1:
@@ -430,47 +436,42 @@ class AnimeZeyScraper:
     })
 
     def _title_match(self, title, filename):
-        """Word-boundary match: o que vem ANTES do título no filename deve ser
-        apenas separadores / metadados — não palavras de conteúdo.
-        Isso evita que 'The Walking Dead' dê match em 'Fear The Walking Dead'."""
         title_n = self._normalize_fn(title)
         fn_n    = self._normalize_fn(filename)
 
         if not title_n:
             return False
 
+        # Se o filename tem SxxExx, o subtítulo entre o título e o código
+        # é parte do nome da série — relaxa o after_ok
+        has_sxey = bool(re.search(r's\d{2}e\d{2}|\d+x\d{2}', fn_n))
+
         pattern = r'(?<![a-z0-9])' + re.escape(title_n) + r'(?=[^a-z0-9]|$)'
         for m in re.finditer(pattern, fn_n):
-            # ── Verifica o que vem DEPOIS
             after = fn_n[m.end():].strip()
             after_ok = (
                 not after
                 or self._TITLE_END_RE.match(after)
                 or re.match(r'^[\-\u2013\u2014]?\s*\d', after)
+                or has_sxey   # ← se o filename tem SxxExx, subtítulo entre título e código é ok
             )
             if not after_ok:
                 continue
 
-            # ── Verifica o que vem ANTES
             before = fn_n[:m.start()].strip()
             if not before:
-                return True  # título no início — match perfeito
+                return True
 
-            # Remove tokens que são apenas metadados/separadores do final do prefix
-            # ex: "1080p", "2024", "bluray" antes do título são ok
             before_words = before.split()
-            # Filtra palavras que são puramente metadados (ano, qualidade, codec…)
             content_words = [
                 w for w in before_words
                 if not re.fullmatch(
                     r'\d{4}|[a-z0-9]+'
                     r'(?:p|k)|bluray|bdrip|webrip|web|hdtv|x264|x265|hevc'
                     r'|aac|mkv|mp4|avi|wmv|mov|hdr|sdr|remux'
-                    # plataformas de streaming / distribuidoras
-                    r' |Anitsu|hbo|max|hbomax|netflix|disney|disneyplus|amazon|prime'
+                    r'|Aenianos & Kirinashi|anitsu|hbo|max|hbomax|netflix|disney|disneyplus|amazon|prime'
                     r'|paramount|peacock|hulu|apple|appletv|star|globoplay'
                     r'|telecine|crunchyroll|funimation|youtube|vix|pluto'
-                    # prefixos de arquivo comuns
                     r'|copia|copy|sample|extras?',
                     w, re.IGNORECASE
                 )
@@ -478,7 +479,6 @@ class AnimeZeyScraper:
             ]
 
             if not content_words:
-                # Só metadados antes — ainda ok
                 return True
 
         return False

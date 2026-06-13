@@ -238,8 +238,8 @@ if __name__ == '__main__':
         run_notification_check()
 
     while not MONITOR.abortRequested():
-        # Acorda a cada 30 minutos
-        if MONITOR.waitForAbort(1800):
+        # Acorda a cada 1 hora
+        if MONITOR.waitForAbort(3600):
             break
 
         # ── Verificação de conteúdo novo ────────────────────────────────────
@@ -259,10 +259,10 @@ if __name__ == '__main__':
             except Exception as e:
                 log(f"Erro no loop de tempo (update): {e}")
 
-        # Envia tracks pendentes a cada 30 min (independente do update check)
+        
         run_flush_pending_tracks()
 
-        # Verifica notificações a cada 30 min (função tem cache interno de 6h)
+
         run_notification_check()
 
     log('Serviço finalizado.')

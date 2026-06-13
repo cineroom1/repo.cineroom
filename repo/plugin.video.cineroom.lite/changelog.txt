@@ -1,12 +1,9 @@
-[B][COLOR yellow]2.0.4[/COLOR][/B]
+[B][COLOR yellow]2.1.0[/COLOR][/B]
 
 ────────────────────────────────────
 [B][COLOR blue]Melhorias[/COLOR][/B]
 
-- Melhorias no detalhes
-- Melhorias na categoria "Em Andamento"
-- Melhorias na categoria "Mais Buscados"
-- Categoria "TAGS" agora busca via TMDB
-- Opção "Modo Leve" nas configurações
-- Ajustes de fontes
+- Mudanças na lista padrão
+- TAGS com sistema hibrido (Local+TMDb)
+- Melhorias na velocidade
 

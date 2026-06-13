@@ -5,8 +5,12 @@
     <category label="Interface e Geral">
         
         <setting label="[B]Visualização e Navegação[/B]" type="lsep"/>
-        <setting id="pages" type="labelenum" label="Itens por Página" values="15|20|25|30|35|40|50" default="20" />
-        <setting id="view_mode" type="labelenum" label="Visualização de Conteúdo" values="list|infowall|wall" default="wall" />
+        <setting id="pages" type="labelenum" label="Itens por Página" values="15|20|25|30|35|40|50|100|125|150" default="25" />
+        <setting id="view_mode_enabled" type="bool" label="Forçar modo de exibição" default="true">
+    </setting>
+        <setting id="view_mode" type="labelenum" label="Visualização de Conteúdo" values="list|infowall|wall" default="wall">
+        <enable>eq(-1,true)</enable>
+    </setting>
         <setting id="menu_view_mode" type="string" label="Visualização de Menu" default="list" visible="false"/>
         <setting id="image_quality" type="labelenum" label="Qualidade das imagens" values="low|medium|high|original" default="medium" />
         
@@ -20,6 +24,12 @@
         <setting id="tvshow.enable_details" type="bool" label="Séries: usar tela de detalhes" default="true">
             <description>Exibe a tela de detalhes ao clicar em uma série. Se desativado, vai direto para a lista de episódios.</description>
         </setting>
+        <setting id="ui.details_style" type="labelenum" label="Estilo de tela de detalhes"
+            values="Flix|Basico|Lite"
+            default="0">
+            <enable>eq(-2,true) | eq(-1,true)</enable>
+        </setting>
+        <setting id="migrated_details_v2" type="text" default="" visible="false" />
 
         <setting type="sep"/>
 
@@ -83,7 +93,7 @@
 
         <!-- ── Seleção manual de fontes ─────────────────────────────────── -->
         <setting label="[B]Seleção Manual de Fontes[/B]" type="lsep"/>
-        <setting id="playback.preferred_quality" type="labelenum" label="Qualidade preferida (lista de fontes)" values="1080P|4K|720P|480P|Menor primeiro" default="1080P">
+        <setting id="playback.preferred_quality" type="labelenum" label="Qualidade preferida (lista de fontes)" values="1080P|4K|720P|480P|Menor primeiro" default="4K">
             <description>Ordena a lista de fontes pela qualidade mais próxima da preferida. Não afeta o Autoplay acima.</description>
         </setting>
 
@@ -100,10 +110,10 @@
         <setting id="autonext.source_type" type="labelenum" label="Tipo de fonte do próximo episódio" values="Igual ao Autoplay|direct|torrent|Qualquer" default="Igual ao Autoplay" visible="eq(-2,true)">
             <description>"Igual ao Autoplay" herda o tipo de fonte configurado acima.</description>
         </setting>
-        <setting id="next_episode.trigger_pct" type="slider" label="Exibir aviso do próximo episódio em (%)" default="95" range="70,5,95" option="int" visible="eq(-2,true)">
-            <description>Percentual do episódio atual para exibir o aviso do próximo episódio.</description>
+        <setting id="next_episode.trigger_seconds" type="slider" label="Exibir aviso do próximo episódio em (segundos)" default="110" range="30,10,180" option="int" visible="eq(-3,true)">
+            <description>Tempo restante para exibir o aviso do próximo episódio.</description>
         </setting>
-        <setting id="next_episode.timeout" type="slider" label="Tempo para cancelar o próximo episódio (segundos)" default="30" range="5,5,30" option="int" visible="eq(-3,true)">
+        <setting id="next_episode.timeout" type="slider" label="Tempo para cancelar o próximo episódio (segundos)" default="20" range="5,5,30" option="int" visible="eq(-4,true)">
             <description>Quantos segundos o usuário tem para cancelar antes do próximo episódio começar.</description>
         </setting>
 
@@ -124,14 +134,7 @@
     </category>
 
     <!-- ================ FONTES DE CONTEÚDO ================ -->
-    <category label="Fontes de Conteúdo">
-        
-        <setting label="[B]Providers Stremio[/B]" type="lsep"/>
-        <setting label="Adicione URLs de addons compatíveis com a API Stremio." type="lsep"/>
-        <setting label="Sem limite de quantidade · toggle individual · reordenação." type="lsep"/>
-        <setting type="action" label="Gerenciar Providers" action="RunPlugin(plugin://plugin.video.cineroom.lite/?action=open_provider_manager)" />
-
-        <setting type="sep"/>
+    <category label="Fontes Privadas">
 
         <setting label="[B]Links Privados (4K e curados)[/B]" type="lsep"/>
         <setting label="Fontes exclusivas via Cloudflare Worker protegido por chave." type="lsep"/>
@@ -150,104 +153,65 @@
     </category>
 
     <!-- ================ RECOMENDAÇÕES ================ -->
-    <category label="Recomendações">
-        <setting label="[B]Configurações Básicas[/B]" type="lsep"/>
-        
-        <setting id="min_progress" type="integer" label="Progresso mínimo para considerar assistido (%)" default="75">
-            <level>0</level>
-            <constraints><step>5</step><minimum>50</minimum><maximum>100</maximum></constraints>
-            <control type="slider" format="integer"/>
-            <description>Percentual mínimo de progresso para contar como assistido e usar nas recomendações.</description>
-        </setting>
-        <setting id="min_items" type="integer" label="Mínimo de itens no histórico" default="3">
-            <level>0</level>
-            <constraints><step>1</step><minimum>2</minimum><maximum>20</maximum></constraints>
-            <control type="slider" format="integer"/>
-            <description>Quantidade mínima de títulos assistidos para gerar recomendações personalizadas.</description>
-        </setting>
-        <setting id="min_rating" type="number" label="Nota mínima para recomendar" default="5.0">
-            <level>0</level>
-            <constraints><step>0.5</step><minimum>0.0</minimum><maximum>10.0</maximum></constraints>
-            <control type="slider" format="float"/>
-            <description>Apenas recomenda títulos com nota igual ou superior a este valor.</description>
-        </setting>
-        <setting id="recommendations_limit" type="integer" label="Limite de recomendações" default="50">
-            <level>0</level>
-            <constraints><step>5</step><minimum>10</minimum><maximum>200</maximum></constraints>
-            <control type="slider" format="integer"/>
-            <description>Número máximo de recomendações exibidas por categoria (Filmes/Séries).</description>
-        </setting>
+<category label="Recomendações">
+    <setting label="[B]Configurações Básicas[/B]" type="lsep"/>
 
-        <setting type="sep"/>
-        <setting label="[B]Algoritmo de Recomendação[/B]" type="lsep"/>
-        
-        <setting id="diversity_factor" type="number" label="Fator de diversidade" default="0.3">
-            <level>0</level>
-            <constraints><step>0.05</step><minimum>0.0</minimum><maximum>1.0</maximum></constraints>
-            <control type="slider" format="float"/>
-            <description>0 = baseado em similaridade. 1 = máxima diversidade. Valores altos trazem mais variedade.</description>
-        </setting>
-        <setting id="prioritize_unwatched" type="bool" label="Priorizar títulos não assistidos" default="true">
-            <level>0</level>
-            <control type="toggle"/>
-            <description>Prioriza recomendações de títulos que você ainda não assistiu.</description>
-        </setting>
-        <setting id="include_collections" type="bool" label="Incluir coleções relacionadas" default="true">
-            <level>0</level>
-            <control type="toggle"/>
-            <description>Ao assistir um filme de franquia, recomenda outros filmes da mesma coleção.</description>
-        </setting>
+    <setting id="min_progress" type="slider" label="Progresso mínimo para considerar assistido (%)" default="75" range="50,5,100" option="int">
+        <description>Percentual mínimo de progresso para contar como assistido e usar nas recomendações.</description>
+    </setting>
+    <setting id="min_items" type="slider" label="Mínimo de itens no histórico" default="3" range="2,1,20" option="int">
+        <description>Quantidade mínima de títulos assistidos para gerar recomendações personalizadas.</description>
+    </setting>
+    <setting id="min_rating" type="slider" label="Nota mínima para recomendar" default="5.0" range="0.0,0.5,10.0">
+        <description>Apenas recomenda títulos com nota igual ou superior a este valor.</description>
+    </setting>
+    <setting id="recommendations_limit" type="slider" label="Limite de recomendações" default="50" range="10,5,200" option="int">
+        <description>Número máximo de recomendações exibidas por categoria (Filmes/Séries).</description>
+    </setting>
 
-        <setting type="sep"/>
-        <setting label="[B]Pesos do Algoritmo[/B]" type="lsep"/>
-        
-        <setting id="weight_genres" type="number" label="Peso dos Gêneros" default="2.0">
-            <level>1</level>
-            <constraints><step>0.1</step><minimum>0.5</minimum><maximum>5.0</maximum></constraints>
-            <control type="slider" format="float"/>
-            <description>Importância dos gêneros em comum.</description>
-        </setting>
-        <setting id="weight_keywords" type="number" label="Peso das Palavras-chave" default="1.5">
-            <level>1</level>
-            <constraints><step>0.1</step><minimum>0.5</minimum><maximum>5.0</maximum></constraints>
-            <control type="slider" format="float"/>
-            <description>Importância de temas similares (ex: "vingança", "zumbi").</description>
-        </setting>
-        <setting id="weight_rating" type="number" label="Peso da Avaliação" default="3.0">
-            <level>1</level>
-            <constraints><step>0.1</step><minimum>0.5</minimum><maximum>5.0</maximum></constraints>
-            <control type="slider" format="float"/>
-            <description>Importância da nota/avaliação dos títulos.</description>
-        </setting>
-        <setting id="weight_collection" type="number" label="Peso das Coleções/Franquias" default="4.0">
-            <level>1</level>
-            <constraints><step>0.1</step><minimum>0.5</minimum><maximum>5.0</maximum></constraints>
-            <control type="slider" format="float"/>
-            <description>Importância de recomendar continuações de franquias.</description>
-        </setting>
-        <setting id="weight_year" type="number" label="Peso do Ano de Lançamento" default="1.5">
-            <level>1</level>
-            <constraints><step>0.1</step><minimum>0.5</minimum><maximum>5.0</maximum></constraints>
-            <control type="slider" format="float"/>
-            <description>Importância de recomendar títulos de anos similares.</description>
-        </setting>
+    <setting type="sep"/>
+    <setting label="[B]Algoritmo de Recomendação[/B]" type="lsep"/>
 
-        <setting type="sep"/>
-        <setting label="[B]Filtros Adicionais[/B]" type="lsep"/>
+    <setting id="diversity_factor" type="slider" label="Fator de diversidade" default="0.3" range="0.0,0.05,1.0">
+        <description>0 = baseado em similaridade. 1 = máxima diversidade. Valores altos trazem mais variedade.</description>
+    </setting>
+    <setting id="prioritize_unwatched" type="bool" label="Priorizar títulos não assistidos" default="true">
+        <description>Prioriza recomendações de títulos que você ainda não assistiu.</description>
+    </setting>
+    <setting id="include_collections" type="bool" label="Incluir coleções relacionadas" default="true">
+        <description>Ao assistir um filme de franquia, recomenda outros filmes da mesma coleção.</description>
+    </setting>
 
-        <setting id="filter_year_range" type="integer" label="Margem de anos similares" default="3">
-            <level>0</level>
-            <constraints><step>1</step><minimum>1</minimum><maximum>10</maximum></constraints>
-            <control type="slider" format="integer"/>
-            <description>Quantos anos de diferença para considerar "época similar".</description>
-        </setting>
-        <setting id="exclude_watched_collections" type="bool" label="Excluir coleções já concluídas" default="false">
-            <level>0</level>
-            <control type="toggle"/>
-            <description>Não recomenda filmes de coleções que você já assistiu completamente.</description>
-        </setting>
+    <setting type="sep"/>
+    <setting label="[B]Pesos do Algoritmo[/B]" type="lsep"/>
 
-    </category>
+    <setting id="weight_genres" type="slider" label="Peso dos Gêneros" default="2.0" range="0.5,0.1,5.0">
+        <description>Importância dos gêneros em comum.</description>
+    </setting>
+    <setting id="weight_keywords" type="slider" label="Peso das Palavras-chave" default="1.5" range="0.5,0.1,5.0">
+        <description>Importância de temas similares (ex: "vingança", "zumbi").</description>
+    </setting>
+    <setting id="weight_rating" type="slider" label="Peso da Avaliação" default="3.0" range="0.5,0.1,5.0">
+        <description>Importância da nota/avaliação dos títulos.</description>
+    </setting>
+    <setting id="weight_collection" type="slider" label="Peso das Coleções/Franquias" default="4.0" range="0.5,0.1,5.0">
+        <description>Importância de recomendar continuações de franquias.</description>
+    </setting>
+    <setting id="weight_year" type="slider" label="Peso do Ano de Lançamento" default="1.5" range="0.5,0.1,5.0">
+        <description>Importância de recomendar títulos de anos similares.</description>
+    </setting>
+
+    <setting type="sep"/>
+    <setting label="[B]Filtros Adicionais[/B]" type="lsep"/>
+
+    <setting id="filter_year_range" type="slider" label="Margem de anos similares" default="3" range="1,1,10" option="int">
+        <description>Quantos anos de diferença para considerar "época similar".</description>
+    </setting>
+    <setting id="exclude_watched_collections" type="bool" label="Excluir coleções já concluídas" default="false">
+        <description>Não recomenda filmes de coleções que você já assistiu completamente.</description>
+    </setting>
+
+</category>
 
     <!-- ================ BIBLIOTECA ================ -->
     <category label="Biblioteca">
@@ -341,12 +305,12 @@
     <category label="Sistema">
         
         <setting label="[B]Desempenho e Memória[/B]" type="lsep"/>
-        <setting id="lightweight_mode" type="bool" label="Modo Leve (dispositivos fracos)" default="false" />
+        <setting id="lightweight_mode" type="bool" label="Modo Leve (dispositivos fracos)" default="true" />
         <setting id="db.cache_size" type="labelenum" label="Cache SQLite (RAM)" values="4 MB (padrão)|8 MB|16 MB|32 MB|64 MB|96 MB" default="4 MB (padrão)">
             <description>Memória reservada para o banco de dados local. Recomendado: 4 MB para caixas com menos de 2 GB de RAM.</description>
         </setting>
-        <setting id="perf.modal_close_delay" type="slider" label="Delay fechar modal (ms)" default="100" range="50,100,2500" option="int"/>
-        <setting id="perf.nav_activate_delay" type="slider" label="Delay navegação (ms)" default="100" range="50,100,2500" option="int"/>
+        <setting id="perf.modal_close_delay" type="slider" label="Delay fechar modal (ms)" default="50" range="50,100,2500" option="int"/>
+        <setting id="perf.nav_activate_delay" type="slider" label="Delay navegação (ms)" default="50" range="50,100,2500" option="int"/>
 
         <setting type="sep"/>
 
@@ -373,7 +337,7 @@
         <setting type="sep"/>
 
         <setting label="[B]Atualizações do Addon[/B]" type="lsep"/>
-        <setting id="update_interval" type="labelenum" label="Verificar novo conteúdo" values="A cada 5 horas|A cada 12 horas|A cada 24 horas (Diariamente)" default="A cada 12 horas" />
+        <setting id="update_interval" type="labelenum" label="Verificar novo conteúdo" values="A cada 5 horas|A cada 12 horas|A cada 24 horas (Diariamente)" default="A cada 5 horas" />
         <setting id="last_update_check" type="text" label="[internal] Última data de verificação" visible="false" />
 
         <!-- Variáveis Ocultas de Sistema -->

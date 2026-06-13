@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 """
 Scraper para Starck Filmes
-Suporta 3 tipos de página:
-  1. Filme            → <div class="post-buttons"> com <span class="btn-down">
-  2. Série completa   → <div class="post-buttons"> com <span class="btn-down">  (ex: ONE PIECE T2)
-  3. Série episódios  → <div class="epsodios"> com <p><strong>EPISÓDIO XX:</strong><a data-u="...">
+...
 """
 import re
+import time
 import xbmc
 import requests
 from bs4 import BeautifulSoup
@@ -21,6 +19,82 @@ HEADERS    = {
         'Chrome/120.0.0.0 Safari/537.36'
     )
 }
+
+# ---------------------------------------------------------------------------
+# Sessão compartilhada + bypass do gate de "verificação"
+# ---------------------------------------------------------------------------
+
+_session = None
+
+
+def _get_session():
+    global _session
+    if _session is None:
+        _session = requests.Session()
+        _session.headers.update(HEADERS)
+    return _session
+
+
+def _eh_pagina_verificacao(html):
+    """Detecta a página fake de 'Verificação de Segurança'."""
+    return ('id="verifyBox"' in html) or ('Verificação de Segurança' in html)
+
+
+def _resolver_verificacao(session, url):
+    """
+    Replica o handshake da página de verificação:
+      1. POST /current-address com {"timeMonit": "..."}
+      2. GET na mesma URL com ?verified=1
+    Retorna a resposta final (esperançosamente a página real).
+    """
+    try:
+        session.post(
+            BASE_URL + "/current-address",
+            json={"timeMonit": "14542588"},
+            timeout=10
+        )
+    except Exception as e:
+        xbmc.log(f"[Starck] Erro no POST de verificação: {e}", xbmc.LOGDEBUG)
+
+    sep = '&' if '?' in url else '?'
+    url_verificado = f"{url}{sep}verified=1"
+
+    try:
+        r = session.get(url_verificado, timeout=10)
+        r.raise_for_status()
+        return r
+    except Exception as e:
+        xbmc.log(f"[Starck] Erro ao revalidar após verificação: {e}", xbmc.LOGERROR)
+        return None
+
+
+def _get(url, timeout=10, max_tentativas=2):
+    """
+    Substitui requests.get(url, headers=HEADERS).
+    Mantém sessão/cookies e resolve o gate de verificação se aparecer.
+    """
+    session = _get_session()
+    try:
+        r = session.get(url, timeout=timeout)
+        r.raise_for_status()
+    except Exception as e:
+        xbmc.log(f"[Starck] Erro na request {url}: {e}", xbmc.LOGERROR)
+        return None
+
+    tentativas = 0
+    while _eh_pagina_verificacao(r.text) and tentativas < max_tentativas:
+        xbmc.log("[Starck] Gate de verificação detectado, resolvendo...", xbmc.LOGINFO)
+        nova = _resolver_verificacao(session, url)
+        if nova is None:
+            return None
+        r = nova
+        tentativas += 1
+
+    if _eh_pagina_verificacao(r.text):
+        xbmc.log("[Starck] Não foi possível passar pela verificação.", xbmc.LOGERROR)
+        return None
+
+    return r
 
 
 # ---------------------------------------------------------------------------
@@ -44,8 +118,6 @@ def unshuffle_string(shuffled):
     except Exception as e:
         xbmc.log(f"[Starck] unshuffle erro: {e}", xbmc.LOGERROR)
         return None
-
-
 
 # ---------------------------------------------------------------------------
 # Helpers de validação
@@ -250,11 +322,8 @@ def _parse_btn_down(btn, qualidade_fallback='HD', tamanho_fallback='N/A'):
 
 def _buscar_paginas(query, max_results=5, titulo_busca=''):
     search_url = SEARCH_URL.format(query=requests.utils.quote(query))
-    try:
-        r = requests.get(search_url, headers=HEADERS, timeout=10)
-        r.raise_for_status()
-    except Exception as e:
-        xbmc.log(f"[Starck] Erro na busca: {e}", xbmc.LOGERROR)
+    r = _get(search_url)
+    if r is None:
         return []
 
     soup  = BeautifulSoup(r.text, 'html.parser')
@@ -297,13 +366,10 @@ def _buscar_paginas(query, max_results=5, titulo_busca=''):
 
 
 def _fetch_pagina(url):
-    try:
-        r = requests.get(url, headers=HEADERS, timeout=10)
-        r.raise_for_status()
-        return BeautifulSoup(r.text, 'html.parser')
-    except Exception as e:
-        xbmc.log(f"[Starck] Erro ao carregar {url}: {e}", xbmc.LOGERROR)
+    r = _get(url)
+    if r is None:
         return None
+    return BeautifulSoup(r.text, 'html.parser')
 
 
 def _ano_ok(soup, ano_esperado):
