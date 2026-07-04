@@ -5,26 +5,24 @@
     <!--             PROVIDERS — LINK DIRETO            -->
     <!-- ══════════════════════════════════════════════ -->
     <category label="Link Direto">
-        
-        <setting id="provider.netcine.enabled"   type="bool"   label="NetCine"                 default="true"/>
-        <setting id="provider.netcine.priority"  type="slider" label="  → Prioridade NetCine"  default="2" range="1,1,10" option="int" enable="eq(-1,true)"/>
 
-        <setting id="provider.animezey.enabled"  type="bool"   label="AnimeZey"              default="true"/>
-        <setting id="provider.animezey.priority" type="slider" label="  → Prioridade AnimeZey" default="3" range="1,1,10" option="int" enable="eq(-1,true)"/>
+        <setting label="DUBLADO" type="lsep"/>
+        <setting id="provider.netcine.enabled"   type="bool"   label="NetCine"                            default="true"/>
+        <setting id="provider.animezey.enabled"  type="bool"   label="AnimeZey"                           default="true"/>
+        <setting id="provider.fenixflix.enabled"  type="bool"   label="FENIXFLIX"                         default="true"/>
+        <setting id="provider.froststream.enabled"   type="bool"   label="FrostStream"                    default="true"/>
+        <setting id="provider.popplay.enabled"   type="bool"   label="PopPlay"                            default="true"/>
+        <setting id="provider.anitube.enabled"   type="bool"   label="AniTube"                            default="false"/>
+        <setting id="provider.cotonet.enabled"   type="bool"   label="Cotonet (Tuga)"                     default="false"/>
+        <setting id="provider.goflixy.enabled"  type="bool"   label="GoFlixy ([COLOR red]OFF[/COLOR])"    default="false"/>
 
-        <setting id="provider.fenixflix.enabled"  type="bool"   label="FENIXFLIX"                default="true"/>
-        <setting id="provider.fenixflix.priority" type="slider" label="  → Prioridade FENIXFLIX" default="5" range="1,1,10" option="int" enable="eq(-1,true)"/>
 
-        <setting id="provider.froststream.enabled"   type="bool"   label="FrostStream"                 default="true"/>
-        <setting id="provider.froststream.priority"  type="slider" label="  → Prioridade FrostStream"  default="4" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        <setting id="provider.nebulastreams.enabled"   type="bool"   label="NebulaStreams (Legendado)"                 default="false"/>
-        <setting id="provider.nebulastreams.priority"  type="slider" label="  → Prioridade NebulaStreams"  default="5" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        <setting id="provider.goflixy.enabled"  type="bool"   label="GoFlixy ([COLOR red]Desativado[/COLOR])"              default="false"/>
-        <setting id="provider.goflixy.priority" type="slider" label="  → Prioridade GoFlixy" default="3" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        
+        <setting label="LEGENDADO" type="lsep"/>
+        <setting id="provider.nebulastreams.enabled"   type="bool"   label="NebulaStreams"                default="false"/>
+        <setting id="provider.flixstreams.enabled"   type="bool"   label="FlixStreams"                    default="false"/>
+        <setting id="provider.penguplay.enabled"   type="bool"   label="PenguPlay"                        default="false"/>
+        <setting id="provider.notorrent.enabled"   type="bool"   label="NOTorrent"                        default="false"/>
+        <setting id="provider.dahmermovies.enabled"   type="bool"   label="DahmerMovies"                  default="false"/>
 
     </category>
 
@@ -33,32 +31,19 @@
     <!-- ══════════════════════════════════════════════ -->
     <category label="Torrent">
 
-        <setting id="provider.starckfilmes.enabled"  type="bool"   label="StarckFilmes"      default="true"/>
-        <setting id="provider.starckfilmes.priority" type="slider" label="  → Prioridade StarckFilmes" default="1" range="1,1,10" option="int" enable="eq(-1,true)"/>
+        <setting label="DUBLADO" type="lsep"/>
+        <setting id="provider.starckfilmes.enabled"  type="bool"   label="StarckFilmes"                               default="true"/>
+        <setting id="provider.brazuca.enabled"   type="bool"   label="Brazuca"                                        default="true"/>
+        <setting id="provider.mico-leao.enabled"  type="bool"   label="Mico-Leão"                                     default="false"/>
+        <setting id="provider.apachetorrent.enabled"  type="bool"   label="ApacheTorrent"                             default="false"/>
+        <setting id="provider.comandotop.enabled"  type="bool"   label="ComandoTop ([COLOR red]OFF[/COLOR])"          default="false"/>
+        <setting id="provider.filmesmaster.enabled"  type="bool"   label="Filmesmaster ([COLOR red]OFF[/COLOR])"      default="false"/>
+        <setting id="provider.cmd1.enabled"  type="bool"   label="CMD1 ([COLOR red]OFF[/COLOR])"                      default="false"/>
 
-        <setting id="provider.brazuca.enabled"   type="bool"   label="Brazuca"               default="true"/>
-        <setting id="provider.brazuca.priority"  type="slider" label="  → Prioridade Brazuca" default="9" range="1,1,10" option="int" enable="eq(-1,true)"/>
 
-        <setting id="provider.mico-leao.enabled"  type="bool"   label="Mico-Leão"            default="false"/>
-        <setting id="provider.mico-leao.priority" type="slider" label="  → Prioridade Mico-Leão" default="6" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        <setting id="provider.kod.enabled" type="bool" label="KOD (Legendado)" default="false"/>
-        <setting id="provider.kod.priority" type="slider" label=" → Prioridade KOD" default="2" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
+        <setting label="LEGENDADO" type="lsep"/>
+        <setting id="provider.kod.enabled" type="bool" label="KOD"                           default="false"/>
         <setting id="provider.torrentio.enabled"  type="bool"   label="Torrentio"            default="false"/>
-        <setting id="provider.torrentio.priority" type="slider" label="  → Prioridade Torrentio" default="9" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        <setting id="provider.apachetorrent.enabled"  type="bool"   label="ApacheTorrent"    default="false"/>
-        <setting id="provider.apachetorrent.priority" type="slider" label="  → Prioridade ApacheTorrent" default="9" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        <setting id="provider.comandotop.enabled"  type="bool"   label="ComandoTop ([COLOR red]Desativado[/COLOR])"          default="false"/>
-        <setting id="provider.comandotop.priority" type="slider" label="  → Prioridade ComandoTop" default="9" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        <setting id="provider.filmesmaster.enabled"  type="bool"   label="Filmesmaster ([COLOR red]Desativado[/COLOR])"      default="false"/>
-        <setting id="provider.filmesmaster.priority" type="slider" label="  → Prioridade Filmesmaster" default="9" range="1,1,10" option="int" enable="eq(-1,true)"/>
-
-        <setting id="provider.cmd1.enabled"  type="bool"   label="CMD1 ([COLOR red]Desativado[/COLOR])"                      default="false"/>
-        <setting id="provider.cmd1.priority" type="slider" label="  → Prioridade CMD1"        default="10" range="1,1,10" option="int" enable="eq(-1,true)"/>
     </category>
 
     <!-- ══════════════════════════════════════════════ -->
@@ -72,6 +57,9 @@
         <setting label="=== Cache ===" type="lsep"/>
         <setting id="scraper.cache.enabled"  type="bool"   label="Usar cache"                  default="true"/>
         <setting id="scraper.cache.duration" type="slider" label="Duração do cache (segundos)" default="3600" range="300,300,86400" option="int" enable="eq(-1,true)"/>
+
+        <setting label="=== Diagnóstico ===" type="lsep"/>
+        <setting id="providers.health_check" type="action" label="Testar providers ativos" action="RunScript(script.cineroom.burst,health_check)"/>
     </category>
 
 </settings>

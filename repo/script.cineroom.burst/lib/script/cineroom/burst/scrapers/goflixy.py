@@ -32,6 +32,9 @@ _session.headers.update({
     'Referer':         BASE_URL + '/',
 })
 
+# Timeout por request, configurável via settings.xml (scraper.timeout).
+_TIMEOUT = 15
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -93,7 +96,7 @@ def _search(query, want_serie=False):
     """
     path_keyword = '/serie/' if want_serie else '/filme/'
     try:
-        r = _session.get(f'{BASE_URL}/buscar?q={quote_plus(query)}', timeout=10)
+        r = _session.get(f'{BASE_URL}/buscar?q={quote_plus(query)}', timeout=_TIMEOUT)
         if not r.ok:
             return None
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -141,7 +144,7 @@ def _resolve_fembed(share_id, lang, cvalue=''):
         if cvalue:
             page = f'{FEMBED}/e/{share_id}/{cvalue}'
 
-        r0 = _session.get(page, timeout=10)
+        r0 = _session.get(page, timeout=_TIMEOUT)
         if not r0.ok:
             _log(f'fembed página falhou: {r0.status_code}', xbmc.LOGWARNING)
             return None
@@ -167,7 +170,7 @@ def _resolve_fembed(share_id, lang, cvalue=''):
             data=pdata,
             headers={'Referer': page},
             cookies=cookies,
-            timeout=10,
+            timeout=_TIMEOUT,
         )
         if not r1.ok:
             _log(f'fembed API falhou ({lang}): {r1.status_code}', xbmc.LOGWARNING)
@@ -189,7 +192,7 @@ def _resolve_fembed(share_id, lang, cvalue=''):
             getads,
             headers={'Referer': page, 'X-Requested-With': 'XMLHttpRequest'},
             cookies=cookies,
-            timeout=10,
+            timeout=_TIMEOUT,
         )
         if not r2.ok:
             _log(f'fembed: getAds request falhou ({lang})', xbmc.LOGWARNING)
@@ -394,7 +397,7 @@ def _resolve_bysevepoin(byse_url):
             'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
         }
 
-        r = _session.get(api_url, headers=headers, timeout=12)
+        r = _session.get(api_url, headers=headers, timeout=_TIMEOUT)
         if not r.ok:
             _log(f'bysevepoin API falhou: {r.status_code} — {api_url}', xbmc.LOGWARNING)
             return ''
@@ -465,7 +468,7 @@ def _build_stream(stream_url, parsed_player):
 def _get_movie_fembed_id(page_url):
     """Retorna o share_id do fembed a partir da página do filme."""
     try:
-        r = _session.get(page_url, timeout=10)
+        r = _session.get(page_url, timeout=_TIMEOUT)
         if not r.ok:
             return None
         iframe = BeautifulSoup(r.text, 'html.parser').find('iframe', id='player')
@@ -487,7 +490,7 @@ def _get_episode_fembed(page_url, season, episode):
     Retorna (share_id, cvalue, has_dub, has_leg) ou (None, None, False, False).
     """
     try:
-        r = _session.get(page_url, timeout=10)
+        r = _session.get(page_url, timeout=_TIMEOUT)
         if not r.ok:
             return None, None, False, False
 
@@ -582,7 +585,11 @@ def _build_sources(pairs, media_type, season=None, episode=None):
 # Entry point (padrão Burst)
 # ---------------------------------------------------------------------------
 
-def scrape(provider_url, item_data, season=None, episode=None):
+def scrape(provider_url, item_data, season=None, episode=None, timeout=None):
+    global _TIMEOUT
+    if timeout:
+        _TIMEOUT = timeout
+
     _session.cookies.clear()
     media_type = item_data.get('media_type', 'movie')
 

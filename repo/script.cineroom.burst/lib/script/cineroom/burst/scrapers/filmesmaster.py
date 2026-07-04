@@ -13,8 +13,9 @@ class FilmesMasterScraper:
     Scraper otimizado para o Filmes Master.
     """
     
-    def __init__(self):
+    def __init__(self, timeout=15):
         self.base_url = get_url('filmesmaster', fallback='https://filmesmaster.org')
+        self.timeout = timeout
         self.headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
@@ -128,7 +129,7 @@ class FilmesMasterScraper:
         xbmc.log(f"[filmesmaster] Buscando: '{query}' -> {search_url}", xbmc.LOGDEBUG)
         
         try:
-            response = requests.get(search_url, headers=self.headers, timeout=15)
+            response = requests.get(search_url, headers=self.headers, timeout=self.timeout)
             if response.status_code == 200:
                 response.encoding = 'utf-8'
                 return response.content
@@ -399,7 +400,7 @@ class FilmesMasterScraper:
             
             # Acessa o post
             try:
-                response = requests.get(post_url, headers=self.headers, timeout=15)
+                response = requests.get(post_url, headers=self.headers, timeout=self.timeout)
                 if response.status_code != 200:
                     continue
                 
@@ -424,6 +425,6 @@ class FilmesMasterScraper:
         return []
 
 # Função de compatibilidade
-def scrape_filmesmaster(provider_url, item_data, season=None, episode=None):
-    scraper = FilmesMasterScraper()
+def scrape_filmesmaster(provider_url, item_data, season=None, episode=None, timeout=None):
+    scraper = FilmesMasterScraper(timeout=timeout or 15)
     return scraper.scrape(provider_url, item_data, season, episode)

@@ -34,12 +34,12 @@
         <!-- LOGO CINEROOM (canto superior esquerdo) -->
         <!-- ================================ -->
         <control type="image">
-            <left>-80</left>
-            <top>0</top>
-            <width>220</width>
-            <height>50</height>
+            <right>20</right>
+            <top>-10</top>
+            <width>150</width>
+            <height>120</height>
             <aspectratio aligny="center">keep</aspectratio>
-            <texture>logo_cineroom.png</texture>
+            <texture>logo.png</texture>
             <colordiffuse>FFFFFFFF</colordiffuse>
         </control>
         <!-- ================================ -->
@@ -56,27 +56,40 @@
             <texture diffuse="cineroom_diffuse/poster-50.png">$INFO[Window.Property(poster)]</texture>
         </control>
 
+        <!-- Contador de fontes exibidas -->
+        <control type="label" id="1600">
+            <right>200</right>
+            <top>20</top>
+            <width>400</width>
+            <height>30</height>
+            <font>font12</font>
+            <textcolor>FF999999</textcolor>
+            <align>right</align>
+            <aligny>center</aligny>
+            <label>$INFO[Window.Property(sources.counter_label)]</label>
+        </control>
+
         <!-- ================================ -->
         <!-- BOTÕES DE FILTRO -->
         <!-- ================================ -->
 
-                <control type="group">
-            <left>300</left>
+        <control type="group">
+            <left>0</left>
             <top>10</top>
  
             <!-- Botão Qualidade -->
             <control type="button" id="1300">
-                <left>100</left><top>0</top><width>240</width><height>50</height>
+                <left>150</left><top>0</top><width>240</width><height>50</height>
                 <font>font14</font><textcolor>white</textcolor><align>center</align>
                 <texturenofocus>common/umbbutton5.png</texturenofocus>
                 <texturefocus colordiffuse="FF3399FF">common/umbbutton5.png</texturefocus>
                 <label>Qualidade</label>
-                <ondown>1000</ondown><onleft>1500</onleft><onright>1400</onright>
+                <ondown>1000</ondown><onleft>1700</onleft><onright>1400</onright>
             </control>
  
             <!-- Botão Provedor -->
             <control type="button" id="1400">
-                <left>355</left><top>0</top><width>240</width><height>50</height>
+                <left>405</left><top>0</top><width>240</width><height>50</height>
                 <font>font14</font><textcolor>white</textcolor><align>center</align>
                 <texturenofocus>common/umbbutton5.png</texturenofocus>
                 <texturefocus colordiffuse="FF00CC66">common/umbbutton5.png</texturefocus>
@@ -86,12 +99,22 @@
  
             <!-- Botão Idioma -->
             <control type="button" id="1500">
-                <left>610</left><top>0</top><width>240</width><height>50</height>
+                <left>660</left><top>0</top><width>240</width><height>50</height>
                 <font>font14</font><textcolor>white</textcolor><align>center</align>
                 <texturenofocus>common/umbbutton5.png</texturenofocus>
                 <texturefocus colordiffuse="FFCC66FF">common/umbbutton5.png</texturefocus>
                 <label>Idioma</label>
-                <ondown>1000</ondown><onleft>1400</onleft><onright>1300</onright>
+                <ondown>1000</ondown><onleft>1400</onleft><onright>1700</onright>
+            </control>
+
+            <!-- Botão Tipo (Torrent / Direto / Todos) -->
+            <control type="button" id="1700">
+                <left>915</left><top>0</top><width>240</width><height>50</height>
+                <font>font14</font><textcolor>white</textcolor><align>center</align>
+                <texturenofocus>common/umbbutton5.png</texturenofocus>
+                <texturefocus colordiffuse="FFFF9900">common/umbbutton5.png</texturefocus>
+                <label>Tipo</label>
+                <ondown>1000</ondown><onleft>1500</onleft><onright>1300</onright>
             </control>
         </control>
 
@@ -117,13 +140,7 @@
                 <control type="image">
                     <left>0</left><top>10</top>
                     <width>1300</width><height>140</height>
-                    <texture colordiffuse="FF1F2020" border="30">circle.png</texture>
-                </control>
-
-                <control type="image">
-                    <left>0</left><top>10</top>
-                    <width>220</width><height>140</height>
-                    <texture colordiffuse="FF252626" border="30">left-circle.png</texture>
+                    <texture colordiffuse="FF1F2020" border="30">panel.png</texture>
                 </control>
 
                 <!-- Ícone de Qualidade (badge) -->
@@ -215,14 +232,9 @@
                 <control type="image">
                     <left>0</left><top>10</top>
                     <width>1300</width><height>140</height>
-                    <texture colordiffuse="FF003366" border="30">circle.png</texture>
+                    <texture colordiffuse="FF003366" border="30">panel.png</texture>
                 </control>
 
-                <control type="image">
-                    <left>0</left><top>10</top>
-                    <width>220</width><height>140</height>
-                    <texture colordiffuse="FF252626" border="30">left-circle.png</texture>
-                </control>
                 
                 <!-- Ícone de Qualidade (badge) -->
                 <control type="image">

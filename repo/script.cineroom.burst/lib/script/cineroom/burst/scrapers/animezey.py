@@ -13,7 +13,7 @@ from .utils import guess_quality_from_name, get_anime_search_codes, format_size,
 
 
 class ScraperConfig:
-    REQUEST_TIMEOUT = 20
+    REQUEST_TIMEOUT = 15  # sobrescrito em runtime por scrape() a partir das settings
     MAX_RETRIES     = 2
     MAX_RESULTS     = 2
 
@@ -440,21 +440,39 @@ class AnimeZeyScraper:
         fn_n    = self._normalize_fn(filename)
 
         if not title_n:
-            return False
+           return False
 
-        # Se o filename tem SxxExx, o subtítulo entre o título e o código
-        # é parte do nome da série — relaxa o after_ok
         has_sxey = bool(re.search(r's\d{2}e\d{2}|\d+x\d{2}', fn_n))
 
         pattern = r'(?<![a-z0-9])' + re.escape(title_n) + r'(?=[^a-z0-9]|$)'
         for m in re.finditer(pattern, fn_n):
             after = fn_n[m.end():].strip()
+
             after_ok = (
                 not after
                 or self._TITLE_END_RE.match(after)
                 or re.match(r'^[\-\u2013\u2014]?\s*\d', after)
-                or has_sxey   # ← se o filename tem SxxExx, subtítulo entre título e código é ok
             )
+
+            # NOVO: só libera via has_sxey se o trecho entre o título e o
+            # SxxExx não tiver palavras de conteúdo (ex: "Desire")
+            if not after_ok and has_sxey:
+                sxey_m = re.search(r's\d{2}e\d{2}|\d+x\d{2}', after)
+                if sxey_m:
+                    between = after[:sxey_m.start()]
+                    between_words = [
+                        w for w in between.split()
+                        if not re.fullmatch(
+                            r'\d{4}|[a-z0-9]+(?:p|k)|bluray|bdrip|webrip|web|hdtv'
+                            r'|x264|x265|hevc|aac|mkv|mp4|avi|wmv|mov|hdr|sdr|remux'
+                            r'|dual|dub|dublado|leg|legendado|sub|pt[\-.]?br'
+                            r'|nf|netflix|hbo|max|hbomax|disney|amazon|prime'
+                            r'|copia|copy|sample|extras?',
+                            w, re.IGNORECASE
+                        )
+                    ]
+                    after_ok = not between_words
+
             if not after_ok:
                 continue
 
@@ -764,8 +782,10 @@ class AnimeZeyScraper:
         }
 
 
-def scrape(provider_url, item_data):
+def scrape(provider_url, item_data, timeout=None):
     try:
+        if timeout:
+            ScraperConfig.REQUEST_TIMEOUT = timeout
         return AnimeZeyScraper(provider_url, item_data).scrape()
     except Exception as e:
         xbmc.log(f"[animezey.scrape] ❌ Erro: {e}", xbmc.LOGERROR)

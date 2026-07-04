@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <addons>
-<addon id="plugin.video.cineroom.lite" version="2.1.0" name="Cineroom [COLOR gold]Lite[/COLOR]" provider-name="Gael">
+<addon id="plugin.video.cineroom.lite" version="2.1.2" name="Cineroom [COLOR gold]Lite[/COLOR]" provider-name="Gael">
   <requires>
     <import addon="xbmc.python" version="3.0.0"/>
     <import addon="script.module.requests"/>
-    <import addon="script.cineroom.burst" version="2.1.5" optional="true"/>
+    <import addon="script.cineroom.burst" version="2.1.7"/>
   </requires>
 
   <extension point="xbmc.python.pluginsource" library="main.py">
@@ -23,6 +23,7 @@
     <email>cineroom.ofc@gmail.com</email>
     <assets>
       <icon>resources/images/icon.png</icon>
+      <fanart>resources/images/fanart.png</fanart>
     </assets>
   </extension>
 </addon>
@@ -48,7 +49,7 @@
   </extension>
 </addon>
 <addon id="script.cineroom.burst" 
-       version="2.1.6" 
+       version="2.1.7" 
        name="Cineroom [COLOR cyan]Burst[/COLOR]" 
        provider-name="Gael">
   <requires>
@@ -59,9 +60,7 @@
   
   <extension point="xbmc.python.module" library="lib"/>
 
-  <extension point="xbmc.python.script" library="default.py">
-    <provides>executable</provides>
-  </extension>
+  <extension point="xbmc.python.script" library="default.py"></extension>
   
   <extension point="xbmc.addon.metadata">
     <summary lang="pt_BR">Módulo de scrapers para streaming</summary>

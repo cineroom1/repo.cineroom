@@ -24,14 +24,16 @@
             <colordiffuse>FFFFFFFF</colordiffuse>
         </control>
 
-        <!-- Overlay esquerdo -->
+
+        <!-- Overlay inferior -->
         <control type="image">
             <left>0</left>
             <top>0</top>
-            <width>1500</width>
+            <width>1920</width>
             <height>1080</height>
-            <texture>common/gradient_left.png</texture>
+            <texture>common/gradient_sidebar_cc.png</texture>
         </control>
+
 
         <!-- Overlay inferior -->
         <control type="image">
@@ -42,17 +44,6 @@
             <texture>common/gradient_bottom.png</texture>
         </control>
 
-        <!-- Clearlogo -->
-        <control type="image">
-            <left>45</left><top>25</top>
-            <width>600</width><height>250</height>
-            <align>left</align>
-            <aligny>center</aligny>
-            <aspectratio>keep</aspectratio>
-            <texture>$INFO[Window.Property(clearlogo)]</texture>
-            <visible>String.IsEqual(Window.Property(HasClearlogo),true)</visible>
-        </control>
-
         <!-- Data e hora do sistema -->
         <control type="group">
             <right>10</right>
@@ -61,7 +52,7 @@
             <height>40</height>
 
         <control type="label">
-            <left>37</left>
+            <right>0</right>
             <top>0</top>
             <width>280</width>
             <height>20</height>
@@ -72,9 +63,9 @@
         </control>
 
         <control type="label">
-            <left>0</left>
+            <right>0</right>
             <top>25</top>
-            <width>320</width>
+            <width>325</width>
             <height>35</height>
             <font>font10</font>
             <textcolor>66FFFFFF</textcolor>
@@ -96,13 +87,13 @@
         <!-- Área de informações do título -->
         <control type="group">
             <left>45</left>
-            <top>245</top>
+            <top>300</top>
             <width>1100</width>
             <height>200</height>
 
                     <!-- Título textual (fallback sem clearlogo) -->
             <control type="label">
-                <left>0</left><top>-30</top>
+                <left>0</left><top>-80</top>
                 <width>990</width><height>72</height>
                 <font>font52_title</font>
                 <textcolor>FFFFFFFF</textcolor>
@@ -111,7 +102,6 @@
                 <wrapmultiline>true</wrapmultiline>
                 <maxlines>2</maxlines>
                 <label>$INFO[Window.Property(title)]</label>
-                <visible>String.IsEqual(Window.Property(HasClearlogo),false)</visible>
             </control>
 
             <!-- Metadados -->
@@ -172,7 +162,7 @@
                     <label>$INFO[Window.Property(Genre.1.Label)]</label>
                     <font>font13</font><align>center</align><textoffsetx>20</textoffsetx>
                     <texturefocus border="8" colordiffuse="FFFFFFFF">panel.png</texturefocus>
-                    <texturenofocus border="22" colordiffuse="22FFFFFF">panel.png</texturenofocus>
+                    <texturenofocus border="22" colordiffuse="FF2A2A2A">panel.png</texturenofocus>
                     <textcolor>FFB3B3B3</textcolor><focusedcolor>FF000000</focusedcolor>
                 </control>
                 <control type="button" id="402">
@@ -181,7 +171,7 @@
                     <label>$INFO[Window.Property(Genre.2.Label)]</label>
                     <font>font13</font><align>center</align><textoffsetx>20</textoffsetx>
                     <texturefocus border="8" colordiffuse="FFFFFFFF">panel.png</texturefocus>
-                    <texturenofocus border="22" colordiffuse="22FFFFFF">panel.png</texturenofocus>
+                    <texturenofocus border="22" colordiffuse="FF2A2A2A">panel.png</texturenofocus>
                     <textcolor>FFB3B3B3</textcolor><focusedcolor>FF000000</focusedcolor>
                 </control>
                 <control type="button" id="403">
@@ -190,7 +180,7 @@
                     <label>$INFO[Window.Property(Genre.3.Label)]</label>
                     <font>font13</font><align>center</align><textoffsetx>20</textoffsetx>
                     <texturefocus border="8" colordiffuse="FFFFFFFF">panel.png</texturefocus>
-                    <texturenofocus border="22" colordiffuse="22FFFFFF">panel.png</texturenofocus>
+                    <texturenofocus border="22" colordiffuse="FF2A2A2A">panel.png</texturenofocus>
                     <textcolor>FFB3B3B3</textcolor><focusedcolor>FF000000</focusedcolor>
                 </control>
             </control>    
@@ -198,22 +188,24 @@
             <!-- Tagline -->
             <control type="label">
                 <left>0</left>
-                <top>215</top>
-                <width>1500</width>
+                <top>200</top>
+                <width>750</width>
                 <height>72</height>
                 <font>NotoSans-Regular.ttf</font>
                 <textcolor>FF909090</textcolor>
                 <shadowcolor>44000000</shadowcolor>
                 <label>[I]$INFO[Window.Property(tagline)][/I]</label>
+                <wrapmultiline>true</wrapmultiline>
+                <maxlines>2</maxlines>
                 <visible>True</visible>
             </control>
 
             <!-- Plot -->
             <control type="label">
                 <left>0</left>
-                <top>280</top>
+                <top>300</top>
                 <width>830</width>
-                <height>140</height>
+                <height>120</height>
                 <font>font12</font>
                 <textcolor>FFB0B0B0</textcolor>
                 <shadowcolor>44000000</shadowcolor>
@@ -272,7 +264,7 @@
             <left>12</left><top>0</top>
             <width>80</width><height>80</height>
             <label></label>
-            <texturenofocus border="0" colordiffuse="11FFFFFF">circle.png</texturenofocus>
+            <texturenofocus border="0" colordiffuse="FF2A2A2A">circle.png</texturenofocus>
             <texturefocus border="0" colordiffuse="44FFFFFF">circle.png</texturefocus>
             <onup>400</onup>
             <ondown>510</ondown>
@@ -314,7 +306,7 @@
             <left>12</left><top>0</top>
             <width>80</width><height>80</height>
             <label></label>
-            <texturenofocus border="0" colordiffuse="11FFFFFF">circle.png</texturenofocus>
+            <texturenofocus border="0" colordiffuse="FF2A2A2A">circle.png</texturenofocus>
             <texturefocus border="0" colordiffuse="44FFFFFF">circle.png</texturefocus>
             <onup>400</onup>
             <ondown>510</ondown>
@@ -356,7 +348,7 @@
         <left>12</left><top>0</top>
         <width>80</width><height>80</height>
         <label></label>
-        <texturenofocus border="0" colordiffuse="11FFFFFF">circle.png</texturenofocus>
+        <texturenofocus border="0" colordiffuse="FF2A2A2A">circle.png</texturenofocus>
         <texturefocus border="0" colordiffuse="44FFFFFF">circle.png</texturefocus>
         <onup>400</onup>
         <ondown>510</ondown>
@@ -399,7 +391,7 @@
             <left>12</left><top>0</top>
             <width>80</width><height>80</height>
             <label></label>
-            <texturenofocus border="0" colordiffuse="11F5C518">circle.png</texturenofocus>
+            <texturenofocus border="0" colordiffuse="FF2A2A2A">circle.png</texturenofocus>
             <texturefocus border="0" colordiffuse="44FFFFFF">circle.png</texturefocus>
             <onup>400</onup>
             <ondown>510</ondown>
@@ -434,11 +426,11 @@
             <left>12</left><top>0</top>
             <width>80</width><height>80</height>
             <label></label>
-            <texturenofocus border="0" colordiffuse="11FFFFFF">circle.png</texturenofocus>
+            <texturenofocus border="0" colordiffuse="FF2A2A2A">circle.png</texturenofocus>
             <texturefocus border="0" colordiffuse="44FFFFFF">circle.png</texturefocus>
             <onup>400</onup>
             <ondown>600</ondown>
-                        <onright>301</onright>
+                        <onright>510</onright>
             <onleft>620</onleft>
             <animation effect="zoom" start="100" end="110" center="auto" time="120">Focus</animation>
             <animation effect="zoom" start="110" end="100" center="auto" time="120">UnFocus</animation>
@@ -478,8 +470,8 @@
 
         <!-- ═══════════════ PROVEDORES ═══════════════ -->
         <control type="group" id="9000">
-            <top>850</top>
-            <left>50</left>
+            <top>720</top>
+            <left>1480</left>
             <height>250</height>
             <visible>String.IsEqual(Window.Property(HasProviders),true)</visible>
             <control type="label">
@@ -487,7 +479,7 @@
                 <height>20</height>
                 <font>font14</font>
                 <textcolor>FFCCCCCC</textcolor>
-                <label>[B]Assinaturas e Aluguéis disponíveis[/B]</label>
+                <label>[B]Provedores disponíveis[/B]</label>
                 <visible>!Control.HasFocus(510)</visible>
             </control>
             <control type="label">
@@ -495,7 +487,7 @@
                 <height>20</height>
                 <font>font14</font>
                 <textcolor>FFCCCCCC</textcolor>
-                <label>[B]Assinaturas e Aluguéis disponíveis | [/B]$INFO[Container(510).ListItem.Label]</label>
+                <label>[B]Provedores disponíveis[/B]</label>
                 <visible>Control.HasFocus(510)</visible>
             </control>
             <control type="panel" id="510">
@@ -505,24 +497,25 @@
                 <height>180</height>
                 <onup>301</onup>
                 <ondown>301</ondown>
+                <onleft>303</onleft>
                 <orientation>horizontal</orientation>
-                <itemlayout width="120" height="120">
+                <itemlayout width="110" height="110">
                     <control type="image">
                         <left>10</left><top>10</top>
-                        <width>100</width><height>100</height>
+                        <width>85</width><height>85</height>
                         <aspectratio>keep</aspectratio>
                         <texture>$INFO[ListItem.Art(thumb)]</texture>
                     </control>
                 </itemlayout>
-                <focusedlayout width="120" height="120">
+                <focusedlayout width="110" height="110">
                     <control type="image">
                         <left>5</left><top>5</top>
-                        <width>110</width><height>110</height>
+                        <width>95</width><height>95</height>
                         <texture>focus_provider.png</texture>
                     </control>
                     <control type="image">
                         <left>10</left><top>10</top>
-                        <width>100</width><height>100</height>
+                        <width>85</width><height>85</height>
                         <aspectratio>keep</aspectratio>
                         <texture>$INFO[ListItem.Art(thumb)]</texture>
                     </control>

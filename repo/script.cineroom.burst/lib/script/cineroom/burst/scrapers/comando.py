@@ -8,6 +8,9 @@ from bs4 import BeautifulSoup
 from .utils import extract_magnets
 from .scraper_config import get_url
 
+# Timeout por request, configurável via settings.xml (scraper.timeout).
+_TIMEOUT = 15
+
 def search_comando_top(query):
     base_url = get_url('comando', fallback='https://comandofilmestop.site')
     search_url = f"{base_url}/?s={urllib.parse.quote_plus(query)}"
@@ -18,7 +21,7 @@ def search_comando_top(query):
 
     try:
         xbmc.log(f"[comando.top] Buscando por: {query}", xbmc.LOGINFO)
-        response = requests.get(search_url, headers=headers, timeout=15)
+        response = requests.get(search_url, headers=headers, timeout=_TIMEOUT)
         if response.status_code == 200:
             return response.content
     except Exception as e:
@@ -54,7 +57,11 @@ def find_content_url(html, title, year, season=None, imdb_id=None):
     return None
 
 
-def scrape(provider_url, item_data, season=None, episode=None):
+def scrape(provider_url, item_data, season=None, episode=None, timeout=None):
+    global _TIMEOUT
+    if timeout:
+        _TIMEOUT = timeout
+
     title = item_data.get("title")
     year = item_data.get("year")
     media_type = item_data.get("media_type", "movie")
@@ -74,7 +81,7 @@ def scrape(provider_url, item_data, season=None, episode=None):
     if post_url:
         xbmc.log(f"[comando.top] Post validado encontrado: {post_url}", xbmc.LOGINFO)
         headers = {'User-Agent': 'Mozilla/5.0'}
-        response = requests.get(post_url, headers=headers, timeout=10)
+        response = requests.get(post_url, headers=headers, timeout=_TIMEOUT)
         # Extrai os magnets filtrando pelo episódio se houver
         return extract_magnets(response.content, title, target_episode=episode, season=season, media_type=media_type, provider_name="ComandoTop")
 

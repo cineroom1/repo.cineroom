@@ -13,112 +13,197 @@
             <animation effect="fade" start="0" end="100" time="250">WindowOpen</animation>
         </control>
 
-        <!-- Painel principal centralizado -->
+        <!-- Painel principal 700×840 centralizado -->
         <control type="group">
             <centerleft>50%</centerleft>
             <centertop>50%</centertop>
-            <width>520</width>
-            <height>620</height>
+            <width>700</width>
+            <height>840</height>
 
-            <!-- Fundo -->
+            <!-- Fundo do painel -->
             <control type="image">
                 <left>0</left>
                 <top>0</top>
-                <width>520</width>
-                <height>620</height>
+                <width>700</width>
+                <height>840</height>
                 <texture colordiffuse="FF1F2020">special://home/addons/plugin.video.cineroom.lite/resources/skins/Default/media/panel.png</texture>
                 <animation effect="fade" start="0" end="100" time="300">WindowOpen</animation>
             </control>
 
+            <!-- ═══════════════════════════════════════
+                 TOPO: Logo + Título centralizado
+                 ════════════════════════════════════════ -->
+
             <!-- Logo -->
             <control type="image">
-                <left>150</left>
-                <top>0</top>
-                <width>200</width>
-                <height>120</height>
+                <left>230</left>
+                <top>20</top>
+                <width>240</width>
+                <height>110</height>
                 <texture>special://home/addons/plugin.video.cineroom.lite/resources/skins/Default/media/logo.png</texture>
                 <aspectratio>keep</aspectratio>
                 <animation effect="fade" start="0" end="100" time="400" delay="100">WindowOpen</animation>
             </control>
 
-            <!-- Divisor -->
+            <!-- Título principal -->
+            <control type="label">
+                <left>20</left>
+                <top>110</top>
+                <width>660</width>
+                <height>36</height>
+                <font>font13</font>
+                <textcolor>FFF5A623</textcolor>
+                <shadowcolor>AA000000</shadowcolor>
+                <align>center</align>
+                <label>Contribua com o Cineroom Lite</label>
+            </control>
+
+            <!-- Divisor horizontal topo -->
             <control type="image">
                 <left>40</left>
-                <top>100</top>
-                <width>440</width>
+                <top>190</top>
+                <width>620</width>
                 <height>1</height>
                 <texture colordiffuse="44FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
             </control>
 
-            <!-- Texto -->
+            <!-- ═══════════════════════════════════════
+                 QR CODE
+                 ════════════════════════════════════════ -->
+
+            <!-- Subtítulo -->
             <control type="label">
                 <left>20</left>
-                <top>100</top>
-                <width>480</width>
-                <height>50</height>
-                <font>font12</font>
-                <textcolor>FFCCCCCC</textcolor>
+                <top>150</top>
+                <width>660</width>
+                <height>30</height>
+                <font>font13</font>
+                <textcolor>FFFFFFFF</textcolor>
+                <shadowcolor>AA000000</shadowcolor>
                 <align>center</align>
-                <label>Escaneie o QR Code com seu celular[CR]e contribua com qualquer valor via Pix</label>
+                <label>Como ajudar?</label>
             </control>
 
-            <!-- Moldura QR -->
+            <!-- QR Code centralizado -->
             <control type="image">
-                <left>104</left>
-                <top>172</top>
-                <width>312</width>
-                <height>312</height>
-                <texture colordiffuse="FFF5A623">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
-            </control>
-
-            <!-- QR -->
-            <control type="image">
-                <left>110</left>
-                <top>178</top>
-                <width>300</width>
-                <height>300</height>
+                <left>220</left>
+                <top>200</top>
+                <width>260</width>
+                <height>260</height>
                 <texture fallback="DefaultFolder.png">special://home/addons/plugin.video.cineroom.lite/resources/medias/icons/donate.jpg</texture>
                 <aspectratio>keep</aspectratio>
             </control>
 
-            <!-- Divisor inferior -->
-            <control type="image">
-                <left>40</left>
-                <top>494</top>
-                <width>440</width>
-                <height>1</height>
-                <texture colordiffuse="44FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            <!-- Legenda QR -->
+            <control type="label">
+                <left>70</left>
+                <top>480</top>
+                <width>580</width>
+                <height>150</height>
+                <font>font10</font>
+                <textcolor>FFAAAAAA</textcolor>
+                <align>center</align>
+                <label>Escaneie com o celular para contribuir via Pix[CR][COLOR yellow]Chave Pix[/COLOR]: cineroom.ofc@gmail.com[CR][COLOR cyan]Telegram[/COLOR]: t.me/Cineroom1</label>
             </control>
 
-            <!-- Mensagem -->
+            <!-- Divisor interno -->
+            <control type="image">
+                <left>70</left>
+                <top>580</top>
+                <width>560</width>
+                <height>1</height>
+                <texture colordiffuse="33FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            </control>
+
+            <!-- ═══════════════════════════════════════
+                 BLOCO DE METAS (Com fundo panel.png)
+                 ════════════════════════════════════════ -->
+            <control type="group">
+                <left>130</left>
+                <top>600</top>
+                <width>440</width>
+                <height>95</height>
+
+                <!-- Imagem de fundo da caixinha de metas -->
+                <control type="image">
+                    <left>0</left>
+                    <top>0</top>
+                    <width>440</width>
+                    <height>95</height>
+                    <texture colordiffuse="FF333333">panel.png</texture>
+                </control>
+
+                <!-- Texto da Meta -->
+                <control type="label" id="300">
+                    <left>0</left>
+                    <top>15</top>
+                    <width>440</width>
+                    <height>30</height>
+                    <font>font13</font>
+                    <textcolor>FFFFFFFF</textcolor>
+                    <shadowcolor>AA000000</shadowcolor>
+                    <align>center</align>
+                    <label>Meta: R$ 4.500,00</label>
+                </control>
+
+                <!-- Texto do Arrecadado -->
+                <control type="label" id="301">
+                    <left>0</left>
+                    <top>50</top>
+                    <width>440</width>
+                    <height>30</height>
+                    <font>font13</font>
+                    <textcolor>FFF5A623</textcolor>
+                    <shadowcolor>AA000000</shadowcolor>
+                    <align>center</align>
+                    <label>Arrecadado: R$ 0,00 (0%)</label>
+                </control>
+            </control>
+
+            <!-- Mensagem de agradecimento -->
             <control type="label">
-                <left>20</left>
-                <top>504</top>
-                <width>480</width>
-                <height>30</height>
+                <left>50</left>
+                <top>705</top>
+                <width>625</width>
+                <height>100</height>
                 <font>font12</font>
                 <textcolor>FFF5A623</textcolor>
                 <shadowcolor>AA000000</shadowcolor>
                 <align>center</align>
-                <label>Muito obrigado pelo seu apoio!</label>
+                <label>Pode levar algumas horas até o valor ser atualizado![CR]Obrigado por apoiar o Cineroom Lite [COLOR red]S2[/COLOR]</label>
             </control>
 
-            <!-- Botão -->
+            <!-- ═══════════════════════════════════════
+                 RODAPÉ: divisor + botão Fechar
+                 ════════════════════════════════════════ -->
+
+            <!-- Divisor rodapé -->
+            <control type="image">
+                <left>40</left>
+                <top>760</top>
+                <width>620</width>
+                <height>1</height>
+                <texture colordiffuse="44FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texture>
+            </control>
+
+            <!-- Botão Fechar centralizado no rodapé -->
             <control type="button" id="200">
-                <left>200</left>
-                <top>548</top>
+                <left>255</left>
+                <top>800</top>
                 <width>190</width>
-                <height>36</height>
-                <label>Fechar</label>
+                <height>40</height>
+                <label>      FECHAR</label>
                 <font>font12</font>
                 <textcolor>FFFFFFFF</textcolor>
                 <focusedcolor>FF000000</focusedcolor>
-                <texturefocus colordiffuse="FFF5A623">special://home/addons/script.module.pil/resources/media/transparent.png</texturefocus>
-                <texturenofocus colordiffuse="55FFFFFF">special://home/addons/script.module.pil/resources/media/transparent.png</texturenofocus>
+                <texturefocus colordiffuse="FFF5A623">common/umbbutton5.png</texturefocus>
+                <texturenofocus colordiffuse="55FFFFFF">common/umbbutton5.png</texturenofocus>
                 <aligny>center</aligny>
+                <onclick>Close</onclick>
             </control>
 
         </control>
+        <!-- fim painel principal -->
 
     </controls>
 </window>

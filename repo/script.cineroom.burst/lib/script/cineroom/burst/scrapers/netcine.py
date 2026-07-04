@@ -32,6 +32,11 @@ _session.headers.update({
     'Referer': ORIGINAL_BASE + '/',
 })
 
+# Timeout por request, configurável via settings.xml (scraper.timeout).
+# Atualizado no início de cada scrape(); usado como default por todas as
+# chamadas internas deste módulo.
+_TIMEOUT = 15
+
 
 # ---------------------------------------------------------------------------
 # Helpers internos
@@ -52,7 +57,7 @@ def _normalize_url(url):
 
 def _get_host(base_url):
     try:
-        r = _session.get(base_url, allow_redirects=True, timeout=10)
+        r = _session.get(base_url, allow_redirects=True, timeout=_TIMEOUT)
         final = r.url.rstrip('/')
         if 'netcine' in final.lower() or 'eee' in final.lower() or 'nnn' in final.lower():
             return final + '/'
@@ -85,7 +90,7 @@ def _find_titles_from_item(item_data):
                 r = _session.get(
                     f'https://api.themoviedb.org/3/{endpoint}/{tmdb_id}',
                     params={'api_key': api_key, 'language': 'pt-BR'},
-                    timeout=8
+                    timeout=_TIMEOUT
                 )
                 if r.ok:
                     data = r.json()
@@ -102,7 +107,7 @@ def _find_titles_from_item(item_data):
 def _get_players(page_url, host):
     sources = []
     try:
-        r = _session.get(page_url, timeout=10)
+        r = _session.get(page_url, timeout=_TIMEOUT)
         soup = BeautifulSoup(r.text, 'html.parser')
         tabs = soup.select('#player-container .player-menu li a')
         for tab in tabs:
@@ -161,7 +166,7 @@ def _resolve_player(iframe_url):
     }
 
     try:
-        r = _session.get(iframe_url, headers=headers, timeout=15)
+        r = _session.get(iframe_url, headers=headers, timeout=_TIMEOUT)
         html = r.text
     except Exception as e:
         xbmc.log(f'[NetCine] Erro ao obter player {iframe_url}: {e}', xbmc.LOGERROR)
@@ -198,7 +203,7 @@ def _resolve_player(iframe_url):
             )
             xbmc.log(f'[NetCine] Tentando fallback: {fallback_url}', xbmc.LOGDEBUG)
             try:
-                fb = _session.get(fallback_url, headers=headers, timeout=15)
+                fb = _session.get(fallback_url, headers=headers, timeout=_TIMEOUT)
                 text = fb.text
             except Exception:
                 text = ''
@@ -236,7 +241,7 @@ def _search_site(host, search_title, year, want_tvshow):
     clean = _clean_title(search_title)
     search_url = host + 'search/' + quote_plus(clean) + '/'
     try:
-        r = _session.get(search_url, timeout=10)
+        r = _session.get(search_url, timeout=_TIMEOUT)
         if r.status_code != 200:
             return None
         soup = BeautifulSoup(r.text, 'html.parser')
@@ -312,7 +317,11 @@ def _build_sources(iframe_list, media_type, season=None, episode=None):
 # Entry point (padrão Burst)
 # ---------------------------------------------------------------------------
 
-def scrape(provider_url, item_data, season=None, episode=None):
+def scrape(provider_url, item_data, season=None, episode=None, timeout=None):
+    global _TIMEOUT
+    if timeout:
+        _TIMEOUT = timeout
+
     _session.cookies.clear()
     media_type = item_data.get('media_type', 'movie')
 
@@ -372,7 +381,7 @@ def scrape(provider_url, item_data, season=None, episode=None):
                 continue
 
             try:
-                r = _session.get(series_href, timeout=10)
+                r = _session.get(series_href, timeout=_TIMEOUT)
                 soup = BeautifulSoup(r.text, 'html.parser')
             except Exception as e:
                 xbmc.log(f'[NetCine] Erro ao carregar série {series_href}: {e}', xbmc.LOGERROR)

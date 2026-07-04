@@ -1,9 +1,0 @@
-v2.0.0 (31/01/2026)
-- Recriado do zero com estrutura correta
-- Suporte a todos os provedores principais
-- Stremio: Brazuca, Torrentio, SkyFlix, CDFlix, Mico-Leão
-- AnimeZey para conteúdo de anime
-- Comando Top, Apache Torrent, Filmes Master
-- Starck Filmes, CMD1
-- Sistema de roteamento otimizado
-- Logging detalhado para debug

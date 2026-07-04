@@ -37,7 +37,7 @@
             <top>0</top>
             <width>1920</width>
             <height>1080</height>
-            <texture colordiffuse="CC000000">AddonWindow/black.png</texture>
+            <texture colordiffuse="DD000000">AddonWindow/white.png</texture>
             <animation effect="fade" start="0" end="100" time="500">WindowOpen</animation>
         </control>
 
@@ -45,11 +45,11 @@
              ADDON LOGO (canto superior esquerdo)
         ══════════════════════════════════════════ -->
         <control type="image">
-            <left>40</left>
-            <top>28</top>
-            <width>52</width>
-            <height>52</height>
-            <texture>icon.png</texture>
+            <right>20</right>
+            <top>0</top>
+            <width>100</width>
+            <height>100</height>
+            <texture>logo.png</texture>
             <animation effect="fade" start="0" end="100" time="400">WindowOpen</animation>
         </control>
 
@@ -83,21 +83,6 @@
             <animation effect="fade" start="0" end="100" time="600" delay="150">WindowOpen</animation>
         </control>
 
-
-        <!-- ══════════════════════════════════════════
-             QUALITY BADGES  (4K | 1080p | 720p | SD)
-
-             Largura total: 4×90 + 3×50 = 510px
-             Start X = (1920 - 510) / 2 = 705
-             Cada badge: left 705 / 845 / 985 / 1125
-
-             Cada badge:
-               - circle.png com alpha BAIXO (22 ≈ 13%) como fundo escuro
-               - rótulo colorido centralizado no topo
-               - número branco grande centralizado embaixo
-               - ambos com shadowcolor forte para legibilidade
-        ══════════════════════════════════════════ -->
-
         <!-- ── 4K (dourado) ── -->
         <control type="group">
             <left>705</left>
@@ -108,7 +93,7 @@
                 <left>0</left><top>0</top>
                 <width>90</width><height>90</height>
                 <aspectratio>keep</aspectratio>
-                <texture colordiffuse="22000000">circle.png</texture>
+                <texture colordiffuse="11FFFFFF">circle.png</texture>
             </control>
             <!-- rótulo "4K" -->
             <control type="label">
@@ -118,7 +103,7 @@
                 <font>font18</font>
                 <textcolor>FFFFD700</textcolor>
                 <shadowcolor>FF000000</shadowcolor>
-                <label>4K</label>
+                <label>2160P</label>
             </control>
             <!-- número -->
             <control type="label">
@@ -141,7 +126,7 @@
                 <left>0</left><top>0</top>
                 <width>90</width><height>90</height>
                 <aspectratio>keep</aspectratio>
-                <texture colordiffuse="22000000">circle.png</texture>
+                <texture colordiffuse="11FFFFFF">circle.png</texture>
             </control>
             <control type="label">
                 <left>0</left><top>10</top>
@@ -172,7 +157,7 @@
                 <left>0</left><top>0</top>
                 <width>90</width><height>90</height>
                 <aspectratio>keep</aspectratio>
-                <texture colordiffuse="22000000">circle.png</texture>
+                <texture colordiffuse="11FFFFFF">circle.png</texture>
             </control>
             <control type="label">
                 <left>0</left><top>10</top>
@@ -203,7 +188,7 @@
                 <left>0</left><top>0</top>
                 <width>90</width><height>90</height>
                 <aspectratio>keep</aspectratio>
-                <texture colordiffuse="22000000">circle.png</texture>
+                <texture colordiffuse="11FFFFFF">circle.png</texture>
             </control>
             <control type="label">
                 <left>0</left><top>10</top>

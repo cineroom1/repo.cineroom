@@ -25,11 +25,11 @@
             <description>Exibe a tela de detalhes ao clicar em uma série. Se desativado, vai direto para a lista de episódios.</description>
         </setting>
         <setting id="ui.details_style" type="labelenum" label="Estilo de tela de detalhes"
-            values="Flix|Basico|Lite"
+            values="Flix|Lite"
             default="0">
             <enable>eq(-2,true) | eq(-1,true)</enable>
         </setting>
-        <setting id="migrated_details_v2" type="text" default="" visible="false" />
+        <setting id="migrated_details_v3" type="text" default="" visible="false" />
 
         <setting type="sep"/>
 
@@ -96,11 +96,17 @@
         <setting id="playback.preferred_quality" type="labelenum" label="Qualidade preferida (lista de fontes)" values="1080P|4K|720P|480P|Menor primeiro" default="4K">
             <description>Ordena a lista de fontes pela qualidade mais próxima da preferida. Não afeta o Autoplay acima.</description>
         </setting>
+        <setting id="playback.max_results" type="labelenum" label="Limite de fontes exibidas" values="10|15|20|25|30|35|40|45|50|Ilimitado" default="25">
+            <description>Limita quantas fontes aparecem na tela de seleção manual (pega sempre as melhores, já ordenadas). Não afeta o Autoplay.</description>
+        </setting>
 
         <setting type="sep"/>
 
         <!-- ── Próximo episódio (independente) ──────────────────────────── -->
         <setting label="[B]Próximo Episódio (Séries)[/B]" type="lsep"/>
+        
+        <setting id="tidb_skip_enabled" type="bool" label="Pular introdução automático (TheIntroDB)" default="true"/>
+
         <setting id="playback.autonext_episode" type="bool" label="Ativar Próximo Episódio Automático" default="true">
             <description>Reproduz o próximo episódio automaticamente ao terminar. Independente do Autoplay acima.</description>
         </setting>
@@ -110,10 +116,10 @@
         <setting id="autonext.source_type" type="labelenum" label="Tipo de fonte do próximo episódio" values="Igual ao Autoplay|direct|torrent|Qualquer" default="Igual ao Autoplay" visible="eq(-2,true)">
             <description>"Igual ao Autoplay" herda o tipo de fonte configurado acima.</description>
         </setting>
-        <setting id="next_episode.trigger_seconds" type="slider" label="Exibir aviso do próximo episódio em (segundos)" default="110" range="30,10,180" option="int" visible="eq(-3,true)">
+        <setting id="next_episode.trigger_seconds" type="slider" label="Exibir aviso do próximo episódio em (segundos)" default="90" range="30,10,180" option="int" visible="eq(-3,true)">
             <description>Tempo restante para exibir o aviso do próximo episódio.</description>
         </setting>
-        <setting id="next_episode.timeout" type="slider" label="Tempo para cancelar o próximo episódio (segundos)" default="20" range="5,5,30" option="int" visible="eq(-4,true)">
+        <setting id="next_episode.timeout" type="slider" label="Tempo para cancelar o próximo episódio (segundos)" default="45" range="5,5,60" option="int" visible="eq(-4,true)">
             <description>Quantos segundos o usuário tem para cancelar antes do próximo episódio começar.</description>
         </setting>
 
@@ -306,11 +312,9 @@
         
         <setting label="[B]Desempenho e Memória[/B]" type="lsep"/>
         <setting id="lightweight_mode" type="bool" label="Modo Leve (dispositivos fracos)" default="true" />
-        <setting id="db.cache_size" type="labelenum" label="Cache SQLite (RAM)" values="4 MB (padrão)|8 MB|16 MB|32 MB|64 MB|96 MB" default="4 MB (padrão)">
-            <description>Memória reservada para o banco de dados local. Recomendado: 4 MB para caixas com menos de 2 GB de RAM.</description>
-        </setting>
         <setting id="perf.modal_close_delay" type="slider" label="Delay fechar modal (ms)" default="50" range="50,100,2500" option="int"/>
         <setting id="perf.nav_activate_delay" type="slider" label="Delay navegação (ms)" default="50" range="50,100,2500" option="int"/>
+        <setting id="debug.show_load_time" type="bool" label="Mostrar tempo de carregamento (debug)" default="false"/>
 
         <setting type="sep"/>
 

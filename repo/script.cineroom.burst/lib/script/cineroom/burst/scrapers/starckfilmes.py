@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """
 Scraper para Starck Filmes
-...
 """
 import re
 import time
@@ -10,7 +9,7 @@ import requests
 from bs4 import BeautifulSoup
 
 from .scraper_config import get_url
-BASE_URL   = get_url('starckfilmes', fallback='https://www.starckfilmes-v12.com')
+BASE_URL   = get_url('starckfilmes', fallback='https://www.starckfilmes-v19.com')
 SEARCH_URL = BASE_URL + "/?s={query}"
 HEADERS    = {
     'User-Agent': (
@@ -26,72 +25,82 @@ HEADERS    = {
 
 _session = None
 
+# Timeout por request, configurável via settings.xml (scraper.timeout).
+_TIMEOUT = 15
+
 
 def _get_session():
     global _session
     if _session is None:
         _session = requests.Session()
         _session.headers.update(HEADERS)
+        xbmc.log("[Starck] Nova sessão criada", xbmc.LOGINFO)
     return _session
 
 
 def _eh_pagina_verificacao(html):
     """Detecta a página fake de 'Verificação de Segurança'."""
-    return ('id="verifyBox"' in html) or ('Verificação de Segurança' in html)
+    resultado = ('id="verifyBox"' in html) or ('Verificação de Segurança' in html) or ('Comunicado Importante' in html)
+    return resultado
 
 
 def _resolver_verificacao(session, url):
     """
     Replica o handshake da página de verificação:
-      1. POST /current-address com {"timeMonit": "..."}
-      2. GET na mesma URL com ?verified=1
-    Retorna a resposta final (esperançosamente a página real).
+      1. Aguarda 5.5s (o JS do gate checa se passaram 5000ms)
+      2. POST /current-address com {"timeMonit": "14542588"}
+      3. GET na mesma URL com cookies da sessão
     """
+    xbmc.log("[Starck] Gate detectado — aguardando 5.5s (timer do JS)...", xbmc.LOGINFO)
+    time.sleep(5.5)
+
     try:
-        session.post(
-            BASE_URL + "/current-address",
+        post_url = BASE_URL + "/current-address"
+        resp_post = session.post(
+            post_url,
             json={"timeMonit": "14542588"},
-            timeout=10
+            timeout=_TIMEOUT
         )
+        xbmc.log(f"[Starck] POST status: {resp_post.status_code} | body: {resp_post.text[:200]}", xbmc.LOGINFO)
     except Exception as e:
-        xbmc.log(f"[Starck] Erro no POST de verificação: {e}", xbmc.LOGDEBUG)
-
-    sep = '&' if '?' in url else '?'
-    url_verificado = f"{url}{sep}verified=1"
+        xbmc.log(f"[Starck] Erro no POST de verificação: {e}", xbmc.LOGERROR)
 
     try:
-        r = session.get(url_verificado, timeout=10)
+        r = session.get(url, timeout=_TIMEOUT)
         r.raise_for_status()
+        r.encoding = 'utf-8'
         return r
     except Exception as e:
         xbmc.log(f"[Starck] Erro ao revalidar após verificação: {e}", xbmc.LOGERROR)
         return None
 
 
-def _get(url, timeout=10, max_tentativas=2):
+def _get(url, timeout=None, max_tentativas=2):
     """
     Substitui requests.get(url, headers=HEADERS).
     Mantém sessão/cookies e resolve o gate de verificação se aparecer.
     """
+    if timeout is None:
+        timeout = _TIMEOUT
     session = _get_session()
     try:
         r = session.get(url, timeout=timeout)
         r.raise_for_status()
+        r.encoding = 'utf-8'
     except Exception as e:
-        xbmc.log(f"[Starck] Erro na request {url}: {e}", xbmc.LOGERROR)
         return None
+
 
     tentativas = 0
     while _eh_pagina_verificacao(r.text) and tentativas < max_tentativas:
-        xbmc.log("[Starck] Gate de verificação detectado, resolvendo...", xbmc.LOGINFO)
         nova = _resolver_verificacao(session, url)
         if nova is None:
+            xbmc.log("[Starck] _resolver_verificacao retornou None", xbmc.LOGERROR)
             return None
         r = nova
         tentativas += 1
 
     if _eh_pagina_verificacao(r.text):
-        xbmc.log("[Starck] Não foi possível passar pela verificação.", xbmc.LOGERROR)
         return None
 
     return r
@@ -114,7 +123,8 @@ def unshuffle_string(shuffled):
             used[index]  = True
             original[i]  = shuffled[index]
             index        = (index + step) % length
-        return ''.join(original)
+        result = ''.join(original)
+        return result
     except Exception as e:
         xbmc.log(f"[Starck] unshuffle erro: {e}", xbmc.LOGERROR)
         return None
@@ -130,12 +140,10 @@ _SERIE_PATTERNS = re.compile(
 )
 
 def _titulo_parece_serie(texto):
-    """Retorna True se o título contiver marcadores de série/temporada."""
     return bool(_SERIE_PATTERNS.search(texto or ''))
 
 
 def _normalizar_titulo(texto):
-    """Remove acentos, artigos, pontuação e lowercases para comparação."""
     import unicodedata
     nfkd = unicodedata.normalize('NFKD', texto or '')
     s = ''.join(c for c in nfkd if not unicodedata.combining(c))
@@ -149,22 +157,16 @@ def _titulo_compativel(titulo_pagina, titulo_busca, is_serie=False):
     if not is_serie and _titulo_parece_serie(titulo_pagina):
         return False
 
-    # ── Validação de similaridade de título
     norm_pagina = _normalizar_titulo(titulo_pagina)
     norm_busca  = _normalizar_titulo(titulo_busca)
 
     if not norm_busca:
         return True
 
-    # O título buscado deve estar no início do título da página
-    # "dark" deve bater "dark" mas NÃO "dark matter" ou "fear the walking dead"
-    # Usa word boundary para não aceitar prefixo parcial
     pattern = r'^' + re.escape(norm_busca) + r'(\s|$)'
     if re.match(pattern, norm_pagina):
         return True
 
-    # Fallback: todos os tokens do título buscado presentes E
-    # a proporção de match é alta (evita títulos muito diferentes)
     tokens_busca  = norm_busca.split()
     tokens_pagina = norm_pagina.split()
 
@@ -174,18 +176,10 @@ def _titulo_compativel(titulo_pagina, titulo_busca, is_serie=False):
     matches = sum(1 for t in tokens_busca if t in tokens_pagina)
     ratio   = matches / len(tokens_busca)
 
-    # Exige 100% dos tokens se título curto (≤ 2 palavras), 85% se maior
     threshold = 1.0 if len(tokens_busca) <= 3 else 0.90
     if ratio < threshold:
-        xbmc.log(
-            f"[Starck] Rejeitado (título incompatível): '{titulo_pagina}' vs '{titulo_busca}' "
-            f"(ratio={ratio:.2f})",
-            xbmc.LOGDEBUG
-        )
         return False
 
-    # Verifica que não há palavras de conteúdo ANTES do título buscado na página
-    # Ex: "fear the walking dead" rejeitado para "the walking dead"
     idx = norm_pagina.find(norm_busca)
     if idx > 0:
         prefix_words = [
@@ -208,10 +202,6 @@ def _titulo_compativel(titulo_pagina, titulo_busca, is_serie=False):
 # ---------------------------------------------------------------------------
 
 def _idioma_do_texto(texto):
-    """
-    Detecta idioma a partir de qualquer texto livre.
-    Retorna 'DUAL', 'DUBLADO', 'LEGENDADO' ou 'PT-BR'.
-    """
     t = (texto or '').lower()
     if 'dual' in t:
         return 'DUAL'
@@ -223,10 +213,6 @@ def _idioma_do_texto(texto):
 
 
 def _idioma_btn_down(btn):
-    """
-    Lê idioma do <span class="text"> dentro de um <span class="btn-down">.
-    Estrutura: filhos[0] = "Dual Áudio<strong>MKV</strong>"
-    """
     text_span = btn.find('span', class_='text')
     if not text_span:
         return 'PT-BR'
@@ -241,7 +227,6 @@ def _idioma_btn_down(btn):
 # ---------------------------------------------------------------------------
 
 def _get_titulo_limpo(soup):
-    """<h2 class="post-title"> → título sem sufixos"""
     h2 = soup.find('h2', class_='post-title')
     if h2:
         return h2.get_text(strip=True)
@@ -284,14 +269,13 @@ def _get_tamanho(soup):
 
 
 def _parse_btn_down(btn, qualidade_fallback='HD', tamanho_fallback='N/A'):
-    """
-    Extrai { url, idioma, qualidade, tamanho } de um <span class="btn-down">.
-    """
     link = btn.find('a')
     if not link:
+        xbmc.log("[Starck] btn-down sem <a>", xbmc.LOGDEBUG)
         return None
     data_u = link.get('data-u', '')
     if not data_u:
+        xbmc.log("[Starck] <a> sem data-u", xbmc.LOGDEBUG)
         return None
     magnet = unshuffle_string(data_u)
     if not magnet or 'magnet:' not in magnet:
@@ -305,7 +289,7 @@ def _parse_btn_down(btn, qualidade_fallback='HD', tamanho_fallback='N/A'):
     if text_span:
         filhos = text_span.find_all('span', recursive=False)
         if len(filhos) >= 3:
-            texto_res = filhos[2].get_text(strip=True)  # "1080p (2.13 GB)"
+            texto_res = filhos[2].get_text(strip=True)
             m_q = re.search(r'(4K|2160p|1080p|720p|480p)', texto_res, re.IGNORECASE)
             if m_q:
                 qualidade = m_q.group(1)
@@ -320,40 +304,43 @@ def _parse_btn_down(btn, qualidade_fallback='HD', tamanho_fallback='N/A'):
 # Busca no site
 # ---------------------------------------------------------------------------
 
-def _buscar_paginas(query, max_results=5, titulo_busca=''):
+def _executar_busca(query):
+    """Faz o GET de busca e retorna a lista de cards (.sub-item) encontrados."""
     search_url = SEARCH_URL.format(query=requests.utils.quote(query))
     r = _get(search_url)
     if r is None:
+        xbmc.log("[Starck] _get retornou None na busca", xbmc.LOGERROR)
         return []
 
-    soup  = BeautifulSoup(r.text, 'html.parser')
+    soup = BeautifulSoup(r.text, 'html.parser')
+    return soup.select('.sub-item')
+
+
+def _buscar_paginas(query, max_results=5, titulo_busca=''):
+    cards = _executar_busca(query)
+
     itens = []
-    for card in soup.select('.sub-item'):
-        # título vem do atributo title do <a> pai — mais confiável que o texto
+    for i, card in enumerate(cards):
         a_pai = card.find('a', href=re.compile(r'/catalog/'))
         if not a_pai:
             continue
         url    = a_pai.get('href', '')
         titulo = a_pai.get('title', '') or a_pai.get_text(strip=True)
+
         if not url or not titulo:
             continue
 
-        # ── Filtro no card: rejeita antes de abrir qualquer URL
         if titulo_busca:
             norm_card  = _normalizar_titulo(titulo)
             norm_busca = _normalizar_titulo(titulo_busca)
             tokens_busca = norm_busca.split()
             tokens_card  = norm_card.split()
-            if not tokens_busca:
-                pass
-            else:
+            if tokens_busca:
                 matches = sum(1 for t in tokens_busca if t in tokens_card)
                 ratio   = matches / len(tokens_busca)
-                # Exige todos os tokens do título buscado presentes no card
                 if ratio < 1.0:
                     xbmc.log(
-                        f"[Starck] Card descartado: '{titulo}' vs '{titulo_busca}' "
-                        f"(ratio={ratio:.2f})",
+                        f"[Starck] Card descartado: '{titulo}' vs '{titulo_busca}' (ratio={ratio:.2f})",
                         xbmc.LOGDEBUG
                     )
                     continue
@@ -375,9 +362,12 @@ def _fetch_pagina(url):
 def _ano_ok(soup, ano_esperado):
     if not ano_esperado:
         return True
+    ano_pagina = _get_ano(soup)
     try:
-        return abs(int(_get_ano(soup)) - int(ano_esperado)) <= 1
+        ok = abs(int(ano_pagina) - int(ano_esperado)) <= 1
+        return ok
     except Exception:
+        xbmc.log(f"[Starck] Ano: não foi possível comparar (página='{ano_pagina}' esperado='{ano_esperado}')", xbmc.LOGDEBUG)
         return True
 
 
@@ -390,7 +380,9 @@ def buscar_filme(item_data):
     titulo_original = item_data.get('original_title', '')
     ano             = item_data.get('year', '')
 
+
     if not titulo:
+        xbmc.log("[Starck] buscar_filme: título vazio, abortando", xbmc.LOGERROR)
         return []
 
     queries = [titulo]
@@ -400,20 +392,28 @@ def buscar_filme(item_data):
     sources = []
 
     for query in queries:
-        for _titulo_card, url in _buscar_paginas(query, titulo_busca=titulo):
+        paginas = _buscar_paginas(query, titulo_busca=titulo)
+
+        for _titulo_card, url in paginas:
             soup = _fetch_pagina(url)
-            if not soup or not _ano_ok(soup, ano):
+            if not soup:
+                continue
+
+            if not _ano_ok(soup, ano):
                 continue
 
             titulo_limpo = _get_titulo_limpo(soup) or titulo
-            
-            if not _titulo_compativel(titulo_limpo, titulo, is_serie=False):
-                continue
-            
-            qualidade    = _get_qualidade(soup)
-            tamanho      = _get_tamanho(soup)
 
-            for btn in soup.find_all('span', class_='btn-down'):
+            if not _titulo_compativel(titulo_limpo, titulo, is_serie=False):
+                xbmc.log(f"[Starck] Título incompatível: '{titulo_limpo}' vs '{titulo}'", xbmc.LOGDEBUG)
+                continue
+
+            qualidade = _get_qualidade(soup)
+            tamanho   = _get_tamanho(soup)
+
+            btns = soup.find_all('span', class_='btn-down')
+
+            for btn in btns:
                 parsed = _parse_btn_down(btn, qualidade, tamanho)
                 if not parsed:
                     continue
@@ -431,6 +431,7 @@ def buscar_filme(item_data):
 
             if sources:
                 break
+
         if sources:
             break
 
@@ -445,7 +446,9 @@ def buscar_serie(item_data, season, episode):
     titulo          = item_data.get('title', '')
     titulo_original = item_data.get('original_title', '')
 
+
     if not titulo or season is None or episode is None:
+        xbmc.log("[Starck] buscar_serie: parâmetros inválidos, abortando", xbmc.LOGERROR)
         return []
 
     s_num = int(season)
@@ -467,12 +470,9 @@ def buscar_serie(item_data, season, episode):
 
             titulo_pagina = _get_titulo_limpo(soup).lower()
 
-            # ----------------------------------------------------------------
-            # CASO A: página com <div class="epsodios"> — episódios separados
-            # ----------------------------------------------------------------
+            # CASO A: episódios separados
             epsodios_div = soup.find('div', class_='epsodios')
             if epsodios_div:
-                # Verifica se é a temporada certa
                 padrao_temporada = re.search(
                     rf'({s_num}[aªº°]?\s*temporada|temporada\s*{s_num})',
                     titulo_pagina, re.IGNORECASE
@@ -480,20 +480,19 @@ def buscar_serie(item_data, season, episode):
                 if not padrao_temporada:
                     continue
 
-                # Idioma vem do <h3> dentro de epsodios
-                # ex: <h3><strong>VERSÃO DUAL ÁUDIO</strong></h3>
                 h3 = epsodios_div.find('h3')
                 idioma_ep = _idioma_do_texto(h3.get_text() if h3 else '')
 
-                qualidade = _get_qualidade(soup)
-                tamanho   = _get_tamanho(soup)
+                qualidade    = _get_qualidade(soup)
+                tamanho      = _get_tamanho(soup)
                 titulo_limpo = _get_titulo_limpo(soup) or titulo
-                if not _titulo_compativel(titulo_limpo, titulo, is_serie=True):
-                    xbmc.log(f"[Starck] Série rejeitada (título): '{titulo_limpo}' vs '{titulo}'", xbmc.LOGDEBUG)
-                    continue
-                epsodios_div = soup.find('div', class_='epsodios')
 
-                for p in epsodios_div.find_all('p'):
+                if not _titulo_compativel(titulo_limpo, titulo, is_serie=True):
+                    continue
+
+                paragrafos = epsodios_div.find_all('p')
+
+                for p in paragrafos:
                     strong = p.find('strong')
                     if not strong:
                         continue
@@ -501,11 +500,11 @@ def buscar_serie(item_data, season, episode):
                     ep_text = strong.get_text().lower()
                     episodio_encontrado = False
 
-                    # "EPISÓDIO 03:" ou "EPISODIO 3:"
+                    # Verifica episódio único: "EPISÓDIO 03" ou "EPISÓDIOS 03"
                     if re.search(rf'episódios?\s+0?{e_num}\b', ep_text):
                         episodio_encontrado = True
 
-                    # "EPISÓDIOS 01 E 02:" ou "EPISÓDIO 08 ao 09:"
+                    # Verifica range: "EPISÓDIOS 01 E 02"
                     if not episodio_encontrado:
                         m = re.search(r'episódios?\s+0?(\d+)\s+(?:e|ao)\s+0?(\d+)', ep_text)
                         if m and int(m.group(1)) <= e_num <= int(m.group(2)):
@@ -514,43 +513,45 @@ def buscar_serie(item_data, season, episode):
                     if not episodio_encontrado:
                         continue
 
-
-                    link = p.find('a')
-                    if not link:
-                        continue
-                    data_u = link.get('data-u', '')
-                    if not data_u:
-                        continue
-                    magnet = unshuffle_string(data_u)
-                    if not magnet or 'magnet:' not in magnet:
+                    # Pega TODOS os links com data-u (múltiplas qualidades)
+                    links = p.find_all('a', attrs={'data-u': True})
+                    if not links:
+                        xbmc.log("[Starck] Episódio sem links com data-u", xbmc.LOGDEBUG)
                         continue
 
-                    # Qualidade do texto do link: "1080p"
-                    q_link = link.get_text(strip=True)
-                    m_q = re.search(r'(4K|2160p|1080p|720p|480p)', q_link, re.IGNORECASE)
-                    if m_q:
-                        qualidade = m_q.group(1)
 
-                    stream = {
-                        'url':       magnet,
-                        'title':     f"{titulo_limpo} S{s_pad}E{e_pad}",
-                        'quality':   qualidade,
-                        'size':      tamanho,
-                        'type':      'Torrent',
-                        'seeders':   0,
-                        'extras':    [],
-                        'languages': idioma_ep,
-                    }
-                    sources.append(stream)
-                    break  # achou o episódio, sai do loop de parágrafos
+                    for link in links:
+                        data_u = link.get('data-u', '')
+                        magnet = unshuffle_string(data_u)
+                        if not magnet or 'magnet:' not in magnet:
+                            continue
+
+                        q_link = link.get_text(strip=True)
+                        q_ep = qualidade  # fallback da qualidade da página
+                        m_q = re.search(r'(4K|2160p|1080p|720p|480p)', q_link, re.IGNORECASE)
+                        if m_q:
+                            q_ep = m_q.group(1)
+
+                        stream = {
+                            'url':       magnet,
+                            'title':     f"{titulo_limpo} S{s_pad}E{e_pad}",
+                            'quality':   q_ep,
+                            'size':      tamanho,
+                            'type':      'Torrent',
+                            'seeders':   0,
+                            'extras':    [],
+                            'languages': idioma_ep,
+                        }
+                        sources.append(stream)
+
+                    # Sai do loop de parágrafos após processar o episódio encontrado
+                    break
 
                 if sources:
                     break
-                continue  # não achou o ep nessa página, tenta a próxima
+                continue
 
-            # ----------------------------------------------------------------
-            # CASO B: página com <span class="btn-down"> — temporada inteira
-            # ----------------------------------------------------------------
+            # CASO B: temporada inteira com btn-down
             padrao_temporada = re.search(
                 rf'({s_num}[aªº°]?\s*temporada|temporada\s*{s_num})',
                 titulo_pagina, re.IGNORECASE
@@ -562,7 +563,9 @@ def buscar_serie(item_data, season, episode):
             qualidade    = _get_qualidade(soup)
             tamanho      = _get_tamanho(soup)
 
-            for btn in soup.find_all('span', class_='btn-down'):
+            btns = soup.find_all('span', class_='btn-down')
+
+            for btn in btns:
                 parsed = _parse_btn_down(btn, qualidade, tamanho)
                 if not parsed:
                     continue
@@ -591,13 +594,19 @@ def buscar_serie(item_data, season, episode):
 # Entry point
 # ---------------------------------------------------------------------------
 
-def scrape(provider_url, item_data, season=None, episode=None):
-    xbmc.log("[Starck] Iniciando scraper...", xbmc.LOGINFO)
+def scrape(provider_url, item_data, season=None, episode=None, timeout=None):
+    global _TIMEOUT
+    if timeout:
+        _TIMEOUT = timeout
+
     media_type = item_data.get('media_type', 'movie')
 
     if media_type == 'movie':
-        return buscar_filme(item_data)
+        result = buscar_filme(item_data)
     elif media_type == 'tvshow':
-        return buscar_serie(item_data, season, episode)
+        result = buscar_serie(item_data, season, episode)
+    else:
+        result = []
 
-    return []
+    xbmc.log(f"[Starck] ===== SCRAPE FINALIZADO: {len(result)} fonte(s) =====", xbmc.LOGINFO)
+    return result

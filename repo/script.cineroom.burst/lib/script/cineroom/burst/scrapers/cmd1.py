@@ -8,6 +8,9 @@ from .scraper_config import get_url
 
 _CMD1_BASE = get_url('cmd1', fallback='https://cmd1.site')
 
+# Timeout por request, configurável via settings.xml (scraper.timeout).
+_TIMEOUT = 15
+
 
 class _FakeMagnet:
     """
@@ -91,7 +94,7 @@ def search_cmd1(imdb_id=None, title=None, season=None, episode=None, media_type=
         }
 
         try:
-            response = requests.get(search_url, headers=headers, timeout=15)
+            response = requests.get(search_url, headers=headers, timeout=_TIMEOUT)
             if response.status_code == 200:
                 # Verifica se encontrou resultados reais
                 soup = BeautifulSoup(response.content, "html.parser")
@@ -229,7 +232,7 @@ def extract_sources_from_post(post_url, post_title, season=None, episode=None, m
     
     try:
         xbmc.log(f"[CMD1] Acessando post: {post_url}", xbmc.LOGINFO)
-        response = requests.get(post_url, headers=headers, timeout=20)
+        response = requests.get(post_url, headers=headers, timeout=_TIMEOUT)
         
         if response.status_code != 200:
             xbmc.log(f"[CMD1] Erro HTTP {response.status_code} ao acessar post", xbmc.LOGWARNING)
@@ -519,10 +522,14 @@ def extract_sources_from_post(post_url, post_title, season=None, episode=None, m
     return sources
 
 
-def scrape(provider_url, item_data, season=None, episode=None):
+def scrape(provider_url, item_data, season=None, episode=None, timeout=None):
     """
     Função principal de scraping para CMD1.site
     """
+    global _TIMEOUT
+    if timeout:
+        _TIMEOUT = timeout
+
     title = item_data.get("title")
     imdb_id = item_data.get("imdb_id")
     media_type = item_data.get("media_type", "movie")

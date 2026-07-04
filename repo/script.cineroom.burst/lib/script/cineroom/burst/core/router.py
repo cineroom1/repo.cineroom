@@ -14,7 +14,7 @@ import xbmc
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
-def scrape_provider_sources(provider_name, provider_data, item_data):
+def scrape_provider_sources(provider_name, provider_data, item_data, timeout=None):
     """
     Scrape individual de um provider (modo compatibilidade / uso direto).
 
@@ -22,6 +22,9 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
         provider_name (str): Nome do provider.
         provider_data (dict): Dados do provider (url, configurable, priority…).
         item_data (dict): Dados do item (imdb_id, media_type, season, episode…).
+        timeout (int | None): Timeout em segundos (da setting scraper.timeout).
+            Propagado para a chamada de rede de cada provider; None = usa o
+            default de cada scraper.
 
     Returns:
         list[dict]: Lista de fontes encontradas.
@@ -40,7 +43,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )
             
         # ── ASSISTIRFILME ──────────────────────────────────────────────────────────
@@ -50,7 +54,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )      
             
         # ── ANIMESUP ────────────────────────────────────────────────────────────
@@ -60,11 +65,13 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )    
 
         # ── STREMIO (link direto) ────────────────────────────────────────────
-        elif provider_name in ("Brazuca", "Torrentio", "Fenixflix", "Mico-Leão", "FrostStream", "NebulaStreams", "KOD"):
+        elif provider_name in ("Brazuca", "Torrentio", "Fenixflix", "Mico-Leão", "FrostStream", "NebulaStreams", 
+                               "KOD", "FlixStreams", "PenguPlay", "NOTorrent", "Cotonet", "PopPlay", "AniTube"):
             from ..scrapers import stremio
             sources = stremio.scrape(
                 provider_url=provider_data.get('url'),
@@ -73,7 +80,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 media_type=item_data.get('media_type'),
                 season=season,
                 episode=episode,
-                item_data=item_data
+                item_data=item_data,
+                timeout=timeout
             )
 
         # ── ANIMEZEY ────────────────────────────────────────────────────────
@@ -81,15 +89,25 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
             from ..scrapers import animezey
             sources = animezey.scrape(
                 provider_url=provider_data.get('url'),
-                item_data=item_data
+                item_data=item_data,
+                timeout=timeout
             )
+            
+        elif provider_name == "DahmerMovies":
+            from ..scrapers import dahmermovies
+            sources = dahmermovies.scrape(
+                provider_url=provider_data.get('url'),
+                item_data=item_data,
+                timeout=timeout
+            )    
             
         # ── GOFLIXY ────────────────────────────────────────────────────────
         elif provider_name == "GoFlixy":
             from ..scrapers import goflixy
             sources = goflixy.scrape(
                 provider_url=provider_data.get('url'),
-                item_data=item_data
+                item_data=item_data,
+                timeout=timeout
             )    
 
         # ── COMANDO TOP ─────────────────────────────────────────────────────
@@ -99,7 +117,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )
 
         # ── APACHE TORRENT ──────────────────────────────────────────────────
@@ -109,7 +128,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )
 
         # ── FILMES MASTER ───────────────────────────────────────────────────
@@ -119,7 +139,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )
 
         # ── STARCK FILMES ───────────────────────────────────────────────────
@@ -129,7 +150,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )
 
         # ── CMD1 ────────────────────────────────────────────────────────────
@@ -139,7 +161,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
                 provider_url=provider_data.get('url'),
                 item_data=item_data,
                 season=season,
-                episode=episode
+                episode=episode,
+                timeout=timeout
             )
 
         else:
@@ -157,27 +180,8 @@ def scrape_provider_sources(provider_name, provider_data, item_data):
 
 
 def scrape_all_sources(item_data, progress_callback=None, max_workers=None):
-    """
-    Scrape paralelo de todos os providers habilitados.
-
-    Timeout e max_workers são lidos das settings do Burst.
-    O parâmetro max_workers pode sobrescrever a setting (retrocompatibilidade),
-    mas o ideal é deixá-lo None para usar o valor configurado pelo usuário.
-
-    Args:
-        item_data (dict): Dados do item.
-        progress_callback (callable): fn(completed, total, provider_name) — opcional.
-        max_workers (int | None): Override de threads. None = usa a setting.
-
-    Returns:
-        dict[str, dict]: {
-            provider_name: {
-                "sources":  [list de fontes],
-                "priority": int   ← prioridade efetiva (da setting ou default)
-            }
-        }
-    """
     from ..config import get_enabled_providers, get_scraper_timeout, get_max_workers
+    from concurrent.futures import TimeoutError as FuturesTimeout  # ← adiciona
 
     active_providers = get_enabled_providers()
     timeout          = get_scraper_timeout()
@@ -187,7 +191,6 @@ def scrape_all_sources(item_data, progress_callback=None, max_workers=None):
         xbmc.log("[Burst] Nenhum provider habilitado", xbmc.LOGWARNING)
         return {}
 
-    # Filtra providers que precisam de IMDB ID e não o têm
     imdb_id = item_data.get('imdb_id')
     valid_providers = [
         (name, data) for name, data in active_providers
@@ -198,8 +201,8 @@ def scrape_all_sources(item_data, progress_callback=None, max_workers=None):
         xbmc.log("[Burst] Nenhum provider válido após filtro de IMDB", xbmc.LOGWARNING)
         return {}
 
-    total      = len(valid_providers)
-    workers    = min(workers, total)  # nunca mais threads que providers
+    total   = len(valid_providers)
+    workers = min(workers, total)
 
     xbmc.log(
         f"[Burst] Scrape paralelo: {total} providers | "
@@ -210,18 +213,20 @@ def scrape_all_sources(item_data, progress_callback=None, max_workers=None):
     results   = {}
     completed = 0
 
-    with ThreadPoolExecutor(max_workers=workers, thread_name_prefix="BurstScraper") as executor:
-        futures = {
-            executor.submit(_safe_scrape, name, data, item_data, timeout): (name, data)
-            for name, data in valid_providers
-        }
+    # ← Não usa "with" para controlar manualmente o shutdown
+    executor = ThreadPoolExecutor(max_workers=workers, thread_name_prefix="BurstScraper")
+    futures = {
+        executor.submit(_safe_scrape, name, data, item_data, timeout): (name, data)
+        for name, data in valid_providers
+    }
 
+    try:
         for future in as_completed(futures, timeout=timeout + 5):
             completed += 1
             name, data = futures[future]
 
             try:
-                sources = future.result(timeout=timeout + 10)
+                sources = future.result(timeout=0)  # já terminou, não bloqueia
                 results[name] = {
                     "sources":  sources or [],
                     "priority": data.get('priority', 999)
@@ -241,6 +246,35 @@ def scrape_all_sources(item_data, progress_callback=None, max_workers=None):
                 except Exception:
                     pass
 
+    except FuturesTimeout:
+        # ← Coleta o que já terminou, loga quem travou
+        pendentes = [futures[f][0] for f in futures if not f.done()]
+        xbmc.log(f"[Burst] Timeout — providers lentos: {pendentes}", xbmc.LOGWARNING)
+
+        for future, (name, data) in futures.items():
+            if future.done() and name not in results:
+                try:
+                    sources = future.result(timeout=0)
+                    results[name] = {
+                        "sources":  sources or [],
+                        "priority": data.get('priority', 999)
+                    }
+                except Exception:
+                    results[name] = {"sources": [], "priority": data.get('priority', 999)}
+                    
+                completed += 1  # ← mantém contagem consistente
+                if progress_callback:
+                    try:
+                        progress_callback(completed, total, name, sources)
+                    except Exception:
+                        pass
+
+    finally:
+        # ← Cancela pendentes e encerra sem bloquear o Kodi
+        for future in futures:
+            future.cancel()
+        executor.shutdown(wait=False)
+
     success = sum(1 for v in results.values() if v["sources"])
     xbmc.log(f"[Burst] Concluído: {success}/{total} providers com fontes", xbmc.LOGINFO)
     return results
@@ -258,9 +292,13 @@ def _safe_scrape(provider_name, provider_data, item_data, timeout):
     O ThreadPoolExecutor já aplica timeout via future.result(timeout=...) no
     chamador (scrape_all_sources). Usar signal em threads secundárias lança
     ValueError silencioso que impede o scraper de retornar resultados.
+
+    O timeout também é passado para scrape_provider_sources, que o propaga
+    para a chamada de rede de cada provider — sem isso, cada scraper usava
+    um valor de timeout fixo no código, ignorando a setting do usuário.
     """
     try:
-        sources = scrape_provider_sources(provider_name, provider_data, item_data)
+        sources = scrape_provider_sources(provider_name, provider_data, item_data, timeout=timeout)
         return sources
 
     except Exception as e:

@@ -58,6 +58,61 @@ PROVIDERS = {
         "priority_setting_id": "provider.nebulastreams.priority",
         "type": "direct"
     },
+    
+    "FlixStreams": {
+        "url": get_url('flixstreams', fallback='https://free.flixnest.app/eNqNUV1vwyAM_C88t1JDKdLyV6bKIsFZWAxkYFKt0_770q-1a_uwJ8s--zjuvgRgzhjYGQJyEwJOc5fBEMUdWMqc0PgMAXkX0yBqTgUXArqECLnt0RtRC7mSeqWlXJ6ul50jxrQcYz6UaS0W4krVGsa3mBxmUb9u_yC9CQEJTucPsAstFYtgbCEWdWcoz1IwmIYQ1NDbvjQXgeepNY4-fWQXwz1yob0neurHv5Zu7LIuYct3Tx4FqvI7fcIBeYyJzz93IfOcAzg7W9w5qKSUutnYalBZ7rXfZFmpj6pbv8uVVkrrRr3MTt-wsfMIXUze8CEl1T_C-xhwxsYUJ2cxAcXW0Lw2JvSu-JM2nsCvC-RYUnuM7ZqK2H7_AH_X1a8'),
+        "configurable": False,
+        "default_priority": 2,
+        "setting_id": "provider.flixstreams.enabled",
+        "priority_setting_id": "provider.flixstreams.priority",
+        "type": "direct"
+    },
+    
+    "PenguPlay": {
+        "url": get_url('penguplay', fallback='https://pengu.uk/%7B%22source_aniwaves%22%3A%22on%22%2C%22source_moviebox%22%3A%22on%22%2C%22source_overflix%22%3A%22on%22%2C%22source_vidking%22%3A%22on%22%2C%22source_animesuge%22%3A%22on%22%2C%22quality_floor%22%3A%22720p%20and%20up%22%7D'),
+        "configurable": False,
+        "default_priority": 2,
+        "setting_id": "provider.penguplay.enabled",
+        "priority_setting_id": "provider.penguplay.priority",
+        "type": "direct"
+    },
+    
+    "NOTorrent": {
+        "url": get_url('notorrent', fallback='https://addon.notorrent2.workers.dev'), 
+        "configurable": False,
+        "default_priority": 2,
+        "setting_id": "provider.notorrent.enabled",
+        "priority_setting_id": "provider.notorrent.priority",
+        "type": "direct"
+    },
+    
+    "Contonet": {
+        "url": get_url('cotonet', fallback='https://cotonetnet-cotonet.hf.space'), 
+        "configurable": False,
+        "default_priority": 2,
+        "setting_id": "provider.cotonet.enabled",
+        "priority_setting_id": "notorrent.priority",
+        "type": "direct"
+    },
+    
+    "PopPlay": {
+        "url": get_url('popplay', fallback='https://site--popplay--rg2h4m5nr425.code.run'), 
+        "configurable": False,
+        "default_priority": 2,
+        "setting_id": "provider.popplay.enabled",
+        "priority_setting_id": "popplay.priority",
+        "type": "direct"
+    },
+    
+    "AniTube": {
+        "url": get_url('anitube', fallback='https://anitube-g8c6.onrender.com'), 
+        "configurable": False,
+        "default_priority": 2,
+        "setting_id": "provider.anitube.enabled",
+        "priority_setting_id": "anitube.priority",
+        "type": "direct"
+    },
+    
     "AnimeZey": {
         "url": "https://1.animezey23112022.workers.dev",
         "configurable": False,
@@ -66,6 +121,17 @@ PROVIDERS = {
         "priority_setting_id": "provider.animezey.priority",
         "type": "direct"
     },
+    
+    # Adicione no PROVIDERS dict:
+    "DahmerMovies": {
+        "url": "https://a.111477.xyz",
+        "configurable": False,
+        "default_priority": 1,
+        "setting_id": "provider.dahmermovies.enabled",
+        "priority_setting_id": "provider.dahmermovies.priority",
+        "type": "direct"
+    },
+    
     # --- Torrent ---
     "Brazuca": {
         "url": get_url('brazuca', fallback='https://94c8cb9f702d-brazuca-torrents.baby-beamup.club'),
@@ -100,7 +166,7 @@ PROVIDERS = {
         "type": "torrent"
     },
     "StarckFilmes": {
-        "url": "https://www.starckfilmes-v15.com",
+        "url": "https://www.starckfilmes-v21.com",
         "configurable": False,
         "default_priority": 1,
         "setting_id": "provider.starckfilmes.enabled",

@@ -1,12 +1,18 @@
 # -*- coding: utf-8 -*-
 # resources/lib/scrapers/stremio.py - VERSÃO OTIMIZADA
 
+import re
 import requests
 import xbmc
 from .session import USER_AGENT
 from .utils import get_anime_search_patterns
 
-def scrape(provider_url, is_configurable, imdb_id, media_type, season, episode, item_data=None):
+# Streams com "download" em qualquer forma geralmente não reproduzem
+# (ex: "[Download]", "10Gbps Download Only"). PMZ é permitido normalmente.
+DOWNLOAD_TAG_PATTERN = re.compile(r'download', re.I)
+
+
+def scrape(provider_url, is_configurable, imdb_id, media_type, season, episode, item_data=None, timeout=None):
     """
     Scraper Stremio unificado e otimizado.
     
@@ -55,18 +61,27 @@ def scrape(provider_url, is_configurable, imdb_id, media_type, season, episode, 
     # ========================================
     # 4. BUSCA E DEDUPLICAÇÃO
     # ========================================
+    if timeout is None:
+        timeout = 15
+
     streams = []
     seen_ids = set()
+    skipped_download = 0
     
     for endpoint in endpoints:
         url = f"{provider_url}/{config_prefix}{endpoint}" if config_prefix else f"{provider_url}{endpoint}"
         
-        found = _fetch_streams(url)
+        found = _fetch_streams(url, timeout=timeout)
         if not found:
             continue
         
         # Deduplica e adiciona release_title
         for stream in found:
+            # Descarta streams marcados como [Download] -- não são reproduzíveis
+            if _is_download_stream(stream):
+                skipped_download += 1
+                continue
+
             stream_id = stream.get('url') or stream.get('infoHash')
             
             if stream_id and stream_id in seen_ids:
@@ -82,7 +97,10 @@ def scrape(provider_url, is_configurable, imdb_id, media_type, season, episode, 
             
             if stream_id:
                 seen_ids.add(stream_id)
-    
+
+    if skipped_download:
+        xbmc.log(f"[Stremio] {skipped_download} stream(s) [Download] descartado(s)", xbmc.LOGDEBUG)
+
     xbmc.log(f"[Stremio] {len(streams)} streams de {provider_url.split('/')[2]}", xbmc.LOGINFO)
     return streams
 
@@ -90,6 +108,18 @@ def scrape(provider_url, is_configurable, imdb_id, media_type, season, episode, 
 # ============================================
 # FUNÇÕES AUXILIARES (INTERNAS)
 # ============================================
+
+def _is_download_stream(stream):
+    """Verifica se o stream contém 'download' em qualquer forma (título, nome, descrição ou filename)."""
+    filename = stream.get('behaviorHints', {}).get('filename') or ''
+    fields = (
+        stream.get('title') or '',
+        stream.get('name') or '',
+        stream.get('description') or '',
+        filename,
+    )
+    return any(DOWNLOAD_TAG_PATTERN.search(field) for field in fields)
+
 
 def _safe_int(value):
     """Converte para int de forma segura."""
@@ -131,7 +161,7 @@ def _build_endpoints(media_type, imdb_id, season, episode):
     return endpoints
 
 
-def _fetch_streams(url):
+def _fetch_streams(url, timeout=15):
     """
     Faz request e retorna lista de streams.
 
@@ -142,26 +172,73 @@ def _fetch_streams(url):
         response = requests.get(
             url,
             headers={'User-Agent': USER_AGENT},
-            timeout=60
+            timeout=timeout
         )
         response.raise_for_status()
 
         data = response.json()
-        streams = data.get('streams', [])
+        raw_streams = data.get('streams', [])
+
+        # Filtra streams com "download" em qualquer forma ANTES da sanitização de linhas,
+        # porque essa sanitização pode descartar a linha que contém o aviso (ex: "[10Gbps
+        # Download Only]" numa linha separada que não é a mais longa do bloco).
+        streams = []
+        skipped = 0
+        for stream in raw_streams:
+            filename = stream.get('behaviorHints', {}).get('filename') or ''
+            raw_fields = (
+                stream.get('title') or '',
+                stream.get('name') or '',
+                stream.get('description') or '',
+                filename,
+            )
+            if any(DOWNLOAD_TAG_PATTERN.search(f) for f in raw_fields):
+                skipped += 1
+                continue
+            streams.append(stream)
+
+        if skipped:
+            xbmc.log(f"[Stremio] {skipped} stream(s) com 'download' descartado(s) em {url.split('/')[-1]}", xbmc.LOGDEBUG)
 
         # sanitiza campos com \n (ex: FrostStream)
         for stream in streams:
+            filename = stream.get('behaviorHints', {}).get('filename')
+
             for field in ('title', 'name', 'description'):
                 value = stream.get(field)
 
                 if value and '\n' in value:
-                    lines = value.split('\n')
+                    lines = [l.strip() for l in value.split('\n') if l.strip()]
 
-                    stream[field] = lines[0]
+                    if not lines:
+                        continue
+
+                    if field == 'title' and filename:
+                        # filename é confiável e não é tocado pelo split -> preserva o nome do filme
+                        stream[field] = filename
+                    else:
+                        # fallback: linha mais "informativa" (mais longa) em vez de sempre lines[0]
+                        stream[field] = max(lines, key=len)
 
                     if field == 'title' and len(lines) >= 3:
                         lang_line = lines[2].strip()
-                        stream['_lang_hint'] = lang_line
+                        # só trata como hint de idioma se não for a própria linha escolhida
+                        if lang_line != stream[field]:
+                            stream['_lang_hint'] = lang_line
+        
+            if not stream.get('title') and stream.get('description'):
+                desc_lines = [l.strip() for l in stream['description'].split('\n') if l.strip()]
+                if desc_lines:
+                    candidate = desc_lines[0].lstrip('🍿').strip()
+                    # ignora se for só um IMDB id tipo "tt1234567" (caso do OverFlix)
+                    if candidate and not candidate.lower().startswith('tt'):
+                        stream['title'] = candidate
+                    elif filename:
+                        stream['title'] = filename
+                    else:
+                        # fallback final: usa o item_data (título real do TMDB) depois, via release_title
+                        stream['title'] = candidate
+                            
 
         if streams:
             xbmc.log(

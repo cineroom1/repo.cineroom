@@ -11,6 +11,9 @@ from .scraper_config import get_url
 
 _APACHE_BASE = get_url('apachetorrent', fallback='https://apachetorrent.com')
 
+# Timeout por request, configurável via settings.xml (scraper.timeout).
+_TIMEOUT = 15
+
 # -------------------------------------------------------------------
 # NORMALIZAÇÃO DE TEXTO
 # -------------------------------------------------------------------
@@ -92,7 +95,7 @@ def search_apache_torrent(query):
     }
 
     try:
-        response = requests.get(search_url, headers=headers, timeout=15)
+        response = requests.get(search_url, headers=headers, timeout=_TIMEOUT)
         
         if response.status_code == 200:
             response.encoding = 'utf-8'
@@ -168,10 +171,14 @@ def find_apache_post_url(html, title):
 # SCRAPER PRINCIPAL (APENAS FILMES)
 # -------------------------------------------------------------------
 
-def scrape_apache(provider_url, item_data, season=None, episode=None):
+def scrape_apache(provider_url, item_data, season=None, episode=None, timeout=None):
     """
     Scraper do ApacheTorrent - EXCLUSIVO PARA FILMES.
     """
+    global _TIMEOUT
+    if timeout:
+        _TIMEOUT = timeout
+
     title = item_data.get("title", "")
     media_type = item_data.get("media_type", "movie")
     year = item_data.get("year", "")
@@ -223,7 +230,7 @@ def scrape_apache(provider_url, item_data, season=None, episode=None):
     }
 
     try:
-        response = requests.get(post_url, headers=headers, timeout=15)
+        response = requests.get(post_url, headers=headers, timeout=_TIMEOUT)
         if response.status_code != 200:
             xbmc.log(f"[apachetorrent] Erro ao acessar post: {response.status_code}", xbmc.LOGWARNING)
             return []
